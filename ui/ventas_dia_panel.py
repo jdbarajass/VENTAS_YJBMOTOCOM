@@ -1,6 +1,6 @@
 """
 ui/ventas_dia_panel.py
-Panel de ventas del día: tabla CRUD + barra resumen + exportar Excel.
+Panel de ventas del día: tabla CRUD + gastos operativos + barra resumen + exportar Excel.
 """
 
 from datetime import date
@@ -10,13 +10,14 @@ from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel,
     QPushButton, QDateEdit, QTableWidget, QTableWidgetItem,
     QHeaderView, QAbstractItemView, QMessageBox,
-    QFileDialog, QFrame, QSizePolicy,
+    QFileDialog, QFrame, QSizePolicy, QLineEdit, QScrollArea,
 )
 from PySide6.QtCore import Qt, QDate
 from PySide6.QtGui import QFont, QColor
 
 from controllers.ventas_dia_controller import VentasDiaController
 from ui.edit_venta_dialog import EditVentaDialog
+from ui.venta_form import MoneyLineEdit
 from utils.formatters import cop, fecha_corta
 
 # Columnas de la tabla (índices)
@@ -36,12 +37,13 @@ TOTAL_COLS   = 11
 
 
 class VentasDiaPanel(QWidget):
-    """Vista de ventas del día con tabla, edición, eliminación y export."""
+    """Vista de ventas del día con tabla, edición, eliminación, gastos operativos y export."""
 
     def __init__(self, parent=None) -> None:
         super().__init__(parent)
         self._ctrl = VentasDiaController()
         self._ventas: list = []
+        self._gastos: list = []
         self._build_ui()
         self._cargar_datos()
 
@@ -56,6 +58,7 @@ class VentasDiaPanel(QWidget):
 
         root.addLayout(self._barra_superior())
         root.addWidget(self._build_tabla())
+        root.addWidget(self._panel_gastos_dia())
         root.addWidget(self._sep())
         root.addLayout(self._barra_resumen())
 
@@ -146,19 +149,95 @@ class VentasDiaPanel(QWidget):
 
         return self.tabla
 
+    def _panel_gastos_dia(self) -> QFrame:
+        """Panel compacto para registrar gastos operativos del día."""
+        frame = QFrame()
+        frame.setObjectName("gastosFrame")
+        frame.setStyleSheet(
+            "QFrame#gastosFrame { background: #FFFBEB; border: 1px solid #FDE68A; border-radius: 8px; }"
+        )
+
+        layout = QVBoxLayout(frame)
+        layout.setContentsMargins(14, 10, 14, 10)
+        layout.setSpacing(8)
+
+        # Título
+        titulo = QLabel("Gastos Operativos del Día")
+        font = QFont(); font.setPointSize(11); font.setBold(True)
+        titulo.setFont(font)
+        titulo.setStyleSheet("color: #92400E; background: transparent; border: none;")
+        layout.addWidget(titulo)
+
+        # Fila de entrada
+        fila = QHBoxLayout()
+        fila.setSpacing(8)
+
+        self.campo_gasto_desc = QLineEdit()
+        self.campo_gasto_desc.setPlaceholderText("Descripción (ej: Aceite motor, Repuesto freno…)")
+        self.campo_gasto_desc.setFixedHeight(32)
+        self.campo_gasto_desc.setStyleSheet(
+            "QLineEdit { border: 1px solid #D1D5DB; border-radius: 5px;"
+            "padding: 0 8px; background: white; }"
+            "QLineEdit:focus { border: 2px solid #F59E0B; }"
+        )
+
+        self.campo_gasto_monto = MoneyLineEdit()
+        self.campo_gasto_monto.setPlaceholderText("0")
+        self.campo_gasto_monto.setFixedHeight(32)
+        self.campo_gasto_monto.setFixedWidth(130)
+        self.campo_gasto_monto.setStyleSheet(
+            "QLineEdit { border: 1px solid #D1D5DB; border-radius: 5px;"
+            "padding: 0 8px; background: white; }"
+            "QLineEdit:focus { border: 2px solid #F59E0B; }"
+        )
+
+        btn_agregar = QPushButton("+ Agregar")
+        btn_agregar.setFixedHeight(32)
+        btn_agregar.setStyleSheet(
+            "QPushButton { background: #F59E0B; color: white; border-radius: 5px;"
+            "padding: 0 14px; font-weight: bold; border: none; }"
+            "QPushButton:hover { background: #D97706; }"
+        )
+        btn_agregar.clicked.connect(self._on_agregar_gasto)
+
+        fila.addWidget(self.campo_gasto_desc, stretch=3)
+        fila.addWidget(self.campo_gasto_monto)
+        fila.addWidget(btn_agregar)
+        layout.addLayout(fila)
+
+        # Lista scrollable de gastos
+        self._gastos_lista_widget = QWidget()
+        self._gastos_lista_widget.setStyleSheet("background: transparent;")
+        self._gastos_lista_layout = QVBoxLayout(self._gastos_lista_widget)
+        self._gastos_lista_layout.setContentsMargins(0, 0, 0, 0)
+        self._gastos_lista_layout.setSpacing(3)
+
+        scroll = QScrollArea()
+        scroll.setWidget(self._gastos_lista_widget)
+        scroll.setWidgetResizable(True)
+        scroll.setMaximumHeight(110)
+        scroll.setFrameShape(QFrame.NoFrame)
+        scroll.setStyleSheet("background: transparent;")
+        layout.addWidget(scroll)
+
+        return frame
+
     def _barra_resumen(self) -> QHBoxLayout:
         """Barra inferior con métricas del día."""
         lay = QHBoxLayout()
-        lay.setSpacing(24)
+        lay.setSpacing(16)
 
-        self.lbl_cantidad   = self._chip("0 ventas",    "#374151")
-        self.lbl_ingresos   = self._chip("Ingresos: $ 0", "#1D4ED8")
-        self.lbl_costos     = self._chip("Costos: $ 0",   "#6B7280")
-        self.lbl_comisiones = self._chip("Comisiones: $ 0", "#92400E")
-        self.lbl_neta_total = self._chip("Ganancia neta: $ 0", "#15803D")
+        self.lbl_cantidad   = self._chip("0 ventas",         "#374151")
+        self.lbl_ingresos   = self._chip("Ingresos: $ 0",    "#1D4ED8")
+        self.lbl_costos     = self._chip("Costos: $ 0",      "#6B7280")
+        self.lbl_comisiones = self._chip("Comisiones: $ 0",  "#92400E")
+        self.lbl_neta_total = self._chip("G. neta: $ 0",     "#15803D")
+        self.lbl_gastos_op  = self._chip("Gastos op.: $ 0",  "#B45309")
+        self.lbl_utilidad   = self._chip("Utilidad: $ 0",    "#15803D")
 
         for lbl in (self.lbl_cantidad, self.lbl_ingresos, self.lbl_costos,
-                    self.lbl_comisiones, self.lbl_neta_total):
+                    self.lbl_comisiones, self.lbl_neta_total,
+                    self.lbl_gastos_op, self.lbl_utilidad):
             lay.addWidget(lbl)
 
         lay.addStretch()
@@ -182,11 +261,13 @@ class VentasDiaPanel(QWidget):
     # ------------------------------------------------------------------
 
     def _cargar_datos(self) -> None:
-        """Recarga la tabla con las ventas de la fecha seleccionada."""
+        """Recarga la tabla con las ventas y gastos de la fecha seleccionada."""
         qd = self.date_selector.date()
         fecha = date(qd.year(), qd.month(), qd.day())
         self._ventas = self._ctrl.cargar_ventas(fecha)
+        self._gastos = self._ctrl.cargar_gastos(fecha)
         self._poblar_tabla()
+        self._poblar_gastos()
         self._actualizar_resumen()
 
     def _poblar_tabla(self) -> None:
@@ -220,6 +301,54 @@ class VentasDiaPanel(QWidget):
             self.tabla.setCellWidget(row, COL_ACCIONES, self._widget_acciones(v.id))
 
         self.btn_exportar.setEnabled(len(self._ventas) > 0)
+
+    def _poblar_gastos(self) -> None:
+        """Actualiza la lista visual de gastos operativos."""
+        while self._gastos_lista_layout.count():
+            item = self._gastos_lista_layout.takeAt(0)
+            if item.widget():
+                item.widget().deleteLater()
+
+        if not self._gastos:
+            lbl = QLabel("Sin gastos operativos registrados para este día.")
+            lbl.setStyleSheet(
+                "color: #9CA3AF; font-size: 11px; background: transparent; border: none;"
+            )
+            self._gastos_lista_layout.addWidget(lbl)
+            return
+
+        for g in self._gastos:
+            fila = QWidget()
+            fila.setStyleSheet(
+                "QWidget { background: white; border-radius: 4px; border: none; }"
+            )
+            lay = QHBoxLayout(fila)
+            lay.setContentsMargins(8, 3, 8, 3)
+            lay.setSpacing(8)
+
+            lbl_desc = QLabel(g.descripcion)
+            lbl_desc.setStyleSheet("background: transparent; border: none; color: #374151;")
+
+            lbl_monto = QLabel(cop(g.monto))
+            lbl_monto.setStyleSheet(
+                "background: transparent; border: none; color: #DC2626; font-weight: bold;"
+            )
+            lbl_monto.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+
+            btn_del = QPushButton("🗑")
+            btn_del.setFixedSize(24, 24)
+            btn_del.setStyleSheet(
+                "QPushButton { background: #FEF2F2; color: #DC2626; border: 1px solid #FECACA;"
+                "border-radius: 4px; font-size: 11px; }"
+                "QPushButton:hover { background: #FEE2E2; }"
+            )
+            btn_del.clicked.connect(lambda _, gid=g.id: self._on_eliminar_gasto(gid))
+
+            lay.addWidget(lbl_desc, stretch=3)
+            lay.addWidget(lbl_monto, stretch=1)
+            lay.addWidget(btn_del)
+
+            self._gastos_lista_layout.addWidget(fila)
 
     def _celda(self, row: int, col: int, texto: str,
                alineacion: Qt.AlignmentFlag = Qt.AlignLeft | Qt.AlignVCenter) -> None:
@@ -257,26 +386,35 @@ class VentasDiaPanel(QWidget):
         return w
 
     def _actualizar_resumen(self) -> None:
-        n = len(self._ventas)
-        ingresos   = sum(v.precio for v in self._ventas)
-        costos     = sum(v.costo for v in self._ventas)
+        n          = sum(v.cantidad for v in self._ventas)
+        ingresos   = sum(v.precio * v.cantidad for v in self._ventas)
+        costos     = sum(v.costo * v.cantidad for v in self._ventas)
         comisiones = sum(v.comision for v in self._ventas)
         neta       = sum(v.ganancia_neta for v in self._ventas)
+        gastos_op  = sum(g.monto for g in self._gastos)
+        utilidad   = round(neta - gastos_op, 2)
 
         self.lbl_cantidad.setText(f"{n} venta{'s' if n != 1 else ''}")
         self.lbl_ingresos.setText(f"Ingresos: {cop(ingresos)}")
         self.lbl_costos.setText(f"Costos: {cop(costos)}")
         self.lbl_comisiones.setText(f"Comisiones: {cop(comisiones)}")
-        self.lbl_neta_total.setText(f"Ganancia neta: {cop(neta)}")
+        self.lbl_neta_total.setText(f"G. neta: {cop(neta)}")
+        self.lbl_gastos_op.setText(f"Gastos op.: {cop(gastos_op)}")
+        self.lbl_utilidad.setText(f"Utilidad: {cop(utilidad)}")
 
-        color = "#15803D" if neta >= 0 else "#DC2626"
+        color_neta = "#15803D" if neta >= 0 else "#DC2626"
         self.lbl_neta_total.setStyleSheet(
-            f"color: {color}; font-weight: bold; font-size: 12px;"
+            f"color: {color_neta}; font-weight: bold; font-size: 12px;"
+            f"background: #F1F5F9; border-radius: 4px; padding: 4px 10px;"
+        )
+        color_util = "#15803D" if utilidad >= 0 else "#DC2626"
+        self.lbl_utilidad.setStyleSheet(
+            f"color: {color_util}; font-weight: bold; font-size: 12px;"
             f"background: #F1F5F9; border-radius: 4px; padding: 4px 10px;"
         )
 
     # ------------------------------------------------------------------
-    # Acciones CRUD
+    # Acciones CRUD — ventas
     # ------------------------------------------------------------------
 
     def _on_editar(self, venta_id: int) -> None:
@@ -328,6 +466,46 @@ class VentasDiaPanel(QWidget):
             )
         except Exception as exc:
             QMessageBox.critical(self, "Error al exportar", str(exc))
+
+    # ------------------------------------------------------------------
+    # Acciones CRUD — gastos operativos
+    # ------------------------------------------------------------------
+
+    def _on_agregar_gasto(self) -> None:
+        descripcion = self.campo_gasto_desc.text().strip()
+        monto = self.campo_gasto_monto.valor_int()
+
+        if not descripcion:
+            QMessageBox.warning(self, "Dato requerido",
+                                "Ingresa una descripción para el gasto.")
+            self.campo_gasto_desc.setFocus()
+            return
+        if monto <= 0:
+            QMessageBox.warning(self, "Dato inválido",
+                                "El monto debe ser mayor a cero.")
+            self.campo_gasto_monto.setFocus()
+            return
+
+        qd = self.date_selector.date()
+        fecha = date(qd.year(), qd.month(), qd.day())
+
+        try:
+            self._ctrl.agregar_gasto(descripcion, float(monto), fecha)
+            self.campo_gasto_desc.clear()
+            self.campo_gasto_monto.clear()
+            self._gastos = self._ctrl.cargar_gastos(fecha)
+            self._poblar_gastos()
+            self._actualizar_resumen()
+        except ValueError as exc:
+            QMessageBox.warning(self, "Error", str(exc))
+
+    def _on_eliminar_gasto(self, gasto_id: int) -> None:
+        self._ctrl.eliminar_gasto(gasto_id)
+        qd = self.date_selector.date()
+        fecha = date(qd.year(), qd.month(), qd.day())
+        self._gastos = self._ctrl.cargar_gastos(fecha)
+        self._poblar_gastos()
+        self._actualizar_resumen()
 
     # ------------------------------------------------------------------
     # API pública

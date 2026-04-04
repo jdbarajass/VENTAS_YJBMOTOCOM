@@ -27,13 +27,14 @@ class ResumenDiario:
     """Métricas consolidadas de un día de operaciones."""
     fecha: date
     cantidad_ventas: int = 0
-    total_ingresos: float = 0.0     # suma de precios de venta
-    total_costos: float = 0.0       # suma de costos
+    total_ingresos: float = 0.0     # suma de precios × cantidad
+    total_costos: float = 0.0       # suma de costos × cantidad
     total_comisiones: float = 0.0   # suma de comisiones pagadas
     ganancia_bruta: float = 0.0     # total_ingresos - total_costos
     ganancia_neta: float = 0.0      # ganancia_bruta - total_comisiones
-    gasto_diario: float = 0.0       # prorrateado de gastos mensuales
-    utilidad_real: float = 0.0      # ganancia_neta - gasto_diario
+    gasto_diario: float = 0.0       # prorrateado de gastos fijos mensuales
+    gastos_operativos: float = 0.0  # gastos puntuales del día (compras, reparaciones…)
+    utilidad_real: float = 0.0      # ganancia_neta - gasto_diario - gastos_operativos
 
     @property
     def es_positivo(self) -> bool:
@@ -84,13 +85,19 @@ class ResumenMensual:
 # Funciones de cálculo
 # ------------------------------------------------------------------
 
-def calcular_resumen_diario(ventas: list[Venta], cfg: Configuracion, fecha: date) -> ResumenDiario:
+def calcular_resumen_diario(
+    ventas: list[Venta],
+    cfg: Configuracion,
+    fecha: date,
+    gastos_operativos: float = 0.0,
+) -> ResumenDiario:
     """
     Agrega todas las ventas de un día en un ResumenDiario.
-    Si no hay ventas, retorna resumen con ceros (el gasto diario sigue corriendo).
+    gastos_operativos: suma de gastos puntuales del día (compras, reparaciones…).
     """
     resumen = ResumenDiario(fecha=fecha)
     resumen.gasto_diario = cfg.gasto_diario
+    resumen.gastos_operativos = round(gastos_operativos, 2)
     resumen.cantidad_ventas = sum(v.cantidad for v in ventas)
 
     for v in ventas:
@@ -104,16 +111,25 @@ def calcular_resumen_diario(ventas: list[Venta], cfg: Configuracion, fecha: date
     resumen.total_comisiones = round(resumen.total_comisiones, 2)
     resumen.ganancia_bruta = round(resumen.total_ingresos - resumen.total_costos, 2)
     resumen.ganancia_neta = round(resumen.ganancia_neta, 2)
-    resumen.utilidad_real = calcular_utilidad_real_dia(resumen.ganancia_neta, cfg)
+    resumen.utilidad_real = round(
+        calcular_utilidad_real_dia(resumen.ganancia_neta, cfg) - resumen.gastos_operativos, 2
+    )
 
     return resumen
 
 
-def calcular_resumen_mensual(ventas: list[Venta], cfg: Configuracion, año: int, mes: int) -> ResumenMensual:
+def calcular_resumen_mensual(
+    ventas: list[Venta],
+    cfg: Configuracion,
+    año: int,
+    mes: int,
+    gastos_por_dia: "dict[date, float] | None" = None,
+) -> ResumenMensual:
     """
     Agrega todas las ventas de un mes y construye los resúmenes diarios internos.
     Los gastos fijos mensuales se restan completos (independiente de días trabajados).
     """
+    gastos_por_dia = gastos_por_dia or {}
     resumen = ResumenMensual(año=año, mes=mes)
     resumen.total_gastos_fijos = cfg.total_gastos_mes
 
@@ -125,7 +141,8 @@ def calcular_resumen_mensual(ventas: list[Venta], cfg: Configuracion, año: int,
     # Construir resúmenes diarios
     for fecha_dia in sorted(por_fecha.keys()):
         ventas_dia = por_fecha[fecha_dia]
-        rd = calcular_resumen_diario(ventas_dia, cfg, fecha_dia)
+        gastos_extra = gastos_por_dia.get(fecha_dia, 0.0)
+        rd = calcular_resumen_diario(ventas_dia, cfg, fecha_dia, gastos_extra)
         resumen.resumen_por_dia.append(rd)
 
         resumen.cantidad_ventas += rd.cantidad_ventas

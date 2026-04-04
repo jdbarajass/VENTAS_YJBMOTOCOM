@@ -12,7 +12,7 @@ from PySide6.QtWidgets import (
     QPushButton, QDateEdit, QFrame, QMessageBox,
     QSizePolicy, QSpinBox,
 )
-from PySide6.QtCore import Qt, QDate, Signal
+from PySide6.QtCore import Qt, QDate, QTimer, Signal
 from PySide6.QtGui import QFont
 
 from models.venta import Venta
@@ -37,6 +37,10 @@ class MoneyLineEdit(QLineEdit):
         super().__init__(parent)
         self._actualizando = False
         self.textChanged.connect(self._formatear)
+
+    def focusInEvent(self, event) -> None:
+        super().focusInEvent(event)
+        QTimer.singleShot(0, self.selectAll)
 
     def keyPressEvent(self, event) -> None:
         allowed = {

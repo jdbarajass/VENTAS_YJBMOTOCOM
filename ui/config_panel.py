@@ -6,15 +6,16 @@ Emite configuracion_guardada() al guardar para que MainWindow refresque todo.
 
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QFormLayout,
-    QLabel, QLineEdit, QDoubleSpinBox, QSpinBox,
+    QLabel, QDoubleSpinBox, QSpinBox,
     QPushButton, QFrame, QMessageBox, QScrollArea,
     QGroupBox, QSizePolicy,
 )
 from PySide6.QtCore import Qt, Signal
-from PySide6.QtGui import QFont, QIntValidator
+from PySide6.QtGui import QFont
 
 from models.configuracion import Configuracion
 from controllers.config_controller import ConfigController
+from ui.venta_form import MoneyLineEdit
 from utils.formatters import cop
 
 
@@ -214,10 +215,9 @@ class ConfigPanel(QWidget):
     # Helpers de construcción
     # ------------------------------------------------------------------
 
-    def _campo_cop(self, placeholder: str) -> QLineEdit:
-        campo = QLineEdit()
-        campo.setPlaceholderText(placeholder)
-        campo.setValidator(QIntValidator(0, 999_999_999))
+    def _campo_cop(self, placeholder: str = "") -> MoneyLineEdit:
+        campo = MoneyLineEdit()
+        campo.setPlaceholderText("0")
         campo.setFixedHeight(34)
         campo.setStyleSheet(self._estilo_campo())
         return campo
@@ -263,10 +263,10 @@ class ConfigPanel(QWidget):
         """Precarga los campos con la configuración actual de la BD."""
         cfg = self._ctrl.cargar()
 
-        self.campo_arriendo.setText(str(int(cfg.arriendo)))
-        self.campo_sueldo.setText(str(int(cfg.sueldo)))
-        self.campo_servicios.setText(str(int(cfg.servicios)))
-        self.campo_otros.setText(str(int(cfg.otros_gastos)))
+        self.campo_arriendo.set_valor(int(cfg.arriendo))
+        self.campo_sueldo.set_valor(int(cfg.sueldo))
+        self.campo_servicios.set_valor(int(cfg.servicios))
+        self.campo_otros.set_valor(int(cfg.otros_gastos))
         self.campo_dias.setValue(cfg.dias_mes)
 
         self.campo_bold.setValue(cfg.comision_bold)
@@ -332,6 +332,7 @@ class ConfigPanel(QWidget):
     @staticmethod
     def _parse_int(texto: str) -> int:
         try:
-            return int(texto.strip()) if texto.strip() else 0
+            limpio = "".join(c for c in texto if c.isdigit())
+            return int(limpio) if limpio else 0
         except ValueError:
             return 0

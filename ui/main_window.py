@@ -19,14 +19,16 @@ from ui.ventas_dia_panel import VentasDiaPanel
 from ui.dashboard_panel import DashboardPanel
 from ui.historial_panel import HistorialPanel
 from ui.config_panel import ConfigPanel
+from ui.prestamos_panel import PrestamosPanel
 
 
 # Índices de página en el QStackedWidget
-PAGE_REGISTRAR = 0
+PAGE_REGISTRAR  = 0
 PAGE_VENTAS_DIA = 1
-PAGE_DASHBOARD = 2
-PAGE_HISTORIAL = 3
-PAGE_CONFIG = 4
+PAGE_DASHBOARD  = 2
+PAGE_HISTORIAL  = 3
+PAGE_CONFIG     = 4
+PAGE_PRESTAMOS  = 5
 
 
 class MainWindow(QMainWindow):
@@ -116,11 +118,12 @@ class MainWindow(QMainWindow):
 
         # Botones de navegación
         nav_items = [
-            (PAGE_REGISTRAR, "＋  Registrar Venta"),
+            (PAGE_REGISTRAR,  "＋  Registrar Venta"),
             (PAGE_VENTAS_DIA, "📋  Ventas del Día"),
-            (PAGE_DASHBOARD, "📊  Dashboard"),
-            (PAGE_HISTORIAL, "📅  Historial Mensual"),
-            (PAGE_CONFIG, "⚙  Configuración"),
+            (PAGE_DASHBOARD,  "📊  Dashboard"),
+            (PAGE_HISTORIAL,  "📅  Historial Mensual"),
+            (PAGE_PRESTAMOS,  "🤝  Préstamos"),
+            (PAGE_CONFIG,     "⚙  Configuración"),
         ]
 
         self._nav_buttons: dict[int, QPushButton] = {}
@@ -203,6 +206,10 @@ class MainWindow(QMainWindow):
         # Página 4 — Configuración (FASE 8)
         self._config = ConfigPanel()
         self._stack.addWidget(self._config)
+
+        # Página 5 — Préstamos
+        self._prestamos = PrestamosPanel()
+        self._stack.addWidget(self._prestamos)
 
         # Señales
         self._form_venta.venta_guardada.connect(self._on_venta_guardada)

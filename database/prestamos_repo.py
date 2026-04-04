@@ -1,0 +1,72 @@
+"""
+database/prestamos_repo.py
+CRUD para la tabla prestamos.
+"""
+
+import sqlite3
+from datetime import date
+
+from database.connection import DatabaseConnection
+from models.prestamo import Prestamo
+
+
+def _row_to_prestamo(row: sqlite3.Row) -> Prestamo:
+    return Prestamo(
+        id=row["id"],
+        fecha=date.fromisoformat(row["fecha"]),
+        producto=row["producto"],
+        almacen=row["almacen"],
+        observaciones=row["observaciones"] or "",
+        estado=row["estado"],
+    )
+
+
+def insertar_prestamo(p: Prestamo) -> int:
+    """Persiste un nuevo préstamo y retorna el id asignado."""
+    conn = DatabaseConnection.get()
+    cursor = conn.execute(
+        """
+        INSERT INTO prestamos (fecha, producto, almacen, observaciones, estado)
+        VALUES (?, ?, ?, ?, ?)
+        """,
+        (p.fecha.isoformat(), p.producto, p.almacen, p.observaciones, p.estado),
+    )
+    conn.commit()
+    return cursor.lastrowid
+
+
+def obtener_todos_prestamos() -> list[Prestamo]:
+    """Retorna todos los préstamos ordenados por fecha descendente."""
+    conn = DatabaseConnection.get()
+    rows = conn.execute(
+        "SELECT * FROM prestamos ORDER BY fecha DESC, id DESC"
+    ).fetchall()
+    return [_row_to_prestamo(r) for r in rows]
+
+
+def obtener_prestamos_pendientes() -> list[Prestamo]:
+    """Retorna solo los préstamos con estado 'pendiente'."""
+    conn = DatabaseConnection.get()
+    rows = conn.execute(
+        "SELECT * FROM prestamos WHERE estado = 'pendiente' ORDER BY fecha ASC, id ASC"
+    ).fetchall()
+    return [_row_to_prestamo(r) for r in rows]
+
+
+def actualizar_estado_prestamo(prestamo_id: int, estado: str) -> bool:
+    """Cambia el estado de un préstamo (pendiente → devuelto | cobrado)."""
+    conn = DatabaseConnection.get()
+    cursor = conn.execute(
+        "UPDATE prestamos SET estado = ? WHERE id = ?",
+        (estado, prestamo_id),
+    )
+    conn.commit()
+    return cursor.rowcount > 0
+
+
+def eliminar_prestamo(prestamo_id: int) -> bool:
+    """Elimina un préstamo por id."""
+    conn = DatabaseConnection.get()
+    cursor = conn.execute("DELETE FROM prestamos WHERE id = ?", (prestamo_id,))
+    conn.commit()
+    return cursor.rowcount > 0

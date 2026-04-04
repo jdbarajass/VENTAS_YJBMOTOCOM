@@ -18,6 +18,7 @@ def initialize_schema() -> None:
     conn = DatabaseConnection.get()
     _create_ventas(conn)
     _create_gastos_dia(conn)
+    _create_prestamos(conn)
     _create_configuracion(conn)
     _seed_configuracion(conn)
     _migrate_ventas(conn)
@@ -47,6 +48,19 @@ def _create_gastos_dia(conn: sqlite3.Connection) -> None:
             fecha       TEXT    NOT NULL,
             descripcion TEXT    NOT NULL,
             monto       REAL    NOT NULL DEFAULT 0
+        )
+    """)
+
+
+def _create_prestamos(conn: sqlite3.Connection) -> None:
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS prestamos (
+            id            INTEGER PRIMARY KEY AUTOINCREMENT,
+            fecha         TEXT    NOT NULL,        -- YYYY-MM-DD
+            producto      TEXT    NOT NULL,
+            almacen       TEXT    NOT NULL,
+            observaciones TEXT             DEFAULT '',
+            estado        TEXT    NOT NULL DEFAULT 'pendiente'
         )
     """)
 

@@ -61,6 +61,7 @@ class VentasDiaPanel(QWidget):
         root.addWidget(self._panel_gastos_dia())
         root.addWidget(self._sep())
         root.addLayout(self._barra_resumen())
+        root.addWidget(self._panel_metodos_pago())
 
     def _barra_superior(self) -> QHBoxLayout:
         lay = QHBoxLayout()
@@ -243,6 +244,41 @@ class VentasDiaPanel(QWidget):
         lay.addStretch()
         return lay
 
+    def _panel_metodos_pago(self) -> QFrame:
+        """Franja con el total de ingresos desglosado por método de pago."""
+        frame = QFrame()
+        frame.setObjectName("metodosFrame")
+        frame.setStyleSheet(
+            "QFrame#metodosFrame { background:#F8FAFC; border:1px solid #E2E8F0;"
+            "border-radius:6px; }"
+        )
+        outer = QHBoxLayout(frame)
+        outer.setContentsMargins(12, 6, 12, 6)
+        outer.setSpacing(0)
+
+        lbl_titulo = QLabel("Por método de pago:")
+        lbl_titulo.setStyleSheet(
+            "color:#64748B; font-size:11px; font-weight:bold;"
+            "background:transparent; border:none;"
+        )
+        outer.addWidget(lbl_titulo)
+        outer.addSpacing(10)
+
+        # Layout dinámico donde se insertan los chips por método
+        self._lay_metodos = QHBoxLayout()
+        self._lay_metodos.setSpacing(10)
+        outer.addLayout(self._lay_metodos)
+        outer.addStretch()
+
+        # Inicializar con mensaje vacío
+        self._lbl_sin_ventas = QLabel("Sin ventas registradas para esta fecha.")
+        self._lbl_sin_ventas.setStyleSheet(
+            "color:#94A3B8; font-size:11px; background:transparent; border:none;"
+        )
+        self._lay_metodos.addWidget(self._lbl_sin_ventas)
+
+        return frame
+
     def _chip(self, texto: str, color: str) -> QLabel:
         lbl = QLabel(texto)
         lbl.setStyleSheet(
@@ -412,6 +448,48 @@ class VentasDiaPanel(QWidget):
             f"color: {color_util}; font-weight: bold; font-size: 12px;"
             f"background: #F1F5F9; border-radius: 4px; padding: 4px 10px;"
         )
+
+        # Totales por método de pago
+        totales: dict[str, float] = {}
+        for v in self._ventas:
+            # "Transferencia NEQUI" → "Transferencia"
+            metodo = v.metodo_pago.split()[0]
+            totales[metodo] = totales.get(metodo, 0.0) + v.precio * v.cantidad
+        self._actualizar_metodos(totales)
+
+    def _actualizar_metodos(self, totales: dict) -> None:
+        """Reemplaza los chips de métodos de pago con los datos actuales."""
+        # Limpiar chips anteriores
+        while self._lay_metodos.count():
+            item = self._lay_metodos.takeAt(0)
+            if item.widget():
+                item.widget().deleteLater()
+
+        if not totales:
+            self._lbl_sin_ventas = QLabel("Sin ventas registradas para esta fecha.")
+            self._lbl_sin_ventas.setStyleSheet(
+                "color:#94A3B8; font-size:11px; background:transparent; border:none;"
+            )
+            self._lay_metodos.addWidget(self._lbl_sin_ventas)
+            return
+
+        # Colores por método
+        _COLORES = {
+            "Efectivo":      ("#DCFCE7", "#15803D"),
+            "Bold":          ("#FEF3C7", "#92400E"),
+            "Addi":          ("#EDE9FE", "#6D28D9"),
+            "Transferencia": ("#DBEAFE", "#1D4ED8"),
+            "Otro":          ("#F3F4F6", "#374151"),
+        }
+
+        for metodo, total in sorted(totales.items()):
+            bg, fg = _COLORES.get(metodo, ("#F3F4F6", "#374151"))
+            lbl = QLabel(f"{metodo}: {cop(total)}")
+            lbl.setStyleSheet(
+                f"background:{bg}; color:{fg}; border-radius:4px;"
+                f"font-size:11px; font-weight:bold; padding:3px 10px;"
+            )
+            self._lay_metodos.addWidget(lbl)
 
     # ------------------------------------------------------------------
     # Acciones CRUD — ventas

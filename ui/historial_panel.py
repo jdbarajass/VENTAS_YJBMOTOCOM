@@ -1,7 +1,6 @@
 """
 ui/historial_panel.py
-Historial mensual: resumen + gráfica de utilidad diaria + tabla detalle.
-Gráfica dibujada con QPainter — sin dependencias externas de charting.
+Historial mensual: tarjetas de resumen + tabla diaria + tabla detalle ventas.
 """
 
 from datetime import date
@@ -12,144 +11,15 @@ from PySide6.QtWidgets import (
     QHeaderView, QAbstractItemView, QFrame, QSizePolicy,
     QFileDialog, QMessageBox,
 )
-from PySide6.QtCore import Qt, QRect
-from PySide6.QtGui import QFont, QPainter, QColor, QPen, QBrush
+from PySide6.QtCore import Qt
+from PySide6.QtGui import QFont, QColor
 
 from controllers.historial_controller import HistorialController
 from controllers.venta_controller import VentaController
 from services.reportes import ResumenDiario, ResumenMensual
-from utils.formatters import cop, nombre_mes, fecha_corta, MESES_ES
+from utils.formatters import cop, fecha_corta, MESES_ES
 from models.venta import Venta
 
-
-# ======================================================================
-# Gráfica de barras (QPainter)
-# ======================================================================
-
-class GraficaBarras(QWidget):
-    """
-    Gráfica de barras para la utilidad real por día.
-    Verde = día positivo | Rojo = día negativo | Gris = sin ventas.
-    Sin dependencias de QtCharts.
-    """
-
-    _COLOR_POS   = QColor("#16A34A")
-    _COLOR_NEG   = QColor("#DC2626")
-    _COLOR_CERO  = QColor("#E5E7EB")
-    _COLOR_GRID  = QColor("#F3F4F6")
-    _COLOR_EJE   = QColor("#9CA3AF")
-    _COLOR_TEXTO = QColor("#6B7280")
-
-    def __init__(self, parent=None) -> None:
-        super().__init__(parent)
-        self._datos: list[ResumenDiario] = []
-        self.setMinimumHeight(220)
-        self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
-        self.setStyleSheet("background-color: #FFFFFF; border-radius: 8px;")
-
-    def set_datos(self, resumenes: list[ResumenDiario]) -> None:
-        self._datos = resumenes
-        self.update()
-
-    def paintEvent(self, event) -> None:  # noqa: N802
-        if not self._datos:
-            self._pintar_vacio()
-            return
-
-        p = QPainter(self)
-        p.setRenderHint(QPainter.Antialiasing)
-
-        W, H = self.width(), self.height()
-        ML, MR, MT, MB = 58, 16, 16, 32   # márgenes izq, der, arr, aba
-
-        area_w = W - ML - MR
-        area_h = H - MT - MB
-
-        valores = [r.utilidad_real for r in self._datos]
-        max_v = max(valores) if max(valores) > 0 else 0
-        min_v = min(valores) if min(valores) < 0 else 0
-        rango = max_v - min_v or 1
-
-        # Posición Y del cero
-        zero_y = MT + area_h * (max_v / rango)
-
-        # ---- Cuadrícula ----
-        num_lineas = 5
-        p.setPen(QPen(self._COLOR_GRID, 1))
-        for i in range(num_lineas + 1):
-            y = int(MT + area_h * i / num_lineas)
-            p.drawLine(ML, y, W - MR, y)
-
-        # ---- Línea de cero ----
-        p.setPen(QPen(self._COLOR_CERO, 2))
-        p.drawLine(ML, int(zero_y), W - MR, int(zero_y))
-
-        # ---- Etiquetas eje Y ----
-        p.setPen(QPen(self._COLOR_TEXTO))
-        font = p.font(); font.setPointSize(8); p.setFont(font)
-        for i in range(num_lineas + 1):
-            y = int(MT + area_h * i / num_lineas)
-            valor_y = max_v - rango * i / num_lineas
-            texto = self._fmt_eje(valor_y)
-            p.drawText(0, y - 6, ML - 4, 14, Qt.AlignRight | Qt.AlignVCenter, texto)
-
-        # ---- Barras ----
-        n = len(self._datos)
-        slot_w = area_w / n
-        bar_w = max(4, slot_w * 0.65)
-        gap = (slot_w - bar_w) / 2
-
-        for i, rd in enumerate(self._datos):
-            x = ML + i * slot_w + gap
-            v = rd.utilidad_real
-
-            if rd.cantidad_ventas == 0:
-                color = self._COLOR_CERO
-                bar_h = max(3, area_h * 0.015)
-                bar_y = zero_y - bar_h / 2
-            elif v >= 0:
-                color = self._COLOR_POS
-                bar_h = max(3, area_h * v / rango)
-                bar_y = zero_y - bar_h
-            else:
-                color = self._COLOR_NEG
-                bar_h = max(3, area_h * (-v) / rango)
-                bar_y = zero_y
-
-            p.fillRect(QRect(int(x), int(bar_y), int(bar_w), int(bar_h)), color)
-
-        # ---- Etiquetas eje X (cada 5 días) ----
-        p.setPen(QPen(self._COLOR_TEXTO))
-        font.setPointSize(8); p.setFont(font)
-        for i, rd in enumerate(self._datos):
-            dia = rd.fecha.day
-            if dia == 1 or dia % 5 == 0:
-                x = int(ML + i * slot_w + slot_w / 2)
-                p.drawText(x - 12, H - MB + 4, 24, MB - 4,
-                           Qt.AlignCenter, str(dia))
-
-        p.end()
-
-    def _pintar_vacio(self) -> None:
-        p = QPainter(self)
-        p.setPen(QPen(QColor("#9CA3AF")))
-        f = p.font(); f.setPointSize(11); p.setFont(f)
-        p.drawText(self.rect(), Qt.AlignCenter, "Sin datos para este mes")
-        p.end()
-
-    @staticmethod
-    def _fmt_eje(valor: float) -> str:
-        """Formato compacto para etiquetas del eje Y (en miles)."""
-        if abs(valor) >= 1_000_000:
-            return f"{valor / 1_000_000:.1f}M"
-        if abs(valor) >= 1_000:
-            return f"{int(valor / 1_000)}k"
-        return str(int(valor))
-
-
-# ======================================================================
-# Panel principal del historial mensual
-# ======================================================================
 
 class HistorialPanel(QWidget):
     """Vista de historial mensual completa."""
@@ -174,7 +44,7 @@ class HistorialPanel(QWidget):
 
         root.addLayout(self._barra_superior())
         root.addLayout(self._fila_resumen())
-        root.addWidget(self._panel_grafica())
+        root.addWidget(self._panel_resumen_diario())
         root.addWidget(self._panel_tabla(), stretch=1)
 
     # ---- Barra superior ----
@@ -186,7 +56,6 @@ class HistorialPanel(QWidget):
         f = QFont(); f.setPointSize(16); f.setBold(True)
         titulo.setFont(f)
 
-        # Selector mes
         self.combo_mes = QComboBox()
         self.combo_mes.setFixedHeight(34)
         self.combo_mes.setFixedWidth(115)
@@ -194,7 +63,6 @@ class HistorialPanel(QWidget):
             self.combo_mes.addItem(nombre, num)
         self.combo_mes.setCurrentIndex(date.today().month - 1)
 
-        # Selector año
         self.spin_año = QSpinBox()
         self.spin_año.setRange(2020, 2040)
         self.spin_año.setValue(date.today().year)
@@ -202,12 +70,12 @@ class HistorialPanel(QWidget):
         self.spin_año.setFixedWidth(75)
         self.spin_año.setButtonSymbols(QSpinBox.NoButtons)
 
-        btn_prev = self._btn_nav("◀")
-        btn_next = self._btn_nav("▶")
+        btn_prev = self._btn_nav("< Anterior")
+        btn_next = self._btn_nav("Siguiente >")
         btn_prev.clicked.connect(self._mes_anterior)
         btn_next.clicked.connect(self._mes_siguiente)
 
-        self.btn_exportar = QPushButton("⬇  Exportar Excel")
+        self.btn_exportar = QPushButton("Exportar Excel")
         self.btn_exportar.setFixedHeight(34)
         self.btn_exportar.setStyleSheet(
             "QPushButton { background:#16A34A; color:white; border-radius:5px;"
@@ -232,32 +100,33 @@ class HistorialPanel(QWidget):
 
     def _btn_nav(self, texto: str) -> QPushButton:
         btn = QPushButton(texto)
-        btn.setFixedSize(30, 34)
+        btn.setFixedHeight(34)
         btn.setStyleSheet(
-            "QPushButton { border:1px solid #D1D5DB; border-radius:5px; }"
+            "QPushButton { border:1px solid #D1D5DB; border-radius:5px;"
+            "background:white; color:#374151; padding:0 10px; }"
             "QPushButton:hover { background:#F3F4F6; }"
         )
         return btn
 
-    # ---- Fila de tarjetas de resumen ----
+    # ---- Tarjetas de resumen ----
 
     def _fila_resumen(self) -> QHBoxLayout:
         lay = QHBoxLayout()
         lay.setSpacing(12)
 
-        self.card_ventas    = self._tarjeta("Ventas del mes",       "0",    "#1D4ED8")
-        self.card_ingresos  = self._tarjeta("Ingresos totales",     "$ 0",  "#374151")
-        self.card_g_neta    = self._tarjeta("Ganancia neta",        "$ 0",  "#374151")
-        self.card_utilidad  = self._tarjeta("Utilidad real del mes","$ 0",  "#374151")
-        self.card_positivos = self._tarjeta("Días positivos",       "0",    "#15803D")
-        self.card_negativos = self._tarjeta("Días negativos",       "0",    "#DC2626")
+        self.card_ventas    = self._tarjeta("Ventas del mes",        "0",   "#1D4ED8")
+        self.card_ingresos  = self._tarjeta("Ingresos totales",      "$ 0", "#374151")
+        self.card_g_neta    = self._tarjeta("Ganancia neta",         "$ 0", "#374151")
+        self.card_utilidad  = self._tarjeta("Utilidad real del mes", "$ 0", "#374151")
+        self.card_positivos = self._tarjeta("Días positivos",        "0",   "#15803D")
+        self.card_negativos = self._tarjeta("Días negativos",        "0",   "#DC2626")
 
         for c in (self.card_ventas, self.card_ingresos, self.card_g_neta,
                   self.card_utilidad, self.card_positivos, self.card_negativos):
             lay.addWidget(c)
         return lay
 
-    def _tarjeta(self, titulo: str, valor: str, color: str) -> QWidget:
+    def _tarjeta(self, titulo: str, valor: str, color: str) -> QFrame:
         w = QFrame()
         w.setFrameShape(QFrame.StyledPanel)
         w.setStyleSheet(
@@ -281,53 +150,61 @@ class HistorialPanel(QWidget):
         w._color_base = color
         return w
 
-    # ---- Panel de gráfica ----
+    # ---- Tabla resumen por día (reemplaza gráfica) ----
 
-    def _panel_grafica(self) -> QFrame:
+    def _panel_resumen_diario(self) -> QFrame:
+        """
+        Tabla compacta con un fila por día trabajado.
+        Mucho más fácil de leer que una gráfica de barras.
+        """
         frame = QFrame()
         frame.setFrameShape(QFrame.StyledPanel)
         frame.setStyleSheet(
             "QFrame { background:#FFFFFF; border:1px solid #E5E7EB; border-radius:10px; }"
         )
         lay = QVBoxLayout(frame)
-        lay.setContentsMargins(16, 12, 16, 12)
-        lay.setSpacing(8)
+        lay.setContentsMargins(0, 0, 0, 0)
 
-        encabezado = QHBoxLayout()
-        lbl = QLabel("Utilidad Real por Día")
-        f = QFont(); f.setPointSize(12); f.setBold(True)
-        lbl.setFont(f)
+        encabezado = QLabel("  Resumen por Día")
+        f = QFont(); f.setPointSize(11); f.setBold(True)
+        encabezado.setFont(f)
+        encabezado.setContentsMargins(16, 10, 16, 4)
+        lay.addWidget(encabezado)
 
-        leyenda_pos = self._leyenda("Positivo", "#16A34A")
-        leyenda_neg = self._leyenda("Negativo", "#DC2626")
-        leyenda_sin = self._leyenda("Sin ventas", "#E5E7EB")
+        self.tabla_diaria = QTableWidget()
+        self.tabla_diaria.setColumnCount(7)
+        self.tabla_diaria.setHorizontalHeaderLabels([
+            "Fecha", "Ventas", "Ingresos", "G. Neta", "Gastos op.", "Utilidad", "Estado"
+        ])
+        self.tabla_diaria.setEditTriggers(QAbstractItemView.NoEditTriggers)
+        self.tabla_diaria.setSelectionBehavior(QAbstractItemView.SelectRows)
+        self.tabla_diaria.verticalHeader().setVisible(False)
+        self.tabla_diaria.setShowGrid(False)
+        self.tabla_diaria.setAlternatingRowColors(True)
+        self.tabla_diaria.setMaximumHeight(200)
+        self.tabla_diaria.setStyleSheet("""
+            QTableWidget { border:none; font-size:12px; }
+            QTableWidget::item { padding:3px 8px; }
+            QHeaderView::section {
+                background:#334155; color:white; font-weight:bold;
+                font-size:11px; padding:5px; border:none;
+            }
+            QTableWidget::item:selected { background:#DBEAFE; color:#1E3A5F; }
+        """)
 
-        encabezado.addWidget(lbl)
-        encabezado.addStretch()
-        encabezado.addWidget(leyenda_pos)
-        encabezado.addWidget(leyenda_neg)
-        encabezado.addWidget(leyenda_sin)
+        hh = self.tabla_diaria.horizontalHeader()
+        hh.setSectionResizeMode(0, QHeaderView.Fixed);  self.tabla_diaria.setColumnWidth(0, 90)
+        hh.setSectionResizeMode(1, QHeaderView.Fixed);  self.tabla_diaria.setColumnWidth(1, 55)
+        hh.setSectionResizeMode(2, QHeaderView.Fixed);  self.tabla_diaria.setColumnWidth(2, 115)
+        hh.setSectionResizeMode(3, QHeaderView.Fixed);  self.tabla_diaria.setColumnWidth(3, 110)
+        hh.setSectionResizeMode(4, QHeaderView.Fixed);  self.tabla_diaria.setColumnWidth(4, 110)
+        hh.setSectionResizeMode(5, QHeaderView.Stretch)
+        hh.setSectionResizeMode(6, QHeaderView.Fixed);  self.tabla_diaria.setColumnWidth(6, 90)
 
-        self.grafica = GraficaBarras()
-        lay.addLayout(encabezado)
-        lay.addWidget(self.grafica)
+        lay.addWidget(self.tabla_diaria)
         return frame
 
-    def _leyenda(self, texto: str, color: str) -> QWidget:
-        w = QWidget()
-        h = QHBoxLayout(w)
-        h.setContentsMargins(0, 0, 0, 0)
-        h.setSpacing(4)
-        cuadro = QLabel()
-        cuadro.setFixedSize(12, 12)
-        cuadro.setStyleSheet(f"background:{color}; border-radius:2px;")
-        lbl = QLabel(texto)
-        lbl.setStyleSheet("color:#6B7280; font-size:11px;")
-        h.addWidget(cuadro)
-        h.addWidget(lbl)
-        return w
-
-    # ---- Tabla de ventas del mes ----
+    # ---- Tabla detalle de ventas ----
 
     def _panel_tabla(self) -> QFrame:
         frame = QFrame()
@@ -344,13 +221,13 @@ class HistorialPanel(QWidget):
         encabezado.setContentsMargins(16, 10, 16, 0)
         lay.addWidget(encabezado)
 
-        # Col 0 oculta: id de la venta
-        # Cols: ID | Fecha | Producto | Cant | Precio | Método | Ventas | Ingresos | G.Neta | Gasto | Utilidad | Estado | ✎ | 🗑
+        # Col 0 oculta: id venta
+        # Cols visibles: Fecha|Producto|Cant|Precio|Método|Ventas|Ingresos|G.Neta|Gasto|Utilidad|Estado|✎|🗑
         self.tabla = QTableWidget()
         self.tabla.setColumnCount(14)
         self.tabla.setHorizontalHeaderLabels([
             "ID", "Fecha", "Producto", "Cant", "Precio", "Método",
-            "Ventas", "Ingresos", "G. Neta", "Gasto", "Utilidad", "Estado", "", ""
+            "Ventas", "Ingresos", "G. Neta", "Gasto", "Utilidad", "Estado", "✎", "🗑"
         ])
         self.tabla.setColumnHidden(0, True)
         self.tabla.setEditTriggers(QAbstractItemView.NoEditTriggers)
@@ -379,9 +256,9 @@ class HistorialPanel(QWidget):
         hh.setSectionResizeMode(8,  QHeaderView.Fixed);  self.tabla.setColumnWidth(8,  100)
         hh.setSectionResizeMode(9,  QHeaderView.Fixed);  self.tabla.setColumnWidth(9,  100)
         hh.setSectionResizeMode(10, QHeaderView.Fixed);  self.tabla.setColumnWidth(10, 100)
-        hh.setSectionResizeMode(11, QHeaderView.Fixed);  self.tabla.setColumnWidth(11, 88)
-        hh.setSectionResizeMode(12, QHeaderView.Fixed);  self.tabla.setColumnWidth(12, 46)
-        hh.setSectionResizeMode(13, QHeaderView.Fixed);  self.tabla.setColumnWidth(13, 46)
+        hh.setSectionResizeMode(11, QHeaderView.Fixed);  self.tabla.setColumnWidth(11, 80)
+        hh.setSectionResizeMode(12, QHeaderView.Fixed);  self.tabla.setColumnWidth(12, 38)
+        hh.setSectionResizeMode(13, QHeaderView.Fixed);  self.tabla.setColumnWidth(13, 38)
 
         lay.addWidget(self.tabla)
         return frame
@@ -402,13 +279,15 @@ class HistorialPanel(QWidget):
         if r is None:
             return
 
-        # Tarjetas resumen
+        # ---- Tarjetas ----
         self.card_ventas._lbl_valor.setText(str(r.cantidad_ventas))
         self.card_ingresos._lbl_valor.setText(cop(r.total_ingresos))
 
         color_neta = "#16A34A" if r.ganancia_neta >= 0 else "#DC2626"
         self.card_g_neta._lbl_valor.setText(cop(r.ganancia_neta))
-        self.card_g_neta._lbl_valor.setStyleSheet(f"color:{color_neta}; font-size:16px; font-weight:bold;")
+        self.card_g_neta._lbl_valor.setStyleSheet(
+            f"color:{color_neta}; font-size:16px; font-weight:bold;"
+        )
 
         color_util = "#16A34A" if r.utilidad_real >= 0 else "#DC2626"
         self.card_utilidad._lbl_valor.setText(cop(r.utilidad_real))
@@ -419,79 +298,87 @@ class HistorialPanel(QWidget):
         self.card_positivos._lbl_valor.setText(str(r.dias_positivos))
         self.card_negativos._lbl_valor.setText(str(r.dias_negativos))
 
-        # Gráfica
-        self.grafica.set_datos(r.resumen_por_dia)
+        # ---- Tabla diaria ----
+        self.tabla_diaria.setRowCount(len(r.resumen_por_dia))
+        for row, rd in enumerate(r.resumen_por_dia):
+            self.tabla_diaria.setRowHeight(row, 28)
+            self._celda_d(row, 0, fecha_corta(rd.fecha), Qt.AlignCenter)
+            self._celda_d(row, 1, str(rd.cantidad_ventas), Qt.AlignCenter)
+            self._celda_d(row, 2, cop(rd.total_ingresos), Qt.AlignRight | Qt.AlignVCenter)
 
-        # Tabla — ventas individuales con contexto diario
-        from PySide6.QtGui import QColor as C
+            item_gn = QTableWidgetItem(cop(rd.ganancia_neta))
+            item_gn.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
+            item_gn.setForeground(QColor("#16A34A") if rd.ganancia_neta >= 0 else QColor("#DC2626"))
+            self.tabla_diaria.setItem(row, 3, item_gn)
+
+            gop_txt = cop(rd.gastos_operativos) if rd.gastos_operativos > 0 else "—"
+            self._celda_d(row, 4, gop_txt, Qt.AlignRight | Qt.AlignVCenter)
+
+            item_ut = QTableWidgetItem(cop(rd.utilidad_real))
+            item_ut.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
+            item_ut.setForeground(QColor("#16A34A") if rd.utilidad_real >= 0 else QColor("#DC2626"))
+            self.tabla_diaria.setItem(row, 5, item_ut)
+
+            estado_txt = "Positivo" if rd.es_positivo else "Negativo"
+            item_est = QTableWidgetItem(estado_txt)
+            item_est.setTextAlignment(Qt.AlignCenter)
+            item_est.setForeground(QColor("#15803D") if rd.es_positivo else QColor("#DC2626"))
+            self.tabla_diaria.setItem(row, 6, item_est)
+
+        # ---- Tabla ventas individuales ----
         resumen_dia = {rd.fecha: rd for rd in r.resumen_por_dia}
 
         self.tabla.setRowCount(0)
         self.tabla.setRowCount(len(self._ventas))
         for row, v in enumerate(self._ventas):
-            self.tabla.setRowHeight(row, 30)
+            self.tabla.setRowHeight(row, 32)
             rd = resumen_dia.get(v.fecha)
 
-            # Col 0 (oculta): id
             self.tabla.setItem(row, 0, QTableWidgetItem(str(v.id)))
-
-            # Fecha
             self._celda(row, 1, fecha_corta(v.fecha), Qt.AlignCenter)
-
-            # Producto
             self._celda(row, 2, v.producto)
-
-            # Cantidad
             self._celda(row, 3, str(v.cantidad), Qt.AlignCenter)
-
-            # Precio unitario
             self._celda(row, 4, cop(v.precio), Qt.AlignRight | Qt.AlignVCenter)
-
-            # Método de pago
             self._celda(row, 5, v.metodo_pago, Qt.AlignCenter)
-
-            # Ventas del día
             self._celda(row, 6, str(rd.cantidad_ventas) if rd else "-", Qt.AlignCenter)
-
-            # Ingresos del día
             self._celda(row, 7, cop(rd.total_ingresos) if rd else "-", Qt.AlignRight | Qt.AlignVCenter)
 
-            # Ganancia neta individual (verde/rojo)
             item_gn = QTableWidgetItem(cop(v.ganancia_neta))
             item_gn.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
-            item_gn.setForeground(C("#16A34A") if v.ganancia_neta >= 0 else C("#DC2626"))
+            item_gn.setForeground(QColor("#16A34A") if v.ganancia_neta >= 0 else QColor("#DC2626"))
             self.tabla.setItem(row, 8, item_gn)
 
-            # Gasto del día
-            self._celda(row, 9, cop(rd.gasto_diario) if rd else "-", Qt.AlignRight | Qt.AlignVCenter)
+            self._celda(row, 9, cop(rd.gasto_diario) if rd else "-",
+                        Qt.AlignRight | Qt.AlignVCenter)
 
-            # Utilidad del día (verde/rojo)
             if rd:
                 item_ut = QTableWidgetItem(cop(rd.utilidad_real))
                 item_ut.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
-                item_ut.setForeground(C("#16A34A") if rd.utilidad_real >= 0 else C("#DC2626"))
+                item_ut.setForeground(
+                    QColor("#16A34A") if rd.utilidad_real >= 0 else QColor("#DC2626")
+                )
                 self.tabla.setItem(row, 10, item_ut)
             else:
                 self._celda(row, 10, "-", Qt.AlignCenter)
 
-            # Estado del día
             if rd:
-                estado_txt = "✔ +" if rd.es_positivo else "✘ −"
+                estado_txt = "+" if rd.es_positivo else "−"
                 item_est = QTableWidgetItem(estado_txt)
                 item_est.setTextAlignment(Qt.AlignCenter)
-                item_est.setForeground(C("#15803D") if rd.es_positivo else C("#DC2626"))
+                item_est.setForeground(QColor("#15803D") if rd.es_positivo else QColor("#DC2626"))
                 self.tabla.setItem(row, 11, item_est)
             else:
                 self._celda(row, 11, "-", Qt.AlignCenter)
 
-            # Botón editar
+            # Botones directos (sin wrapper) para que se vean correctamente
             self.tabla.setCellWidget(row, 12, self._btn_editar(v.id))
-
-            # Botón eliminar
             self.tabla.setCellWidget(row, 13, self._btn_eliminar(v.id))
 
-        # Botón exportar
         self.btn_exportar.setEnabled(r.cantidad_ventas > 0)
+
+    # ------------------------------------------------------------------
+    # Helpers de celda
+    # ------------------------------------------------------------------
 
     def _celda(self, row: int, col: int, texto: str,
                alin: Qt.AlignmentFlag = Qt.AlignLeft | Qt.AlignVCenter) -> None:
@@ -499,62 +386,41 @@ class HistorialPanel(QWidget):
         item.setTextAlignment(alin)
         self.tabla.setItem(row, col, item)
 
-    def _btn_editar(self, venta_id: int) -> QWidget:
-        """Crea el botón de lápiz para editar una venta."""
+    def _celda_d(self, row: int, col: int, texto: str,
+                 alin: Qt.AlignmentFlag = Qt.AlignLeft | Qt.AlignVCenter) -> None:
+        item = QTableWidgetItem(texto)
+        item.setTextAlignment(alin)
+        self.tabla_diaria.setItem(row, col, item)
+
+    # ------------------------------------------------------------------
+    # Botones de acción (devuelven QPushButton directo, sin wrapper)
+    # ------------------------------------------------------------------
+
+    def _btn_editar(self, venta_id: int) -> QPushButton:
         btn = QPushButton("✎")
-        btn.setFixedSize(32, 26)
         btn.setCursor(Qt.PointingHandCursor)
         btn.setToolTip("Editar venta")
         btn.setStyleSheet(
             "QPushButton { background:#EFF6FF; color:#2563EB; border:1px solid #BFDBFE;"
-            "border-radius:4px; font-size:14px; }"
+            "border-radius:4px; font-size:14px; margin:3px; }"
             "QPushButton:hover { background:#DBEAFE; }"
         )
         btn.clicked.connect(lambda checked=False, vid=venta_id: self._on_editar_venta(vid))
-        # Centrar el botón dentro de la celda
-        wrapper = QWidget()
-        lay = QHBoxLayout(wrapper)
-        lay.setContentsMargins(4, 2, 4, 2)
-        lay.addWidget(btn)
-        return wrapper
+        return btn
 
-    def _btn_eliminar(self, venta_id: int) -> QWidget:
-        """Crea el botón de papelera para eliminar una venta."""
+    def _btn_eliminar(self, venta_id: int) -> QPushButton:
         btn = QPushButton("🗑")
-        btn.setFixedSize(32, 26)
         btn.setCursor(Qt.PointingHandCursor)
         btn.setToolTip("Eliminar venta")
         btn.setStyleSheet(
             "QPushButton { background:#FEF2F2; color:#DC2626; border:1px solid #FECACA;"
-            "border-radius:4px; font-size:13px; }"
+            "border-radius:4px; font-size:13px; margin:3px; }"
             "QPushButton:hover { background:#FEE2E2; }"
         )
         btn.clicked.connect(lambda checked=False, vid=venta_id: self._on_eliminar_venta(vid))
-        wrapper = QWidget()
-        lay = QHBoxLayout(wrapper)
-        lay.setContentsMargins(4, 2, 4, 2)
-        lay.addWidget(btn)
-        return wrapper
-
-    def _on_eliminar_venta(self, venta_id: int) -> None:
-        """Pide confirmación y elimina la venta."""
-        venta = next((v for v in self._ventas if v.id == venta_id), None)
-        if venta is None:
-            return
-        resp = QMessageBox.question(
-            self,
-            "Eliminar venta",
-            f"¿Eliminar la venta de <b>{venta.producto}</b>?<br>"
-            f"Esta acción no se puede deshacer.",
-            QMessageBox.Yes | QMessageBox.No,
-            QMessageBox.No,
-        )
-        if resp == QMessageBox.Yes:
-            self._venta_ctrl.eliminar_venta(venta_id)
-            self.refresh()
+        return btn
 
     def _on_editar_venta(self, venta_id: int) -> None:
-        """Abre el diálogo de edición para la venta con el id dado."""
         venta = next((v for v in self._ventas if v.id == venta_id), None)
         if venta is None:
             return
@@ -562,6 +428,22 @@ class HistorialPanel(QWidget):
         dlg = EditVentaDialog(venta, self)
         dlg.venta_actualizada.connect(lambda _: self.refresh())
         dlg.exec()
+
+    def _on_eliminar_venta(self, venta_id: int) -> None:
+        venta = next((v for v in self._ventas if v.id == venta_id), None)
+        if venta is None:
+            return
+        resp = QMessageBox.question(
+            self,
+            "Eliminar venta",
+            f"¿Eliminar la venta de <b>{venta.producto}</b>?<br>"
+            "Esta acción no se puede deshacer.",
+            QMessageBox.Yes | QMessageBox.No,
+            QMessageBox.No,
+        )
+        if resp == QMessageBox.Yes:
+            self._venta_ctrl.eliminar_venta(venta_id)
+            self.refresh()
 
     # ------------------------------------------------------------------
     # Navegación de mes
@@ -571,7 +453,7 @@ class HistorialPanel(QWidget):
         mes = self.combo_mes.currentData()
         año = self.spin_año.value()
         if mes == 1:
-            self.combo_mes.setCurrentIndex(11)   # Diciembre
+            self.combo_mes.setCurrentIndex(11)
             self.spin_año.setValue(año - 1)
         else:
             self.combo_mes.setCurrentIndex(mes - 2)
@@ -580,7 +462,7 @@ class HistorialPanel(QWidget):
         mes = self.combo_mes.currentData()
         año = self.spin_año.value()
         if mes == 12:
-            self.combo_mes.setCurrentIndex(0)    # Enero
+            self.combo_mes.setCurrentIndex(0)
             self.spin_año.setValue(año + 1)
         else:
             self.combo_mes.setCurrentIndex(mes)
@@ -602,7 +484,8 @@ class HistorialPanel(QWidget):
         try:
             from pathlib import Path
             self._ctrl.exportar_excel(año, mes, Path(ruta))
-            QMessageBox.information(self, "Exportación exitosa",
-                                    f"Archivo guardado en:\n{ruta}")
+            QMessageBox.information(
+                self, "Exportación exitosa", f"Archivo guardado en:\n{ruta}"
+            )
         except Exception as exc:
             QMessageBox.critical(self, "Error al exportar", str(exc))

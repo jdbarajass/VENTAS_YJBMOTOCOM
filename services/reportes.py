@@ -161,6 +161,11 @@ def calcular_resumen_mensual(
     resumen.total_comisiones = round(resumen.total_comisiones, 2)
     resumen.ganancia_bruta = round(resumen.total_ingresos - resumen.total_costos, 2)
     resumen.ganancia_neta = round(resumen.ganancia_neta, 2)
-    resumen.utilidad_real = calcular_utilidad_real_mes(resumen.ganancia_neta, cfg)
+
+    # Sumar todos los gastos operativos del mes para descontarlos del total
+    total_gastos_op_mes = round(sum(gastos_por_dia.values()), 2)
+    resumen.utilidad_real = round(
+        calcular_utilidad_real_mes(resumen.ganancia_neta, cfg) - total_gastos_op_mes, 2
+    )
 
     return resumen

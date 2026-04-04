@@ -119,12 +119,24 @@ class UtilityCard(QFrame):
 
         self._set_estado_neutro()
 
-    def actualizar(self, utilidad: float, ganancia_neta: float, gasto_diario: float) -> None:
+    def actualizar(
+        self,
+        utilidad: float,
+        ganancia_neta: float,
+        gasto_diario: float,
+        gastos_op: float = 0.0,
+    ) -> None:
         self._lbl_valor.setText(cop(utilidad))
-        formula = (
-            f"{cop(ganancia_neta)}  −  {cop(gasto_diario)}"
-            f"  =  {cop(utilidad)}"
-        )
+        if gastos_op > 0:
+            formula = (
+                f"{cop(ganancia_neta)}  −  {cop(gasto_diario)} (fijo)"
+                f"  −  {cop(gastos_op)} (extra)  =  {cop(utilidad)}"
+            )
+        else:
+            formula = (
+                f"{cop(ganancia_neta)}  −  {cop(gasto_diario)}"
+                f"  =  {cop(utilidad)}"
+            )
         self._lbl_formula.setText(formula)
 
         if utilidad > 0:
@@ -273,11 +285,14 @@ class DashboardPanel(QWidget):
         lay.setContentsMargins(16, 10, 16, 10)
         lay.setSpacing(24)
 
-        self._lbl_gasto_dia  = self._info_chip("Gasto operativo diario", "$ 0")
-        self._lbl_gasto_mes  = self._info_chip("Gastos fijos del mes",   "$ 0")
-        self._lbl_margen     = self._info_chip("Margen sobre ingresos",  "0.0 %")
+        self._lbl_gasto_dia   = self._info_chip("Gasto fijo diario",     "$ 0")
+        self._lbl_gasto_extra = self._info_chip("Gastos extra día",      "$ 0")
+        self._lbl_gasto_mes   = self._info_chip("Gastos fijos del mes",  "$ 0")
+        self._lbl_margen      = self._info_chip("Margen sobre ingresos", "0.0 %")
 
         lay.addWidget(self._lbl_gasto_dia)
+        lay.addWidget(self._sep_v())
+        lay.addWidget(self._lbl_gasto_extra)
         lay.addWidget(self._sep_v())
         lay.addWidget(self._lbl_gasto_mes)
         lay.addWidget(self._sep_v())
@@ -344,12 +359,13 @@ class DashboardPanel(QWidget):
         )
 
         # Utilidad real (la tarjeta más importante)
-        self.card_utilidad.actualizar(r.utilidad_real, r.ganancia_neta, r.gasto_diario)
+        self.card_utilidad.actualizar(r.utilidad_real, r.ganancia_neta, r.gasto_diario, r.gastos_operativos)
 
         # Barra inferior de gastos
         from database.config_repo import obtener_configuracion
         cfg = obtener_configuracion()
         self._lbl_gasto_dia._lbl_valor.setText(cop(r.gasto_diario))
+        self._lbl_gasto_extra._lbl_valor.setText(cop(r.gastos_operativos))
         self._lbl_gasto_mes._lbl_valor.setText(cop(cfg.total_gastos_mes))
         self._lbl_margen._lbl_valor.setText(porcentaje(r.margen_porcentual, 1))
 

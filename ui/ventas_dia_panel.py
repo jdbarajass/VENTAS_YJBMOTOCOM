@@ -16,6 +16,7 @@ from PySide6.QtCore import Qt, QDate
 from PySide6.QtGui import QFont, QColor
 
 from controllers.ventas_dia_controller import VentasDiaController
+from database.config_repo import obtener_configuracion
 from ui.edit_venta_dialog import EditVentaDialog
 from ui.venta_form import MoneyLineEdit
 from utils.formatters import cop, fecha_corta
@@ -428,7 +429,8 @@ class VentasDiaPanel(QWidget):
         comisiones = sum(v.comision for v in self._ventas)
         neta       = sum(v.ganancia_neta for v in self._ventas)
         gastos_op  = sum(g.monto for g in self._gastos)
-        utilidad   = round(neta - gastos_op, 2)
+        cfg        = obtener_configuracion()
+        utilidad   = round(neta - gastos_op - cfg.gasto_diario, 2)
 
         self.lbl_cantidad.setText(f"{n} venta{'s' if n != 1 else ''}")
         self.lbl_ingresos.setText(f"Ingresos: {cop(ingresos)}")

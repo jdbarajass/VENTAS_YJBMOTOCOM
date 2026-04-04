@@ -1,27 +1,24 @@
-# Python
 __pycache__/
 *.py[cod]
-*$py.class
-*.so
+*.pyo
+*.pyd
 .Python
-env/
-venv/
-.venv/
-
-# PyInstaller
-build/
+*.egg
+*.egg-info/
 dist/
+build/
 *.spec
-
-# Base de datos (no subir datos personales)
-data/*.db
-
-# IDE
-.vscode/
+.env
+.venv
+venv/
+ENV/
+*.db
+*.sqlite3
+*.log
 .idea/
+.vscode/
 *.swp
 *.swo
-
-# OS
-.DS_Store
-Thumbs.db
+.claude/
+PROGRESO.txt
+PROMPT_YJBMOTOCOM_NIVEL_DIOS_V2.txt

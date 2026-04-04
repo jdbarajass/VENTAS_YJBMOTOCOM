@@ -1,0 +1,32 @@
+"""
+controllers/historial_controller.py
+Caso de uso: resumen mensual para el historial.
+"""
+
+from pathlib import Path
+
+from database.ventas_repo import obtener_ventas_por_mes
+from database.config_repo import obtener_configuracion
+from services.reportes import calcular_resumen_mensual, ResumenMensual
+from services.exportador import exportar_ventas_mes
+
+
+class HistorialController:
+
+    def cargar_ventas_mes(self, año: int, mes: int) -> list:
+        """Retorna la lista de ventas individuales del mes."""
+        return obtener_ventas_por_mes(año, mes)
+
+    def cargar_resumen_mes(self, año: int, mes: int) -> ResumenMensual:
+        """
+        Carga todas las ventas del mes, la configuración activa y
+        retorna el resumen mensual calculado.
+        """
+        ventas = obtener_ventas_por_mes(año, mes)
+        cfg = obtener_configuracion()
+        return calcular_resumen_mensual(ventas, cfg, año, mes)
+
+    def exportar_excel(self, año: int, mes: int, ruta: Path) -> None:
+        """Genera el Excel con todas las ventas del mes."""
+        ventas = obtener_ventas_por_mes(año, mes)
+        exportar_ventas_mes(ventas, año, mes, ruta)

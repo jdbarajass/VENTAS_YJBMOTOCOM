@@ -1,54 +1,44 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """
-YJBMOTOCOM - Sistema de Control de Rentabilidad
-================================================
+main.py — Punto de entrada de YJBMOTOCOM.
 
-Aplicación de escritorio para el análisis de rentabilidad real
-de un negocio de venta de accesorios para motos.
+Responsabilidades:
+- Inicializar QApplication con configuración global.
+- Instanciar MainWindow.
+- Arrancar el event loop.
 
-Autor: YJBMOTOCOM
-Versión: 1.0.0
-Python: 3.11+
+NO contiene lógica de negocio ni acceso a datos.
 """
 
 import sys
-import os
-
-# Agregar el directorio actual al path
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-
 from PySide6.QtWidgets import QApplication
-from PySide6.QtCore import Qt
-from PySide6.QtGui import QFont
-
+from database.schema import initialize_schema
+from database.connection import DatabaseConnection
 from ui.main_window import MainWindow
-from config import APP_NAME
+from ui.styles import GLOBAL_STYLESHEET
 
 
-def main():
-    """
-    Punto de entrada principal de la aplicación.
-    """
-    # Configurar alta resolución DPI
-    QApplication.setHighDpiScaleFactorRoundingPolicy(
-        Qt.HighDpiScaleFactorRoundingPolicy.PassThrough
-    )
-
-    # Crear aplicación
+def main() -> None:
+    """Punto de entrada principal."""
+    # Qt6 habilita DPI scaling automáticamente — no se necesitan atributos manuales.
+    # Compatible con Windows 10 y Windows 11.
     app = QApplication(sys.argv)
-    app.setApplicationName(APP_NAME)
+    app.setApplicationName("YJBMOTOCOM")
+    app.setApplicationVersion("2.0")
     app.setOrganizationName("YJBMOTOCOM")
 
-    # Configurar fuente por defecto
-    font = QFont("Segoe UI", 10)
-    app.setFont(font)
+    # Estilo Fusion como base + hoja de estilos global del sistema de diseño
+    app.setStyle("Fusion")
+    app.setStyleSheet(GLOBAL_STYLESHEET)
 
-    # Crear y mostrar ventana principal
+    # Inicializar base de datos antes de mostrar la ventana
+    initialize_schema()
+
     window = MainWindow()
     window.show()
 
-    # Ejecutar bucle de eventos
+    # Cerrar BD limpiamente al salir
+    app.aboutToQuit.connect(DatabaseConnection.close)
+
     sys.exit(app.exec())
 
 

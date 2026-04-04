@@ -1,0 +1,341 @@
+"""
+ui/ventas_dia_panel.py
+Panel de ventas del día: tabla CRUD + barra resumen + exportar Excel.
+"""
+
+from datetime import date
+from pathlib import Path
+
+from PySide6.QtWidgets import (
+    QWidget, QVBoxLayout, QHBoxLayout, QLabel,
+    QPushButton, QDateEdit, QTableWidget, QTableWidgetItem,
+    QHeaderView, QAbstractItemView, QMessageBox,
+    QFileDialog, QFrame, QSizePolicy,
+)
+from PySide6.QtCore import Qt, QDate
+from PySide6.QtGui import QFont, QColor
+
+from controllers.ventas_dia_controller import VentasDiaController
+from ui.edit_venta_dialog import EditVentaDialog
+from utils.formatters import cop, fecha_corta
+
+# Columnas de la tabla (índices)
+COL_ID       = 0   # oculto
+COL_NUM      = 1
+COL_FECHA    = 2
+COL_PRODUCTO = 3
+COL_COSTO    = 4
+COL_PRECIO   = 5
+COL_METODO   = 6
+COL_COMISION = 7
+COL_NETA     = 8
+COL_NOTAS    = 9
+COL_ACCIONES = 10
+
+TOTAL_COLS   = 11
+
+
+class VentasDiaPanel(QWidget):
+    """Vista de ventas del día con tabla, edición, eliminación y export."""
+
+    def __init__(self, parent=None) -> None:
+        super().__init__(parent)
+        self._ctrl = VentasDiaController()
+        self._ventas: list = []
+        self._build_ui()
+        self._cargar_datos()
+
+    # ------------------------------------------------------------------
+    # Construcción de UI
+    # ------------------------------------------------------------------
+
+    def _build_ui(self) -> None:
+        root = QVBoxLayout(self)
+        root.setContentsMargins(24, 20, 24, 16)
+        root.setSpacing(12)
+
+        root.addLayout(self._barra_superior())
+        root.addWidget(self._build_tabla())
+        root.addWidget(self._sep())
+        root.addLayout(self._barra_resumen())
+
+    def _barra_superior(self) -> QHBoxLayout:
+        lay = QHBoxLayout()
+
+        titulo = QLabel("Ventas del Día")
+        font = QFont(); font.setPointSize(16); font.setBold(True)
+        titulo.setFont(font)
+
+        lbl_fecha = QLabel("Fecha:")
+        lbl_fecha.setStyleSheet("color: #6B7280;")
+
+        self.date_selector = QDateEdit()
+        self.date_selector.setCalendarPopup(True)
+        self.date_selector.setDate(QDate.currentDate())
+        self.date_selector.setDisplayFormat("dd/MM/yyyy")
+        self.date_selector.setFixedHeight(34)
+        self.date_selector.setFixedWidth(130)
+        self.date_selector.dateChanged.connect(lambda _: self._cargar_datos())
+
+        self.btn_hoy = QPushButton("Hoy")
+        self.btn_hoy.setFixedHeight(34)
+        self.btn_hoy.setFixedWidth(60)
+        self.btn_hoy.setStyleSheet(
+            "QPushButton { border:1px solid #D1D5DB; border-radius:5px; }"
+            "QPushButton:hover { background:#F3F4F6; }"
+        )
+        self.btn_hoy.clicked.connect(self._ir_hoy)
+
+        self.btn_exportar = QPushButton("⬇  Exportar Excel")
+        self.btn_exportar.setFixedHeight(34)
+        self.btn_exportar.setStyleSheet(
+            "QPushButton { background:#16A34A; color:white; border-radius:5px; padding:0 14px; font-weight:bold; }"
+            "QPushButton:hover { background:#15803D; }"
+            "QPushButton:disabled { background:#9CA3AF; }"
+        )
+        self.btn_exportar.clicked.connect(self._on_exportar)
+
+        lay.addWidget(titulo)
+        lay.addSpacing(16)
+        lay.addWidget(lbl_fecha)
+        lay.addWidget(self.date_selector)
+        lay.addWidget(self.btn_hoy)
+        lay.addStretch()
+        lay.addWidget(self.btn_exportar)
+        return lay
+
+    def _build_tabla(self) -> QTableWidget:
+        self.tabla = QTableWidget()
+        self.tabla.setColumnCount(TOTAL_COLS)
+        self.tabla.setHorizontalHeaderLabels([
+            "id", "#", "Fecha", "Producto",
+            "Costo", "Precio venta", "Método",
+            "Comisión", "Ganancia neta", "Notas", "Acciones"
+        ])
+        self.tabla.setColumnHidden(COL_ID, True)
+
+        # Comportamiento
+        self.tabla.setEditTriggers(QAbstractItemView.NoEditTriggers)
+        self.tabla.setSelectionBehavior(QAbstractItemView.SelectRows)
+        self.tabla.setAlternatingRowColors(True)
+        self.tabla.verticalHeader().setVisible(False)
+        self.tabla.setShowGrid(False)
+        self.tabla.setStyleSheet("""
+            QTableWidget { border: none; font-size: 12px; }
+            QTableWidget::item { padding: 4px 8px; }
+            QHeaderView::section {
+                background-color: #1E293B; color: white;
+                font-weight: bold; font-size: 11px;
+                padding: 6px; border: none;
+            }
+            QTableWidget::item:selected { background-color: #DBEAFE; color: #1E3A5F; }
+        """)
+
+        # Anchos de columna
+        hh = self.tabla.horizontalHeader()
+        hh.setSectionResizeMode(COL_NUM,      QHeaderView.Fixed);       self.tabla.setColumnWidth(COL_NUM, 40)
+        hh.setSectionResizeMode(COL_FECHA,    QHeaderView.Fixed);       self.tabla.setColumnWidth(COL_FECHA, 100)
+        hh.setSectionResizeMode(COL_PRODUCTO, QHeaderView.Stretch)
+        hh.setSectionResizeMode(COL_COSTO,    QHeaderView.Fixed);       self.tabla.setColumnWidth(COL_COSTO, 110)
+        hh.setSectionResizeMode(COL_PRECIO,   QHeaderView.Fixed);       self.tabla.setColumnWidth(COL_PRECIO, 120)
+        hh.setSectionResizeMode(COL_METODO,   QHeaderView.Fixed);       self.tabla.setColumnWidth(COL_METODO, 105)
+        hh.setSectionResizeMode(COL_COMISION, QHeaderView.Fixed);       self.tabla.setColumnWidth(COL_COMISION, 105)
+        hh.setSectionResizeMode(COL_NETA,     QHeaderView.Fixed);       self.tabla.setColumnWidth(COL_NETA, 120)
+        hh.setSectionResizeMode(COL_NOTAS,    QHeaderView.Stretch)
+        hh.setSectionResizeMode(COL_ACCIONES, QHeaderView.Fixed);       self.tabla.setColumnWidth(COL_ACCIONES, 110)
+
+        return self.tabla
+
+    def _barra_resumen(self) -> QHBoxLayout:
+        """Barra inferior con métricas del día."""
+        lay = QHBoxLayout()
+        lay.setSpacing(24)
+
+        self.lbl_cantidad   = self._chip("0 ventas",    "#374151")
+        self.lbl_ingresos   = self._chip("Ingresos: $ 0", "#1D4ED8")
+        self.lbl_costos     = self._chip("Costos: $ 0",   "#6B7280")
+        self.lbl_comisiones = self._chip("Comisiones: $ 0", "#92400E")
+        self.lbl_neta_total = self._chip("Ganancia neta: $ 0", "#15803D")
+
+        for lbl in (self.lbl_cantidad, self.lbl_ingresos, self.lbl_costos,
+                    self.lbl_comisiones, self.lbl_neta_total):
+            lay.addWidget(lbl)
+
+        lay.addStretch()
+        return lay
+
+    def _chip(self, texto: str, color: str) -> QLabel:
+        lbl = QLabel(texto)
+        lbl.setStyleSheet(
+            f"color: {color}; font-weight: bold; font-size: 12px;"
+            f"background: #F1F5F9; border-radius: 4px; padding: 4px 10px;"
+        )
+        return lbl
+
+    def _sep(self) -> QFrame:
+        s = QFrame(); s.setFrameShape(QFrame.HLine)
+        s.setStyleSheet("color: #E5E7EB;")
+        return s
+
+    # ------------------------------------------------------------------
+    # Carga de datos
+    # ------------------------------------------------------------------
+
+    def _cargar_datos(self) -> None:
+        """Recarga la tabla con las ventas de la fecha seleccionada."""
+        qd = self.date_selector.date()
+        fecha = date(qd.year(), qd.month(), qd.day())
+        self._ventas = self._ctrl.cargar_ventas(fecha)
+        self._poblar_tabla()
+        self._actualizar_resumen()
+
+    def _poblar_tabla(self) -> None:
+        self.tabla.setRowCount(0)
+        self.tabla.setRowCount(len(self._ventas))
+
+        for row, v in enumerate(self._ventas):
+            self.tabla.setRowHeight(row, 36)
+
+            self._celda(row, COL_ID,       str(v.id),            Qt.AlignCenter)
+            self._celda(row, COL_NUM,      str(row + 1),         Qt.AlignCenter)
+            self._celda(row, COL_FECHA,    fecha_corta(v.fecha), Qt.AlignCenter)
+            self._celda(row, COL_PRODUCTO, v.producto)
+            self._celda(row, COL_COSTO,    cop(v.costo),         Qt.AlignRight | Qt.AlignVCenter)
+            self._celda(row, COL_PRECIO,   cop(v.precio),        Qt.AlignRight | Qt.AlignVCenter)
+            self._celda(row, COL_METODO,   v.metodo_pago,        Qt.AlignCenter)
+            self._celda(row, COL_COMISION, cop(v.comision),      Qt.AlignRight | Qt.AlignVCenter)
+
+            # Ganancia neta con color
+            item_neta = QTableWidgetItem(cop(v.ganancia_neta))
+            item_neta.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
+            if v.ganancia_neta >= 0:
+                item_neta.setForeground(QColor("#16A34A"))
+            else:
+                item_neta.setForeground(QColor("#DC2626"))
+            self.tabla.setItem(row, COL_NETA, item_neta)
+
+            self._celda(row, COL_NOTAS, v.notas or "")
+
+            # Botones de acción
+            self.tabla.setCellWidget(row, COL_ACCIONES, self._widget_acciones(v.id))
+
+        self.btn_exportar.setEnabled(len(self._ventas) > 0)
+
+    def _celda(self, row: int, col: int, texto: str,
+               alineacion: Qt.AlignmentFlag = Qt.AlignLeft | Qt.AlignVCenter) -> None:
+        item = QTableWidgetItem(texto)
+        item.setTextAlignment(alineacion)
+        self.tabla.setItem(row, col, item)
+
+    def _widget_acciones(self, venta_id: int) -> QWidget:
+        w = QWidget()
+        lay = QHBoxLayout(w)
+        lay.setContentsMargins(4, 2, 4, 2)
+        lay.setSpacing(6)
+
+        btn_editar = QPushButton("✎ Editar")
+        btn_editar.setFixedHeight(26)
+        btn_editar.setStyleSheet(
+            "QPushButton { background:#EFF6FF; color:#1D4ED8; border:1px solid #BFDBFE;"
+            "border-radius:4px; font-size:11px; }"
+            "QPushButton:hover { background:#DBEAFE; }"
+        )
+        btn_editar.clicked.connect(lambda _, vid=venta_id: self._on_editar(vid))
+
+        btn_eliminar = QPushButton("🗑")
+        btn_eliminar.setFixedHeight(26)
+        btn_eliminar.setFixedWidth(30)
+        btn_eliminar.setStyleSheet(
+            "QPushButton { background:#FEF2F2; color:#DC2626; border:1px solid #FECACA;"
+            "border-radius:4px; font-size:13px; }"
+            "QPushButton:hover { background:#FEE2E2; }"
+        )
+        btn_eliminar.clicked.connect(lambda _, vid=venta_id: self._on_eliminar(vid))
+
+        lay.addWidget(btn_editar)
+        lay.addWidget(btn_eliminar)
+        return w
+
+    def _actualizar_resumen(self) -> None:
+        n = len(self._ventas)
+        ingresos   = sum(v.precio for v in self._ventas)
+        costos     = sum(v.costo for v in self._ventas)
+        comisiones = sum(v.comision for v in self._ventas)
+        neta       = sum(v.ganancia_neta for v in self._ventas)
+
+        self.lbl_cantidad.setText(f"{n} venta{'s' if n != 1 else ''}")
+        self.lbl_ingresos.setText(f"Ingresos: {cop(ingresos)}")
+        self.lbl_costos.setText(f"Costos: {cop(costos)}")
+        self.lbl_comisiones.setText(f"Comisiones: {cop(comisiones)}")
+        self.lbl_neta_total.setText(f"Ganancia neta: {cop(neta)}")
+
+        color = "#15803D" if neta >= 0 else "#DC2626"
+        self.lbl_neta_total.setStyleSheet(
+            f"color: {color}; font-weight: bold; font-size: 12px;"
+            f"background: #F1F5F9; border-radius: 4px; padding: 4px 10px;"
+        )
+
+    # ------------------------------------------------------------------
+    # Acciones CRUD
+    # ------------------------------------------------------------------
+
+    def _on_editar(self, venta_id: int) -> None:
+        venta = next((v for v in self._ventas if v.id == venta_id), None)
+        if not venta:
+            return
+        dialog = EditVentaDialog(venta, self)
+        dialog.venta_actualizada.connect(lambda _: self._cargar_datos())
+        dialog.exec()
+
+    def _on_eliminar(self, venta_id: int) -> None:
+        venta = next((v for v in self._ventas if v.id == venta_id), None)
+        nombre = venta.producto if venta else f"id {venta_id}"
+
+        resp = QMessageBox.question(
+            self,
+            "Confirmar eliminación",
+            f"¿Eliminar la venta de <b>{nombre}</b>?<br>"
+            "Esta acción no se puede deshacer.",
+            QMessageBox.Yes | QMessageBox.No,
+            QMessageBox.No,
+        )
+        if resp == QMessageBox.Yes:
+            self._ctrl.eliminar(venta_id)
+            self._cargar_datos()
+
+    def _on_exportar(self) -> None:
+        if not self._ventas:
+            return
+
+        qd = self.date_selector.date()
+        fecha = date(qd.year(), qd.month(), qd.day())
+        nombre_sugerido = f"Ventas_{fecha.strftime('%Y-%m-%d')}.xlsx"
+
+        ruta, _ = QFileDialog.getSaveFileName(
+            self,
+            "Guardar Excel",
+            nombre_sugerido,
+            "Excel (*.xlsx)",
+        )
+        if not ruta:
+            return
+
+        try:
+            self._ctrl.exportar_excel(self._ventas, fecha, Path(ruta))
+            QMessageBox.information(
+                self, "Exportación exitosa",
+                f"Archivo guardado en:\n{ruta}"
+            )
+        except Exception as exc:
+            QMessageBox.critical(self, "Error al exportar", str(exc))
+
+    # ------------------------------------------------------------------
+    # API pública
+    # ------------------------------------------------------------------
+
+    def refresh(self) -> None:
+        """Recarga la tabla. Llamado desde MainWindow tras registrar una venta."""
+        self._cargar_datos()
+
+    def _ir_hoy(self) -> None:
+        self.date_selector.setDate(QDate.currentDate())

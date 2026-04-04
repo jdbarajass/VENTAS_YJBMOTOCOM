@@ -1,5 +1,1 @@
-# Database module
-from .db_manager import DatabaseManager
-from .models import Venta, Configuracion
-
-__all__ = ['DatabaseManager', 'Venta', 'Configuracion']
+# Database access layer — SQLite via raw sqlite3. Isolated from business logic.

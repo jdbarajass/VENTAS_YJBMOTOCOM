@@ -1,474 +1,394 @@
 """
-Estilos y temas para la interfaz gráfica.
-Define colores, fuentes y estilos CSS para PySide6.
+ui/styles.py
+Sistema de diseño global — aplicado una vez en main.py via app.setStyleSheet().
+Inspiración: Notion / Stripe / Linear.
+
+Tokens de diseño:
+  Primario   : #2563EB  (azul)
+  Éxito      : #16A34A  (verde)
+  Peligro    : #DC2626  (rojo)
+  Advertencia: #D97706  (ámbar)
+  Fondo app  : #F1F5F9  (gris-azul muy claro)
+  Superficie : #FFFFFF  (blanco)
+  Borde      : #E5E7EB  (gris claro)
+  Texto prim : #111827  (casi negro)
+  Texto sec  : #6B7280  (gris)
+  Texto muted: #9CA3AF  (gris claro)
 """
 
-# Paleta de colores
-COLORS = {
-    "primary": "#2c3e50",       # Azul oscuro - color principal
-    "secondary": "#3498db",     # Azul claro - acentos
-    "success": "#27ae60",       # Verde - positivo/ganancia
-    "danger": "#e74c3c",        # Rojo - negativo/pérdida
-    "warning": "#f39c12",       # Naranja - advertencia
-    "info": "#17a2b8",          # Cyan - información
-    "light": "#f5f6fa",         # Gris muy claro - fondo
-    "dark": "#2c3e50",          # Gris oscuro - texto
-    "white": "#ffffff",         # Blanco
-    "border": "#dcdde1",        # Gris claro - bordes
-    "text": "#2c3e50",          # Texto principal
-    "text_secondary": "#7f8c8d", # Texto secundario
-    "card_bg": "#ffffff",       # Fondo de tarjetas
-}
 
-# Estilos CSS globales para la aplicación
-STYLESHEET = """
-/* ============================================
-   ESTILOS GLOBALES
-   ============================================ */
+GLOBAL_STYLESHEET = """
 
-QMainWindow {
-    background-color: #f5f6fa;
+/* ==========================================================
+   BASE — Tipografía y fondo de aplicación
+   ========================================================== */
+
+QMainWindow, QDialog {
+    background-color: #F1F5F9;
 }
 
 QWidget {
-    font-family: 'Segoe UI', Arial, sans-serif;
+    font-family: "Segoe UI", "Arial", sans-serif;
     font-size: 13px;
-    color: #2c3e50;
+    color: #111827;
 }
 
-/* ============================================
-   TABS (PESTAÑAS)
-   ============================================ */
-
-QTabWidget::pane {
-    border: 1px solid #dcdde1;
-    background-color: #ffffff;
-    border-radius: 8px;
-    margin-top: -1px;
+QLabel {
+    background: transparent;
 }
 
-QTabBar::tab {
-    background-color: #ecf0f1;
-    color: #7f8c8d;
-    padding: 12px 24px;
-    margin-right: 4px;
-    border-top-left-radius: 8px;
-    border-top-right-radius: 8px;
-    font-weight: bold;
-    min-width: 120px;
-}
+/* ==========================================================
+   INPUTS — Campos de texto, combos, spinboxes
+   ========================================================== */
 
-QTabBar::tab:selected {
-    background-color: #ffffff;
-    color: #2c3e50;
-    border: 1px solid #dcdde1;
-    border-bottom: none;
-}
-
-QTabBar::tab:hover:!selected {
-    background-color: #dcdde1;
-}
-
-/* ============================================
-   BOTONES
-   ============================================ */
-
-QPushButton {
-    background-color: #3498db;
-    color: white;
-    border: none;
-    padding: 10px 20px;
+QLineEdit {
+    border: 1px solid #D1D5DB;
     border-radius: 6px;
-    font-weight: bold;
-    min-width: 100px;
+    padding: 5px 10px;
+    background: #FFFFFF;
+    color: #111827;
+    selection-background-color: #DBEAFE;
+    selection-color: #1D4ED8;
 }
-
-QPushButton:hover {
-    background-color: #2980b9;
+QLineEdit:focus {
+    border: 2px solid #2563EB;
+    padding: 4px 9px;
 }
-
-QPushButton:pressed {
-    background-color: #1f6dad;
-}
-
-QPushButton:disabled {
-    background-color: #bdc3c7;
-    color: #7f8c8d;
-}
-
-QPushButton#btnRegistrar {
-    background-color: #27ae60;
-    font-size: 14px;
-    padding: 12px 30px;
-}
-
-QPushButton#btnRegistrar:hover {
-    background-color: #219a52;
-}
-
-QPushButton#btnExportar {
-    background-color: #2c3e50;
-}
-
-QPushButton#btnExportar:hover {
-    background-color: #1a252f;
-}
-
-QPushButton#btnEliminar {
-    background-color: #e74c3c;
-    min-width: 80px;
-    padding: 6px 12px;
-}
-
-QPushButton#btnEliminar:hover {
-    background-color: #c0392b;
-}
-
-/* ============================================
-   CAMPOS DE ENTRADA
-   ============================================ */
-
-QLineEdit, QSpinBox, QDoubleSpinBox {
-    padding: 10px 12px;
-    border: 2px solid #dcdde1;
-    border-radius: 6px;
-    background-color: white;
-    font-size: 13px;
-}
-
-QLineEdit:focus, QSpinBox:focus, QDoubleSpinBox:focus {
-    border-color: #3498db;
-}
-
 QLineEdit:disabled {
-    background-color: #ecf0f1;
-    color: #7f8c8d;
+    background: #F9FAFB;
+    color: #9CA3AF;
+    border-color: #E5E7EB;
+}
+QLineEdit:hover:!focus {
+    border-color: #9CA3AF;
 }
 
-QTextEdit {
-    padding: 10px;
-    border: 2px solid #dcdde1;
+QTextEdit, QPlainTextEdit {
+    border: 1px solid #D1D5DB;
     border-radius: 6px;
-    background-color: white;
+    padding: 6px 10px;
+    background: #FFFFFF;
+    selection-background-color: #DBEAFE;
 }
-
-QTextEdit:focus {
-    border-color: #3498db;
+QTextEdit:focus, QPlainTextEdit:focus {
+    border: 2px solid #2563EB;
 }
-
-/* ============================================
-   COMBO BOX Y DATE EDIT
-   ============================================ */
 
 QComboBox {
-    padding: 10px 12px;
-    border: 2px solid #dcdde1;
+    border: 1px solid #D1D5DB;
     border-radius: 6px;
-    background-color: white;
-    min-width: 150px;
+    padding: 5px 10px;
+    background: #FFFFFF;
+    color: #111827;
 }
-
 QComboBox:focus {
-    border-color: #3498db;
+    border: 2px solid #2563EB;
 }
-
+QComboBox:hover:!focus {
+    border-color: #9CA3AF;
+}
 QComboBox::drop-down {
     border: none;
-    width: 30px;
+    width: 28px;
 }
-
-QComboBox::down-arrow {
-    width: 12px;
-    height: 12px;
-}
-
 QComboBox QAbstractItemView {
-    border: 1px solid #dcdde1;
-    background-color: white;
-    selection-background-color: #3498db;
-    selection-color: white;
+    border: 1px solid #E5E7EB;
+    border-radius: 6px;
+    background: #FFFFFF;
+    padding: 2px;
+    selection-background-color: #EFF6FF;
+    selection-color: #1D4ED8;
+    outline: none;
+}
+QComboBox QAbstractItemView::item {
+    padding: 6px 10px;
+    border-radius: 4px;
+}
+
+QSpinBox, QDoubleSpinBox {
+    border: 1px solid #D1D5DB;
+    border-radius: 6px;
+    padding: 5px 10px;
+    background: #FFFFFF;
+    color: #111827;
+}
+QSpinBox:focus, QDoubleSpinBox:focus {
+    border: 2px solid #2563EB;
+}
+QSpinBox:hover:!focus, QDoubleSpinBox:hover:!focus {
+    border-color: #9CA3AF;
+}
+QSpinBox::up-button, QSpinBox::down-button,
+QDoubleSpinBox::up-button, QDoubleSpinBox::down-button {
+    width: 18px;
+    border: none;
+    background: transparent;
 }
 
 QDateEdit {
-    padding: 10px 12px;
-    border: 2px solid #dcdde1;
+    border: 1px solid #D1D5DB;
     border-radius: 6px;
-    background-color: white;
+    padding: 5px 10px;
+    background: #FFFFFF;
 }
-
 QDateEdit:focus {
-    border-color: #3498db;
+    border: 2px solid #2563EB;
 }
-
 QDateEdit::drop-down {
     border: none;
-    width: 30px;
+    width: 24px;
 }
 
-/* ============================================
+/* ==========================================================
+   BOTONES — Estado base / hover / pressed / disabled
+   ========================================================== */
+
+QPushButton {
+    border: 1px solid #D1D5DB;
+    border-radius: 6px;
+    padding: 6px 16px;
+    background: #FFFFFF;
+    color: #374151;
+    font-weight: 500;
+}
+QPushButton:hover {
+    background: #F9FAFB;
+    border-color: #9CA3AF;
+}
+QPushButton:pressed {
+    background: #F3F4F6;
+}
+QPushButton:disabled {
+    background: #F9FAFB;
+    color: #9CA3AF;
+    border-color: #E5E7EB;
+}
+QPushButton:flat {
+    border: none;
+    background: transparent;
+}
+
+/* ==========================================================
    TABLAS
-   ============================================ */
+   ========================================================== */
 
 QTableWidget {
-    border: 1px solid #dcdde1;
-    border-radius: 8px;
-    background-color: white;
-    gridline-color: #ecf0f1;
-    selection-background-color: #3498db;
-    selection-color: white;
+    border: none;
+    background: #FFFFFF;
+    gridline-color: #F1F5F9;
+    alternate-background-color: #F8FAFC;
+    selection-background-color: #DBEAFE;
+    selection-color: #1E3A5F;
+    outline: none;
 }
-
 QTableWidget::item {
-    padding: 8px;
-    border-bottom: 1px solid #ecf0f1;
+    padding: 4px 8px;
+    border: none;
 }
-
 QTableWidget::item:selected {
-    background-color: #3498db;
-    color: white;
+    background: #DBEAFE;
+    color: #1E3A5F;
 }
-
 QHeaderView::section {
-    background-color: #2c3e50;
-    color: white;
-    padding: 12px 8px;
+    background: #1E293B;
+    color: #F8FAFC;
+    padding: 7px 10px;
     border: none;
     font-weight: bold;
+    font-size: 11px;
+    letter-spacing: 0.3px;
+}
+QHeaderView::section:horizontal:hover {
+    background: #334155;
 }
 
-QHeaderView::section:first {
-    border-top-left-radius: 8px;
-}
-
-QHeaderView::section:last {
-    border-top-right-radius: 8px;
-}
-
-/* ============================================
-   ETIQUETAS
-   ============================================ */
-
-QLabel {
-    color: #2c3e50;
-}
-
-QLabel#lblTitulo {
-    font-size: 24px;
-    font-weight: bold;
-    color: #2c3e50;
-    padding: 10px 0;
-}
-
-QLabel#lblSubtitulo {
-    font-size: 16px;
-    color: #7f8c8d;
-    padding: 5px 0;
-}
-
-/* ============================================
-   RADIO BUTTONS
-   ============================================ */
-
-QRadioButton {
-    spacing: 8px;
-    font-size: 13px;
-}
-
-QRadioButton::indicator {
-    width: 18px;
-    height: 18px;
-}
-
-QRadioButton::indicator:checked {
-    background-color: #3498db;
-    border: 2px solid #3498db;
-    border-radius: 10px;
-}
-
-QRadioButton::indicator:unchecked {
-    background-color: white;
-    border: 2px solid #dcdde1;
-    border-radius: 10px;
-}
-
-/* ============================================
-   GROUP BOX
-   ============================================ */
-
-QGroupBox {
-    font-weight: bold;
-    border: 2px solid #dcdde1;
-    border-radius: 8px;
-    margin-top: 12px;
-    padding-top: 10px;
-    background-color: white;
-}
-
-QGroupBox::title {
-    subcontrol-origin: margin;
-    left: 15px;
-    padding: 0 10px;
-    color: #2c3e50;
-}
-
-/* ============================================
-   SCROLL BARS
-   ============================================ */
+/* ==========================================================
+   SCROLLBARS — Delgadas, estilo moderno
+   ========================================================== */
 
 QScrollBar:vertical {
-    background-color: #f5f6fa;
-    width: 12px;
-    border-radius: 6px;
+    border: none;
+    background: transparent;
+    width: 7px;
+    margin: 2px 1px;
 }
-
 QScrollBar::handle:vertical {
-    background-color: #bdc3c7;
-    border-radius: 6px;
-    min-height: 30px;
+    background: #CBD5E1;
+    border-radius: 3px;
+    min-height: 28px;
 }
-
 QScrollBar::handle:vertical:hover {
-    background-color: #95a5a6;
+    background: #94A3B8;
 }
-
-QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
+QScrollBar::add-line:vertical,
+QScrollBar::sub-line:vertical {
     height: 0px;
+}
+QScrollBar::add-page:vertical,
+QScrollBar::sub-page:vertical {
+    background: none;
 }
 
 QScrollBar:horizontal {
-    background-color: #f5f6fa;
-    height: 12px;
-    border-radius: 6px;
+    border: none;
+    background: transparent;
+    height: 7px;
+    margin: 1px 2px;
 }
-
 QScrollBar::handle:horizontal {
-    background-color: #bdc3c7;
-    border-radius: 6px;
-    min-width: 30px;
+    background: #CBD5E1;
+    border-radius: 3px;
+    min-width: 28px;
 }
-
 QScrollBar::handle:horizontal:hover {
-    background-color: #95a5a6;
+    background: #94A3B8;
+}
+QScrollBar::add-line:horizontal,
+QScrollBar::sub-line:horizontal {
+    width: 0px;
 }
 
-/* ============================================
-   FRAMES Y CONTENEDORES
-   ============================================ */
+/* ==========================================================
+   GROUPBOX
+   ========================================================== */
 
-QFrame#cardFrame {
-    background-color: white;
-    border: 1px solid #dcdde1;
+QGroupBox {
+    font-weight: bold;
+    font-size: 13px;
+    color: #374151;
+    border: 1px solid #E5E7EB;
     border-radius: 10px;
-    padding: 15px;
+    margin-top: 16px;
+    padding: 16px 12px 12px 12px;
+    background: #FFFFFF;
+}
+QGroupBox::title {
+    subcontrol-origin: margin;
+    subcontrol-position: top left;
+    padding: 0 8px;
+    background: #FFFFFF;
+    color: #374151;
 }
 
-QFrame#dashboardCard {
-    background-color: white;
-    border: 1px solid #dcdde1;
-    border-radius: 10px;
+/* ==========================================================
+   DIALOGS / MESSAGEBOX
+   ========================================================== */
+
+QDialog {
+    background: #FFFFFF;
 }
-
-QFrame#cardPositivo {
-    background-color: #d5f4e6;
-    border: 2px solid #27ae60;
-    border-radius: 10px;
-}
-
-QFrame#cardNegativo {
-    background-color: #fadbd8;
-    border: 2px solid #e74c3c;
-    border-radius: 10px;
-}
-
-/* ============================================
-   MENSAJES Y ALERTAS
-   ============================================ */
-
 QMessageBox {
-    background-color: white;
+    background: #FFFFFF;
 }
-
 QMessageBox QPushButton {
     min-width: 80px;
-    padding: 8px 16px;
+    padding: 6px 20px;
 }
 
-/* ============================================
-   TOOLTIPS
-   ============================================ */
+/* ==========================================================
+   CALENDARIO POPUP
+   ========================================================== */
+
+QCalendarWidget {
+    background: #FFFFFF;
+    border: 1px solid #E5E7EB;
+    border-radius: 8px;
+}
+QCalendarWidget QToolButton {
+    color: #374151;
+    background: transparent;
+    border: none;
+    border-radius: 4px;
+    padding: 4px 8px;
+    font-weight: bold;
+}
+QCalendarWidget QToolButton:hover {
+    background: #F3F4F6;
+}
+QCalendarWidget QAbstractItemView {
+    selection-background-color: #2563EB;
+    selection-color: #FFFFFF;
+    color: #374151;
+    gridline-color: #F1F5F9;
+}
+QCalendarWidget QWidget#qt_calendar_navigationbar {
+    background: #1E293B;
+    border-radius: 6px 6px 0 0;
+    padding: 4px;
+}
+QCalendarWidget QToolButton#qt_calendar_prevmonth,
+QCalendarWidget QToolButton#qt_calendar_nextmonth {
+    color: #F8FAFC;
+}
+QCalendarWidget QSpinBox {
+    color: #F8FAFC;
+    background: transparent;
+    border: none;
+    font-weight: bold;
+}
+
+/* ==========================================================
+   TOOLTIP
+   ========================================================== */
 
 QToolTip {
-    background-color: #2c3e50;
-    color: white;
+    background: #1E293B;
+    color: #F8FAFC;
     border: none;
-    padding: 8px 12px;
-    border-radius: 4px;
-    font-size: 12px;
+    padding: 5px 9px;
+    border-radius: 5px;
+    font-size: 11px;
 }
+
+/* ==========================================================
+   STATUS BAR
+   ========================================================== */
+
+QStatusBar {
+    background: #1E293B;
+    color: #94A3B8;
+    font-size: 11px;
+    border-top: 1px solid #334155;
+}
+QStatusBar::item {
+    border: none;
+}
+
+/* ==========================================================
+   SCROLL AREA
+   ========================================================== */
+
+QScrollArea {
+    border: none;
+    background: transparent;
+}
+QScrollArea > QWidget > QWidget {
+    background: transparent;
+}
+
+/* ==========================================================
+   SEPARADORES
+   ========================================================== */
+
+QFrame[frameShape="4"],
+QFrame[frameShape="5"] {
+    color: #E5E7EB;
+}
+
 """
 
 
-def get_card_style(tipo: str = "normal") -> str:
+def aplicar_sombra(widget, radio: int = 12, opacidad: int = 18,
+                   dx: int = 0, dy: int = 2) -> None:
     """
-    Retorna el estilo CSS para una tarjeta según el tipo.
-
-    Args:
-        tipo: 'normal', 'positivo', 'negativo', 'warning'
-
-    Returns:
-        String con el estilo CSS
+    Aplica QGraphicsDropShadowEffect a un widget para simular elevación.
+    Usar con moderación — solo en tarjetas principales.
     """
-    estilos = {
-        "normal": """
-            background-color: #ffffff;
-            border: 1px solid #dcdde1;
-            border-radius: 10px;
-            padding: 15px;
-        """,
-        "positivo": """
-            background-color: #d5f4e6;
-            border: 2px solid #27ae60;
-            border-radius: 10px;
-            padding: 15px;
-        """,
-        "negativo": """
-            background-color: #fadbd8;
-            border: 2px solid #e74c3c;
-            border-radius: 10px;
-            padding: 15px;
-        """,
-        "warning": """
-            background-color: #fef9e7;
-            border: 2px solid #f39c12;
-            border-radius: 10px;
-            padding: 15px;
-        """,
-        "info": """
-            background-color: #ebf5fb;
-            border: 2px solid #3498db;
-            border-radius: 10px;
-            padding: 15px;
-        """
-    }
-    return estilos.get(tipo, estilos["normal"])
+    from PySide6.QtWidgets import QGraphicsDropShadowEffect
+    from PySide6.QtGui import QColor
 
-
-def get_value_label_style(tipo: str = "normal") -> str:
-    """
-    Retorna el estilo CSS para etiquetas de valor.
-
-    Args:
-        tipo: 'normal', 'positivo', 'negativo', 'grande'
-
-    Returns:
-        String con el estilo CSS
-    """
-    estilos = {
-        "normal": "font-size: 18px; font-weight: bold; color: #2c3e50;",
-        "positivo": "font-size: 18px; font-weight: bold; color: #27ae60;",
-        "negativo": "font-size: 18px; font-weight: bold; color: #e74c3c;",
-        "grande": "font-size: 24px; font-weight: bold; color: #2c3e50;",
-        "grande_positivo": "font-size: 24px; font-weight: bold; color: #27ae60;",
-        "grande_negativo": "font-size: 24px; font-weight: bold; color: #e74c3c;",
-    }
-    return estilos.get(tipo, estilos["normal"])
+    sombra = QGraphicsDropShadowEffect(widget)
+    sombra.setBlurRadius(radio)
+    sombra.setColor(QColor(0, 0, 0, opacidad))
+    sombra.setOffset(dx, dy)
+    widget.setGraphicsEffect(sombra)

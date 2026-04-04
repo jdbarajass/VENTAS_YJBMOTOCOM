@@ -138,9 +138,10 @@ def calcular_resumen_mensual(
     for v in ventas:
         por_fecha[v.fecha].append(v)
 
-    # Construir resúmenes diarios
-    for fecha_dia in sorted(por_fecha.keys()):
-        ventas_dia = por_fecha[fecha_dia]
+    # Construir resúmenes diarios — incluye días con gastos aunque no haya ventas
+    todas_fechas = sorted(set(por_fecha.keys()) | set(gastos_por_dia.keys()))
+    for fecha_dia in todas_fechas:
+        ventas_dia = por_fecha.get(fecha_dia, [])
         gastos_extra = gastos_por_dia.get(fecha_dia, 0.0)
         rd = calcular_resumen_diario(ventas_dia, cfg, fecha_dia, gastos_extra)
         resumen.resumen_por_dia.append(rd)

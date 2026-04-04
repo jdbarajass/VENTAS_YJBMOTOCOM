@@ -214,6 +214,7 @@ class MainWindow(QMainWindow):
         # Señales
         self._form_venta.venta_guardada.connect(self._on_venta_guardada)
         self._config.configuracion_guardada.connect(self._on_config_guardada)
+        self._historial.venta_modificada.connect(self._on_venta_modificada_en_historial)
 
         layout.addWidget(self._stack)
         return wrapper
@@ -278,3 +279,8 @@ class MainWindow(QMainWindow):
         self._status.showMessage(
             "Configuración guardada  •  Cálculos actualizados automáticamente"
         )
+
+    def _on_venta_modificada_en_historial(self) -> None:
+        """Al editar o eliminar desde historial, refresca ventas del día y dashboard."""
+        self._ventas_dia.refresh()
+        self._dashboard.refresh()

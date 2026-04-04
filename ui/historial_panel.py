@@ -11,7 +11,7 @@ from PySide6.QtWidgets import (
     QHeaderView, QAbstractItemView, QFrame, QSizePolicy,
     QFileDialog, QMessageBox,
 )
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QFont, QColor
 
 from controllers.historial_controller import HistorialController
@@ -23,6 +23,8 @@ from models.venta import Venta
 
 class HistorialPanel(QWidget):
     """Vista de historial mensual completa."""
+
+    venta_modificada = Signal()   # emitido al editar o eliminar una venta
 
     def __init__(self, parent=None) -> None:
         super().__init__(parent)
@@ -426,7 +428,10 @@ class HistorialPanel(QWidget):
             return
         from ui.edit_venta_dialog import EditVentaDialog
         dlg = EditVentaDialog(venta, self)
-        dlg.venta_actualizada.connect(lambda _: self.refresh())
+        def _tras_editar(_):
+            self.refresh()
+            self.venta_modificada.emit()
+        dlg.venta_actualizada.connect(_tras_editar)
         dlg.exec()
 
     def _on_eliminar_venta(self, venta_id: int) -> None:
@@ -444,6 +449,7 @@ class HistorialPanel(QWidget):
         if resp == QMessageBox.Yes:
             self._venta_ctrl.eliminar_venta(venta_id)
             self.refresh()
+            self.venta_modificada.emit()
 
     # ------------------------------------------------------------------
     # Navegación de mes

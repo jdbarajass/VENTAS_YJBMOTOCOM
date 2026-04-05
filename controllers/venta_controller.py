@@ -90,6 +90,14 @@ class VentaController:
         )
         completar_venta(venta, cfg)
         insertar_venta(venta)
+
+        # Descontar del inventario (silencioso si el producto no está en inventario)
+        try:
+            from database.inventario_repo import decrementar_cantidad
+            decrementar_cantidad(venta.producto, venta.cantidad)
+        except Exception:
+            pass
+
         return venta
 
     # ------------------------------------------------------------------

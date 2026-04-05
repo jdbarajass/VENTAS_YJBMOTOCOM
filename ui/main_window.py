@@ -20,15 +20,17 @@ from ui.dashboard_panel import DashboardPanel
 from ui.historial_panel import HistorialPanel
 from ui.config_panel import ConfigPanel
 from ui.prestamos_panel import PrestamosPanel
+from ui.inventario_panel import InventarioPanel
 
 
 # Índices de página en el QStackedWidget
-PAGE_REGISTRAR  = 0
-PAGE_VENTAS_DIA = 1
-PAGE_DASHBOARD  = 2
-PAGE_HISTORIAL  = 3
-PAGE_CONFIG     = 4
-PAGE_PRESTAMOS  = 5
+PAGE_REGISTRAR   = 0
+PAGE_VENTAS_DIA  = 1
+PAGE_DASHBOARD   = 2
+PAGE_HISTORIAL   = 3
+PAGE_CONFIG      = 4
+PAGE_PRESTAMOS   = 5
+PAGE_INVENTARIO  = 6
 
 
 class MainWindow(QMainWindow):
@@ -122,6 +124,7 @@ class MainWindow(QMainWindow):
             (PAGE_VENTAS_DIA, "📋  Ventas del Día"),
             (PAGE_DASHBOARD,  "📊  Dashboard"),
             (PAGE_HISTORIAL,  "📅  Historial Mensual"),
+            (PAGE_INVENTARIO, "📦  Inventario"),
             (PAGE_PRESTAMOS,  "🤝  Préstamos"),
             (PAGE_CONFIG,     "⚙  Configuración"),
         ]
@@ -211,10 +214,17 @@ class MainWindow(QMainWindow):
         self._prestamos = PrestamosPanel()
         self._stack.addWidget(self._prestamos)
 
+        # Página 6 — Inventario
+        self._inventario = InventarioPanel()
+        self._stack.addWidget(self._inventario)
+
         # Señales
         self._form_venta.venta_guardada.connect(self._on_venta_guardada)
         self._config.configuracion_guardada.connect(self._on_config_guardada)
         self._historial.venta_modificada.connect(self._on_venta_modificada_en_historial)
+        self._inventario.inventario_actualizado.connect(
+            self._form_venta.actualizar_inventario
+        )
 
         layout.addWidget(self._stack)
         return wrapper
@@ -268,6 +278,7 @@ class MainWindow(QMainWindow):
         self._ventas_dia.refresh()
         self._dashboard.refresh()
         self._historial.refresh()
+        self._inventario.refresh()           # actualiza cantidades
         self._status.showMessage(
             f"Venta registrada: {venta.producto}  •  Ganancia neta: {venta.ganancia_neta:,.0f}"
         )

@@ -20,6 +20,7 @@ def initialize_schema() -> None:
     _create_gastos_dia(conn)
     _create_prestamos(conn)
     _create_configuracion(conn)
+    _create_inventario(conn)
     _seed_configuracion(conn)
     _migrate_ventas(conn)
     conn.commit()
@@ -85,6 +86,19 @@ def _create_configuracion(conn: sqlite3.Connection) -> None:
             comision_bold            REAL    NOT NULL DEFAULT 0,
             comision_addi            REAL    NOT NULL DEFAULT 0,
             comision_transferencia   REAL    NOT NULL DEFAULT 0
+        )
+    """)
+
+
+def _create_inventario(conn: sqlite3.Connection) -> None:
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS inventario (
+            id              INTEGER PRIMARY KEY AUTOINCREMENT,
+            serial          TEXT             DEFAULT '',
+            producto        TEXT    NOT NULL,
+            costo_unitario  REAL    NOT NULL DEFAULT 0,
+            cantidad        INTEGER NOT NULL DEFAULT 0,
+            codigo_barras   TEXT             DEFAULT ''
         )
     """)
 

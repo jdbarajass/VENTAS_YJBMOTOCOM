@@ -10,9 +10,9 @@ from PySide6.QtWidgets import (
     QWidget, QHBoxLayout, QVBoxLayout, QFormLayout,
     QLabel, QLineEdit, QComboBox, QTextEdit,
     QPushButton, QDateEdit, QFrame, QMessageBox,
-    QSizePolicy, QSpinBox,
+    QSizePolicy, QSpinBox, QCompleter,
 )
-from PySide6.QtCore import Qt, QDate, QTimer, Signal
+from PySide6.QtCore import Qt, QDate, QTimer, Signal, QStringListModel
 from PySide6.QtGui import QFont
 
 from models.venta import Venta
@@ -144,11 +144,28 @@ class VentaForm(QWidget):
         self.campo_fecha.setFixedHeight(34)
         form.addRow("Fecha:", self.campo_fecha)
 
-        # Producto
+        # Producto (con autocompletado desde inventario)
         self.campo_producto = QLineEdit()
         self.campo_producto.setPlaceholderText("Ej: Casco X-Sport, Aceite 10W-40…")
         self.campo_producto.setFixedHeight(34)
         form.addRow("Producto:", self.campo_producto)
+
+        # Indicador de stock (visible solo cuando se selecciona un producto del inventario)
+        self._lbl_stock = QLabel("")
+        self._lbl_stock.setVisible(False)
+        self._lbl_stock.setStyleSheet(
+            "font-size:10px; padding:2px 6px; border-radius:3px;"
+        )
+        form.addRow("", self._lbl_stock)
+
+        # Configurar QCompleter
+        self._completer = QCompleter(self)
+        self._completer.setCaseSensitivity(Qt.CaseInsensitive)
+        self._completer.setFilterMode(Qt.MatchContains)
+        self._completer.setMaxVisibleItems(12)
+        self.campo_producto.setCompleter(self._completer)
+        self._completer_model = QStringListModel(self)
+        self._completer.setModel(self._completer_model)
 
         # Costo
         self.campo_costo = MoneyLineEdit()
@@ -311,6 +328,76 @@ class VentaForm(QWidget):
         self.campo_sub_transferencia.currentTextChanged.connect(self._actualizar_preview)
         self.btn_guardar.clicked.connect(self._on_guardar)
 
+        # Inventario: buscar mientras se escribe y auto-rellenar al seleccionar
+        self.campo_producto.textEdited.connect(self._on_producto_editado)
+        self._completer.activated.connect(self._on_producto_seleccionado)
+
+    # ------------------------------------------------------------------
+    # Autocompletado con inventario
+    # ------------------------------------------------------------------
+
+    def _on_producto_editado(self, texto: str) -> None:
+        """Actualiza el modelo del completer consultando el inventario."""
+        if len(texto) < 2:
+            self._completer_model.setStringList([])
+            self._lbl_stock.setVisible(False)
+            return
+        try:
+            from database.inventario_repo import buscar_productos_por_nombre
+            productos = buscar_productos_por_nombre(texto)
+            nombres = [p.producto for p in productos]
+            self._completer_model.setStringList(nombres)
+
+            # Si el texto coincide exacto con un producto, auto-rellenar costo
+            exacto = next(
+                (p for p in productos if p.producto.lower() == texto.lower()), None
+            )
+            if exacto:
+                self._aplicar_producto_inventario(exacto)
+        except Exception:
+            pass  # Si el inventario no está disponible, seguir sin él
+
+    def _on_producto_seleccionado(self, nombre: str) -> None:
+        """Rellena costo y muestra stock cuando el usuario elige del desplegable."""
+        try:
+            from database.inventario_repo import obtener_producto_por_nombre_exacto
+            p = obtener_producto_por_nombre_exacto(nombre)
+            if p:
+                self._aplicar_producto_inventario(p)
+        except Exception:
+            pass
+
+    def _aplicar_producto_inventario(self, producto) -> None:
+        """Rellena el campo costo y actualiza el indicador de stock."""
+        self.campo_costo.set_valor(int(producto.costo_unitario))
+        if producto.cantidad > 5:
+            self._lbl_stock.setText(f"Stock disponible: {producto.cantidad} uds.")
+            self._lbl_stock.setStyleSheet(
+                "font-size:10px; padding:2px 6px; border-radius:3px;"
+                "color:#15803D; background:#DCFCE7;"
+            )
+        elif producto.cantidad > 0:
+            self._lbl_stock.setText(f"Stock bajo: {producto.cantidad} uds.")
+            self._lbl_stock.setStyleSheet(
+                "font-size:10px; padding:2px 6px; border-radius:3px;"
+                "color:#92400E; background:#FEF3C7;"
+            )
+        else:
+            self._lbl_stock.setText("Sin stock en inventario")
+            self._lbl_stock.setStyleSheet(
+                "font-size:10px; padding:2px 6px; border-radius:3px;"
+                "color:#DC2626; background:#FEE2E2;"
+            )
+        self._lbl_stock.setVisible(True)
+
+    def actualizar_inventario(self) -> None:
+        """Llamar desde fuera cuando el inventario cambia para refrescar el completer."""
+        texto = self.campo_producto.text()
+        if len(texto) >= 2:
+            self._on_producto_editado(texto)
+
+    # ------------------------------------------------------------------
+
     def _on_metodo_changed(self, metodo: str) -> None:
         """Muestra u oculta el sub-combo de transferencia según el método elegido."""
         es_transferencia = (metodo == "Transferencia")
@@ -412,6 +499,7 @@ class VentaForm(QWidget):
         self.campo_metodo.setCurrentIndex(0)
         self.campo_sub_transferencia.setCurrentIndex(0)
         self.campo_notas.clear()
+        self._lbl_stock.setVisible(False)
         self._actualizar_preview()
         self.campo_producto.setFocus()
 

@@ -10,8 +10,97 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 import openpyxl
+from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+from openpyxl.utils import get_column_letter
 
 from models.producto import Producto
+
+
+def generar_plantilla_inventario(ruta: Path) -> None:
+    """
+    Genera un archivo .xlsx vacío con los encabezados exactos que espera
+    el importador, listo para ser llenado por el usuario.
+    """
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "Inventario"
+
+    lado = Side(style="thin", color="CCCCCC")
+    borde = Border(left=lado, right=lado, top=lado, bottom=lado)
+
+    # ── Título ────────────────────────────────────────────────────────
+    ws.merge_cells("A1:E1")
+    titulo = ws["A1"]
+    titulo.value = "YJBMOTOCOM — Plantilla de Inventario"
+    titulo.font = Font(name="Calibri", bold=True, size=14, color="FFFFFF")
+    titulo.fill = PatternFill("solid", fgColor="1E3A5F")
+    titulo.alignment = Alignment(horizontal="center", vertical="center")
+    ws.row_dimensions[1].height = 30
+
+    # ── Subtítulo instructivo ─────────────────────────────────────────
+    ws.merge_cells("A2:E2")
+    sub = ws["A2"]
+    sub.value = (
+        "Llena los datos de cada producto y guarda el archivo. "
+        "Luego impórtalo desde el panel Inventario → Importar Excel."
+    )
+    sub.font = Font(name="Calibri", italic=True, size=10, color="374151")
+    sub.fill = PatternFill("solid", fgColor="EFF6FF")
+    sub.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+    ws.row_dimensions[2].height = 28
+
+    # ── Encabezados ───────────────────────────────────────────────────
+    headers = [
+        "Numero serial",
+        "Producto",
+        "Costo unitario",
+        "Cantidad actual en bodega: Principal",
+        "Codigo de barras",
+    ]
+    ws.append(headers)
+    for col_idx, _ in enumerate(headers, start=1):
+        cell = ws.cell(row=3, column=col_idx)
+        cell.font = Font(bold=True, color="FFFFFF", name="Calibri", size=11)
+        cell.fill = PatternFill("solid", fgColor="2563EB")
+        cell.alignment = Alignment(horizontal="center", vertical="center")
+        cell.border = borde
+    ws.row_dimensions[3].height = 22
+
+    # ── Filas de ejemplo (gris claro, para guiar) ─────────────────────
+    ejemplos = [
+        ("001", "Casco X-Sport Rojo T.M",  85000, 5, "7709001234567"),
+        ("002", "Aceite 10W-40 1 litro",   18000, 12, ""),
+        ("003", "Guantes cuero talla L",    25000, 8, "7709009876543"),
+    ]
+    for i, (serial, prod, costo, cant, cod) in enumerate(ejemplos, start=4):
+        ws.cell(i, 1).value = serial
+        ws.cell(i, 2).value = prod
+        ws.cell(i, 3).value = costo
+        ws.cell(i, 4).value = cant
+        ws.cell(i, 5).value = cod
+        for col_idx in range(1, 6):
+            c = ws.cell(i, col_idx)
+            c.fill = PatternFill("solid", fgColor="F1F5F9")
+            c.font = Font(name="Calibri", size=10, italic=True, color="94A3B8")
+            c.border = borde
+            c.alignment = Alignment(vertical="center")
+        ws.row_dimensions[i].height = 18
+
+    # Nota al pie de los ejemplos
+    ws.merge_cells("A7:E7")
+    nota = ws["A7"]
+    nota.value = "↑ Borra las filas de ejemplo y agrega tus productos desde la fila 4."
+    nota.font = Font(name="Calibri", size=9, italic=True, color="6B7280")
+    nota.fill = PatternFill("solid", fgColor="FFFBEB")
+    nota.alignment = Alignment(horizontal="center", vertical="center")
+    ws.row_dimensions[7].height = 18
+
+    # ── Anchos de columna ─────────────────────────────────────────────
+    anchos = [14, 40, 18, 36, 20]
+    for i, ancho in enumerate(anchos, start=1):
+        ws.column_dimensions[get_column_letter(i)].width = ancho
+
+    wb.save(str(ruta))
 
 
 # Palabras clave para identificar cada columna

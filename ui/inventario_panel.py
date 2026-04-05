@@ -18,7 +18,7 @@ from database.inventario_repo import (
     obtener_todos_productos, insertar_producto,
     actualizar_producto, eliminar_producto, eliminar_todo_inventario,
 )
-from services.inventario_importador import importar_inventario_excel
+from services.inventario_importador import importar_inventario_excel, generar_plantilla_inventario
 from models.producto import Producto
 from ui.venta_form import MoneyLineEdit
 from utils.formatters import cop
@@ -76,6 +76,15 @@ class InventarioPanel(QWidget):
         )
         btn_nuevo.clicked.connect(self._on_nuevo)
 
+        btn_plantilla = QPushButton("⬇  Descargar Plantilla")
+        btn_plantilla.setFixedHeight(34)
+        btn_plantilla.setStyleSheet(
+            "QPushButton { background:#059669; color:white; border-radius:5px;"
+            "padding:0 14px; font-weight:bold; }"
+            "QPushButton:hover { background:#047857; }"
+        )
+        btn_plantilla.clicked.connect(self._on_descargar_plantilla)
+
         btn_importar = QPushButton("⬆  Importar Excel")
         btn_importar.setFixedHeight(34)
         btn_importar.setStyleSheet(
@@ -90,6 +99,7 @@ class InventarioPanel(QWidget):
         lay.addWidget(self._campo_busqueda)
         lay.addStretch()
         lay.addWidget(btn_nuevo)
+        lay.addWidget(btn_plantilla)
         lay.addWidget(btn_importar)
         return lay
 
@@ -432,6 +442,25 @@ class InventarioPanel(QWidget):
             eliminar_producto(producto_id)
             self.refresh()
             self.inventario_actualizado.emit()
+
+    def _on_descargar_plantilla(self) -> None:
+        ruta, _ = QFileDialog.getSaveFileName(
+            self, "Guardar plantilla de inventario",
+            "Plantilla_Inventario_YJBMOTOCOM.xlsx",
+            "Excel (*.xlsx)",
+        )
+        if not ruta:
+            return
+        try:
+            generar_plantilla_inventario(Path(ruta))
+            QMessageBox.information(
+                self, "Plantilla guardada",
+                f"Plantilla guardada en:\n{ruta}\n\n"
+                "Llena los productos desde la fila 4 y luego usa\n"
+                "⬆ Importar Excel para cargarlo al sistema."
+            )
+        except Exception as exc:
+            QMessageBox.critical(self, "Error al guardar", str(exc))
 
     def _on_importar(self) -> None:
         ruta, _ = QFileDialog.getOpenFileName(

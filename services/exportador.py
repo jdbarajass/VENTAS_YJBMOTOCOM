@@ -30,6 +30,131 @@ def _borde_fino() -> Border:
     return Border(left=lado, right=lado, top=lado, bottom=lado)
 
 
+# ── Encabezados comunes de ventas ──────────────────────────────────────────
+_HEADERS_VENTAS = [
+    "#", "Fecha", "Producto", "Cant.", "Costo", "Precio venta",
+    "Método pago", "Comisión", "Ganancia neta", "Notas"
+]
+
+_ANCHOS_VENTAS = [5, 12, 30, 7, 15, 16, 14, 14, 15, 28]
+
+_EJEMPLOS_VENTAS = [
+    (1, "04/04/2026", "Casco X-Sport T.M",   1, 85000, 120000, "Efectivo",        0,     35000,  ""),
+    (2, "04/04/2026", "Aceite 10W-40 1L",    2, 18000,  28000, "Transferencia NEQUI", 0, 20000,  ""),
+    (3, "04/04/2026", "Guantes cuero talla L", 1, 25000, 40000, "Bold",          2000,   13000,  "Cliente frecuente"),
+]
+
+
+def _escribir_encabezados_ventas(ws, titulo_celda: str, titulo_valor: str) -> None:
+    """Escribe título (fila 1), fila vacía (2) y encabezados (3) en un worksheet."""
+    ws.merge_cells(f"{titulo_celda}:J1")
+    t = ws[titulo_celda]
+    t.value = titulo_valor
+    t.font = Font(name="Calibri", bold=True, size=14, color="FFFFFF")
+    t.fill = PatternFill("solid", fgColor=_AZUL_HEADER)
+    t.alignment = Alignment(horizontal="center", vertical="center")
+    ws.row_dimensions[1].height = 28
+
+    ws.append([])  # fila 2 vacía
+
+    ws.append(_HEADERS_VENTAS)  # fila 3
+    for col_idx in range(1, 11):
+        cell = ws.cell(row=3, column=col_idx)
+        cell.font = Font(bold=True, color="FFFFFF", name="Calibri", size=10)
+        cell.fill = PatternFill("solid", fgColor="2563EB")
+        cell.alignment = Alignment(horizontal="center", vertical="center")
+        cell.border = _borde_fino()
+    ws.row_dimensions[3].height = 20
+
+
+def generar_plantilla_ventas_dia(ruta: Path, fecha: date) -> None:
+    """
+    Genera un .xlsx vacío con el formato correcto para registrar ventas de un día
+    y luego importarlo con ⬆ Importar Excel.
+    """
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "Ventas del Día"
+
+    _escribir_encabezados_ventas(
+        ws, "A1",
+        f"YJBMOTOCOM — Ventas del {fecha_corta(fecha)}"
+    )
+
+    # Filas de ejemplo en gris
+    for ej in _EJEMPLOS_VENTAS:
+        ws.append(list(ej))
+        row = ws.max_row
+        for col_idx in range(1, 11):
+            c = ws.cell(row=row, column=col_idx)
+            c.fill = PatternFill("solid", fgColor="F1F5F9")
+            c.font = Font(name="Calibri", size=10, italic=True, color="94A3B8")
+            c.border = _borde_fino()
+            c.alignment = Alignment(vertical="center")
+        ws.row_dimensions[row].height = 18
+
+    # Nota instructiva
+    ws.merge_cells(f"A{ws.max_row + 1}:J{ws.max_row + 1}")
+    nota = ws.cell(ws.max_row, 1)
+    nota.value = (
+        "↑ Borra las filas de ejemplo. Agrega tus ventas desde la fila 4. "
+        "Si cambias la fecha del título (fila 1), cambia también las fechas de las filas de datos."
+    )
+    nota.font = Font(name="Calibri", size=9, italic=True, color="6B7280")
+    nota.fill = PatternFill("solid", fgColor="FFFBEB")
+    nota.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+    ws.row_dimensions[ws.max_row].height = 24
+
+    for i, ancho in enumerate(_ANCHOS_VENTAS, start=1):
+        ws.column_dimensions[get_column_letter(i)].width = ancho
+
+    wb.save(str(ruta))
+
+
+def generar_plantilla_ventas_mes(ruta: Path, año: int, mes: int) -> None:
+    """
+    Genera un .xlsx vacío con el formato correcto para registrar ventas de un mes
+    y luego importarlo con ⬆ Importar Excel.
+    """
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = nombre_mes(mes, año)
+
+    _escribir_encabezados_ventas(
+        ws, "A1",
+        f"YJBMOTOCOM — {nombre_mes(mes, año)}"
+    )
+
+    # Filas de ejemplo en gris
+    for ej in _EJEMPLOS_VENTAS:
+        ws.append(list(ej))
+        row = ws.max_row
+        for col_idx in range(1, 11):
+            c = ws.cell(row=row, column=col_idx)
+            c.fill = PatternFill("solid", fgColor="F1F5F9")
+            c.font = Font(name="Calibri", size=10, italic=True, color="94A3B8")
+            c.border = _borde_fino()
+            c.alignment = Alignment(vertical="center")
+        ws.row_dimensions[row].height = 18
+
+    # Nota instructiva
+    ws.merge_cells(f"A{ws.max_row + 1}:J{ws.max_row + 1}")
+    nota = ws.cell(ws.max_row, 1)
+    nota.value = (
+        "↑ Borra las filas de ejemplo. Agrega tus ventas desde la fila 4. "
+        "Puedes incluir ventas de varios días del mes — cada fila tiene su propia fecha."
+    )
+    nota.font = Font(name="Calibri", size=9, italic=True, color="6B7280")
+    nota.fill = PatternFill("solid", fgColor="FFFBEB")
+    nota.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+    ws.row_dimensions[ws.max_row].height = 24
+
+    for i, ancho in enumerate(_ANCHOS_VENTAS, start=1):
+        ws.column_dimensions[get_column_letter(i)].width = ancho
+
+    wb.save(str(ruta))
+
+
 def exportar_ventas_dia(ventas: list[Venta], fecha: date, ruta: Path) -> None:
     """
     Genera un .xlsx con todas las ventas de un día.

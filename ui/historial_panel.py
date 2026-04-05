@@ -87,6 +87,15 @@ class HistorialPanel(QWidget):
         )
         self.btn_exportar.clicked.connect(self._on_exportar)
 
+        btn_plantilla = QPushButton("⬇  Plantilla")
+        btn_plantilla.setFixedHeight(34)
+        btn_plantilla.setStyleSheet(
+            "QPushButton { background:#059669; color:white; border-radius:5px;"
+            "padding:0 14px; font-weight:bold; }"
+            "QPushButton:hover { background:#047857; }"
+        )
+        btn_plantilla.clicked.connect(self._on_descargar_plantilla)
+
         btn_importar = QPushButton("⬆  Importar Excel")
         btn_importar.setFixedHeight(34)
         btn_importar.setStyleSheet(
@@ -106,6 +115,7 @@ class HistorialPanel(QWidget):
         lay.addWidget(self.spin_año)
         lay.addWidget(btn_next)
         lay.addStretch()
+        lay.addWidget(btn_plantilla)
         lay.addWidget(btn_importar)
         lay.addWidget(self.btn_exportar)
         return lay
@@ -486,6 +496,28 @@ class HistorialPanel(QWidget):
     # ------------------------------------------------------------------
     # Exportar Excel
     # ------------------------------------------------------------------
+
+    def _on_descargar_plantilla(self) -> None:
+        mes = self.combo_mes.currentData()
+        año = self.spin_año.value()
+        nombre = f"Plantilla_Ventas_{año}-{mes:02d}.xlsx"
+        ruta, _ = QFileDialog.getSaveFileName(
+            self, "Guardar plantilla de ventas mensuales", nombre, "Excel (*.xlsx)"
+        )
+        if not ruta:
+            return
+        try:
+            from services.exportador import generar_plantilla_ventas_mes
+            from pathlib import Path
+            generar_plantilla_ventas_mes(Path(ruta), año, mes)
+            QMessageBox.information(
+                self, "Plantilla guardada",
+                f"Plantilla guardada en:\n{ruta}\n\n"
+                "Llena las ventas desde la fila 4 y luego usa\n"
+                "⬆ Importar Excel para cargarlas al sistema."
+            )
+        except Exception as exc:
+            QMessageBox.critical(self, "Error al guardar", str(exc))
 
     def _on_importar_excel(self) -> None:
         from ui.importar_dialog import ImportarDialog

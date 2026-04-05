@@ -167,3 +167,24 @@ def eliminar_venta(venta_id: int) -> bool:
     )
     conn.commit()
     return cursor.rowcount > 0
+
+
+def eliminar_ventas_por_fecha(fecha: date) -> int:
+    """Elimina todas las ventas de un día. Retorna la cantidad eliminada."""
+    conn = DatabaseConnection.get()
+    cursor = conn.execute(
+        "DELETE FROM ventas WHERE fecha = ?", (fecha.isoformat(),)
+    )
+    conn.commit()
+    return cursor.rowcount
+
+
+def eliminar_ventas_por_mes(año: int, mes: int) -> int:
+    """Elimina todas las ventas de un mes/año. Retorna la cantidad eliminada."""
+    prefix = f"{año:04d}-{mes:02d}-%"
+    conn = DatabaseConnection.get()
+    cursor = conn.execute(
+        "DELETE FROM ventas WHERE fecha LIKE ?", (prefix,)
+    )
+    conn.commit()
+    return cursor.rowcount

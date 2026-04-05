@@ -100,12 +100,21 @@ class VentasDiaPanel(QWidget):
         )
         self.btn_exportar.clicked.connect(self._on_exportar)
 
+        btn_importar = QPushButton("⬆  Importar Excel")
+        btn_importar.setFixedHeight(34)
+        btn_importar.setStyleSheet(
+            "QPushButton { background:#2563EB; color:white; border-radius:5px; padding:0 14px; font-weight:bold; }"
+            "QPushButton:hover { background:#1D4ED8; }"
+        )
+        btn_importar.clicked.connect(self._on_importar_excel)
+
         lay.addWidget(titulo)
         lay.addSpacing(16)
         lay.addWidget(lbl_fecha)
         lay.addWidget(self.date_selector)
         lay.addWidget(self.btn_hoy)
         lay.addStretch()
+        lay.addWidget(btn_importar)
         lay.addWidget(self.btn_exportar)
         return lay
 
@@ -578,6 +587,12 @@ class VentasDiaPanel(QWidget):
             self._actualizar_resumen()
         except ValueError as exc:
             QMessageBox.warning(self, "Error", str(exc))
+
+    def _on_importar_excel(self) -> None:
+        from ui.importar_dialog import ImportarDialog
+        dlg = ImportarDialog(self)
+        dlg.importacion_completada.connect(self._cargar_datos)
+        dlg.exec()
 
     def _on_eliminar_gasto(self, gasto_id: int) -> None:
         self._ctrl.eliminar_gasto(gasto_id)

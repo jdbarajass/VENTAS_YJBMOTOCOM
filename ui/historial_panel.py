@@ -77,7 +77,7 @@ class HistorialPanel(QWidget):
         btn_prev.clicked.connect(self._mes_anterior)
         btn_next.clicked.connect(self._mes_siguiente)
 
-        self.btn_exportar = QPushButton("Exportar Excel")
+        self.btn_exportar = QPushButton("⬇  Exportar Excel")
         self.btn_exportar.setFixedHeight(34)
         self.btn_exportar.setStyleSheet(
             "QPushButton { background:#16A34A; color:white; border-radius:5px;"
@@ -86,6 +86,15 @@ class HistorialPanel(QWidget):
             "QPushButton:disabled { background:#9CA3AF; }"
         )
         self.btn_exportar.clicked.connect(self._on_exportar)
+
+        btn_importar = QPushButton("⬆  Importar Excel")
+        btn_importar.setFixedHeight(34)
+        btn_importar.setStyleSheet(
+            "QPushButton { background:#2563EB; color:white; border-radius:5px;"
+            "padding:0 14px; font-weight:bold; }"
+            "QPushButton:hover { background:#1D4ED8; }"
+        )
+        btn_importar.clicked.connect(self._on_importar_excel)
 
         self.combo_mes.currentIndexChanged.connect(lambda _: self.refresh())
         self.spin_año.valueChanged.connect(lambda _: self.refresh())
@@ -97,6 +106,7 @@ class HistorialPanel(QWidget):
         lay.addWidget(self.spin_año)
         lay.addWidget(btn_next)
         lay.addStretch()
+        lay.addWidget(btn_importar)
         lay.addWidget(self.btn_exportar)
         return lay
 
@@ -476,6 +486,13 @@ class HistorialPanel(QWidget):
     # ------------------------------------------------------------------
     # Exportar Excel
     # ------------------------------------------------------------------
+
+    def _on_importar_excel(self) -> None:
+        from ui.importar_dialog import ImportarDialog
+        dlg = ImportarDialog(self)
+        dlg.importacion_completada.connect(self.refresh)
+        dlg.importacion_completada.connect(self.venta_modificada.emit)
+        dlg.exec()
 
     def _on_exportar(self) -> None:
         mes = self.combo_mes.currentData()

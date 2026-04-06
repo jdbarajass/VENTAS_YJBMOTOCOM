@@ -174,8 +174,12 @@ def importar_inventario_excel(ruta: Path) -> ResultadoInventario:
     header_row_idx = None
     mapa: dict[str, int | None] = {}
 
-    for row_idx in range(1, min(6, ws.max_row + 1)):
+    for row_idx in range(1, min(8, ws.max_row + 1)):
         fila = [ws.cell(row_idx, col).value for col in range(1, ws.max_column + 1)]
+        # Saltar filas con menos de 2 celdas con contenido (títulos o instrucciones combinadas)
+        celdas_con_valor = sum(1 for x in fila if x is not None and str(x).strip())
+        if celdas_con_valor < 2:
+            continue
         mapa = _detectar_columnas(fila)
         if mapa["producto"] is not None:
             header_row_idx = row_idx

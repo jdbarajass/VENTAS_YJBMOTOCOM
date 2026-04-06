@@ -146,9 +146,26 @@ class VentaForm(QWidget):
 
         # Producto (con autocompletado desde inventario)
         self.campo_producto = QLineEdit()
-        self.campo_producto.setPlaceholderText("Ej: Casco X-Sport, Aceite 10W-40…")
+        self.campo_producto.setPlaceholderText("Escribe para buscar en inventario…")
         self.campo_producto.setFixedHeight(34)
-        form.addRow("Producto:", self.campo_producto)
+
+        # Fila producto + botón refresh
+        fila_prod = QHBoxLayout()
+        fila_prod.setSpacing(6)
+        fila_prod.addWidget(self.campo_producto)
+        btn_refresh_inv = QPushButton("🔄")
+        btn_refresh_inv.setFixedSize(34, 34)
+        btn_refresh_inv.setToolTip("Refrescar inventario")
+        btn_refresh_inv.setStyleSheet(
+            "QPushButton { border:1px solid #D1D5DB; border-radius:5px; font-size:14px; }"
+            "QPushButton:hover { background:#F3F4F6; }"
+        )
+        btn_refresh_inv.clicked.connect(self._on_refresh_inventario)
+        fila_prod.addWidget(btn_refresh_inv)
+
+        prod_widget = QWidget()
+        prod_widget.setLayout(fila_prod)
+        form.addRow("Producto:", prod_widget)
 
         # Indicador de stock (visible solo cuando se selecciona un producto del inventario)
         self._lbl_stock = QLabel("")
@@ -331,6 +348,34 @@ class VentaForm(QWidget):
         # Inventario: buscar mientras se escribe y auto-rellenar al seleccionar
         self.campo_producto.textEdited.connect(self._on_producto_editado)
         self._completer.activated.connect(self._on_producto_seleccionado)
+        # También al salir del campo (Tab o clic en otro lado) buscar coincidencia
+        self.campo_producto.editingFinished.connect(self._on_producto_confirmado)
+
+        # Estilo del popup del completer (blanco, legible)
+        popup = self._completer.popup()
+        popup.setStyleSheet("""
+            QListView {
+                background: #FFFFFF;
+                color: #1E293B;
+                border: 1px solid #BFDBFE;
+                border-radius: 6px;
+                font-size: 12px;
+                padding: 2px;
+            }
+            QListView::item {
+                padding: 6px 10px;
+                border-radius: 4px;
+            }
+            QListView::item:hover {
+                background: #EFF6FF;
+                color: #1E3A5F;
+            }
+            QListView::item:selected {
+                background: #DBEAFE;
+                color: #1E3A5F;
+                font-weight: bold;
+            }
+        """)
 
     # ------------------------------------------------------------------
     # Autocompletado con inventario
@@ -367,6 +412,19 @@ class VentaForm(QWidget):
         except Exception:
             pass
 
+    def _on_producto_confirmado(self) -> None:
+        """Al salir del campo, busca coincidencia en inventario por si no se usó el dropdown."""
+        texto = self.campo_producto.text().strip()
+        if not texto or self._lbl_stock.isVisible():
+            return  # ya hay un producto del inventario cargado
+        try:
+            from database.inventario_repo import obtener_producto_por_nombre_exacto
+            p = obtener_producto_por_nombre_exacto(texto)
+            if p:
+                self._aplicar_producto_inventario(p)
+        except Exception:
+            pass
+
     def _aplicar_producto_inventario(self, producto) -> None:
         """Rellena el campo costo y actualiza el indicador de stock."""
         self.campo_costo.set_valor(int(producto.costo_unitario))
@@ -389,6 +447,13 @@ class VentaForm(QWidget):
                 "color:#DC2626; background:#FEE2E2;"
             )
         self._lbl_stock.setVisible(True)
+
+    def _on_refresh_inventario(self) -> None:
+        """Recarga la búsqueda con el texto actual."""
+        texto = self.campo_producto.text().strip()
+        if len(texto) >= 2:
+            self._on_producto_editado(texto)
+        self.campo_producto.setFocus()
 
     def actualizar_inventario(self) -> None:
         """Llamar desde fuera cuando el inventario cambia para refrescar el completer."""

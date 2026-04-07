@@ -44,7 +44,7 @@ def insertar_producto(p: Producto) -> int:
 def obtener_todos_productos() -> list[Producto]:
     conn = DatabaseConnection.get()
     rows = conn.execute(
-        "SELECT * FROM inventario ORDER BY producto ASC"
+        "SELECT * FROM inventario ORDER BY CAST(serial AS INTEGER) ASC, serial ASC, producto ASC"
     ).fetchall()
     return [_row_to_producto(r) for r in rows]
 

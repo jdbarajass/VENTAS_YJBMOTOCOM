@@ -19,6 +19,7 @@ from database.ventas_repo import (
     obtener_ventas_por_fecha, obtener_ventas_por_mes,
     insertar_venta,
 )
+from database.prestamos_repo import eliminar_todos_prestamos, insertar_prestamo
 from utils.formatters import cop, fecha_corta
 
 
@@ -228,10 +229,13 @@ class ImportarDialog(QDialog):
 
         # Info período
         self._frame_info.setVisible(True)
-        self._lbl_info.setText(
+        info_txt = (
             f"Período detectado: <b>{resultado.periodo_str}</b>  •  "
             f"<b>{len(resultado.ventas)}</b> ventas encontradas en el archivo"
         )
+        if resultado.prestamos:
+            info_txt += f"  •  <b>{len(resultado.prestamos)}</b> préstamos encontrados"
+        self._lbl_info.setText(info_txt)
 
         # Verificar existentes en BD
         if resultado.tipo == "dia" and resultado.fecha:
@@ -241,14 +245,21 @@ class ImportarDialog(QDialog):
         else:
             existentes = 0
 
-        if existentes > 0:
+        tiene_prestamos = len(resultado.prestamos) > 0
+        if existentes > 0 or tiene_prestamos:
             self._frame_warn.setVisible(True)
-            self._lbl_warn.setText(
-                f"⚠  Ya existen <b>{existentes} ventas</b> en la base de datos "
-                f"para <b>{resultado.periodo_str}</b>. Al importar se eliminarán "
-                f"y serán reemplazadas por las <b>{len(resultado.ventas)}</b> "
-                f"ventas del archivo Excel."
-            )
+            partes = []
+            if existentes > 0:
+                partes.append(
+                    f"las <b>{existentes} ventas</b> existentes para <b>{resultado.periodo_str}</b> "
+                    f"serán reemplazadas por las <b>{len(resultado.ventas)}</b> del archivo"
+                )
+            if tiene_prestamos:
+                partes.append(
+                    f"<b>todos los préstamos</b> actuales serán reemplazados por los "
+                    f"<b>{len(resultado.prestamos)}</b> del archivo"
+                )
+            self._lbl_warn.setText("⚠  Al importar: " + "; ".join(partes) + ".")
         else:
             self._frame_warn.setVisible(False)
 
@@ -280,26 +291,35 @@ class ImportarDialog(QDialog):
 
         res = self._resultado
         try:
-            # 1. Eliminar período
+            # 1. Eliminar ventas del período
             if res.tipo == "dia" and res.fecha:
                 eliminar_ventas_por_fecha(res.fecha)
             elif res.tipo == "mes" and res.año and res.mes:
                 eliminar_ventas_por_mes(res.año, res.mes)
 
-            # 2. Insertar todas las ventas del Excel
+            # 2. Insertar ventas del Excel
             for v in res.ventas:
                 v.id = None
                 insertar_venta(v)
+
+            # 3. Reemplazar préstamos si el archivo los trae
+            if res.prestamos:
+                eliminar_todos_prestamos()
+                for p in res.prestamos:
+                    p.id = None
+                    insertar_prestamo(p)
 
         except Exception as exc:
             QMessageBox.critical(self, "Error al importar", str(exc))
             return
 
+        detalle = f"<b>{len(res.ventas)} ventas</b> para <b>{res.periodo_str}</b>"
+        if res.prestamos:
+            detalle += f" y <b>{len(res.prestamos)} préstamos</b>"
         QMessageBox.information(
             self,
             "Importación exitosa",
-            f"Se importaron correctamente <b>{len(res.ventas)} ventas</b> "
-            f"para <b>{res.periodo_str}</b>.",
+            f"Se importaron correctamente {detalle}.",
         )
         self.importacion_completada.emit()
         self.accept()

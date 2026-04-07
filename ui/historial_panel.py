@@ -32,6 +32,7 @@ class HistorialPanel(QWidget):
         self._venta_ctrl = VentaController()
         self._resumen: ResumenMensual | None = None
         self._ventas: list[Venta] = []
+        self._fecha_seleccionada: date | None = None
         self._build_ui()
         self.refresh()
 
@@ -47,7 +48,7 @@ class HistorialPanel(QWidget):
         root.addLayout(self._barra_superior())
         root.addLayout(self._fila_resumen())
         root.addWidget(self._panel_resumen_diario())
-        root.addWidget(self._panel_tabla(), stretch=1)
+        root.addWidget(self._panel_detalle_dia(), stretch=1)
 
     # ---- Barra superior ----
 
@@ -223,12 +224,14 @@ class HistorialPanel(QWidget):
         hh.setSectionResizeMode(5, QHeaderView.Stretch)
         hh.setSectionResizeMode(6, QHeaderView.Fixed);  self.tabla_diaria.setColumnWidth(6, 90)
 
+        self.tabla_diaria.setCursor(Qt.PointingHandCursor)
+        self.tabla_diaria.cellClicked.connect(self._on_dia_seleccionado)
         lay.addWidget(self.tabla_diaria)
         return frame
 
-    # ---- Tabla detalle de ventas ----
+    # ---- Panel detalle del día ----
 
-    def _panel_tabla(self) -> QFrame:
+    def _panel_detalle_dia(self) -> QFrame:
         frame = QFrame()
         frame.setFrameShape(QFrame.StyledPanel)
         frame.setStyleSheet(
@@ -237,27 +240,52 @@ class HistorialPanel(QWidget):
         lay = QVBoxLayout(frame)
         lay.setContentsMargins(0, 0, 0, 0)
 
-        encabezado = QLabel("  Ventas del Mes")
-        f = QFont(); f.setPointSize(11); f.setBold(True)
-        encabezado.setFont(f)
-        encabezado.setContentsMargins(16, 10, 16, 0)
-        lay.addWidget(encabezado)
+        # ---- Header con título y botón cerrar ----
+        header_bar = QWidget()
+        header_bar.setStyleSheet("background:transparent;")
+        hb_lay = QHBoxLayout(header_bar)
+        hb_lay.setContentsMargins(16, 10, 10, 4)
+        hb_lay.setSpacing(8)
 
-        # Col 0 oculta: id venta
-        # Cols visibles: Fecha|Producto|Cant|Precio|Método|Ventas|Ingresos|G.Neta|Gasto|Utilidad|Estado|✎|🗑
-        self.tabla = QTableWidget()
-        self.tabla.setColumnCount(14)
-        self.tabla.setHorizontalHeaderLabels([
-            "ID", "Fecha", "Producto", "Cant", "Precio", "Método",
-            "Ventas", "Ingresos", "G. Neta", "Gasto", "Utilidad", "Estado", "✎", "🗑"
+        self._lbl_detalle_titulo = QLabel("  Detalle del Día")
+        f = QFont(); f.setPointSize(11); f.setBold(True)
+        self._lbl_detalle_titulo.setFont(f)
+
+        self._btn_cerrar_detalle = QPushButton("✕ Cerrar")
+        self._btn_cerrar_detalle.setFixedHeight(26)
+        self._btn_cerrar_detalle.setStyleSheet(
+            "QPushButton { border:1px solid #D1D5DB; border-radius:4px;"
+            "background:white; color:#6B7280; padding:0 10px; font-size:11px; }"
+            "QPushButton:hover { background:#F3F4F6; }"
+        )
+        self._btn_cerrar_detalle.clicked.connect(self._cerrar_detalle)
+        self._btn_cerrar_detalle.setVisible(False)
+
+        hb_lay.addWidget(self._lbl_detalle_titulo)
+        hb_lay.addStretch()
+        hb_lay.addWidget(self._btn_cerrar_detalle)
+        lay.addWidget(header_bar)
+
+        # ---- Placeholder ----
+        self._lbl_placeholder = QLabel("← Haz clic en un día del Resumen para ver sus ventas")
+        self._lbl_placeholder.setAlignment(Qt.AlignCenter)
+        self._lbl_placeholder.setStyleSheet(
+            "color:#9CA3AF; font-size:13px; padding:30px; background:transparent;"
+        )
+        lay.addWidget(self._lbl_placeholder)
+
+        # ---- Tabla detalle (oculta inicialmente) ----
+        self.tabla_detalle = QTableWidget()
+        self.tabla_detalle.setColumnCount(8)
+        self.tabla_detalle.setHorizontalHeaderLabels([
+            "Producto", "Cant.", "Precio", "Método", "G. Neta", "Notas", "✎", "🗑"
         ])
-        self.tabla.setColumnHidden(0, True)
-        self.tabla.setEditTriggers(QAbstractItemView.NoEditTriggers)
-        self.tabla.setSelectionBehavior(QAbstractItemView.SelectRows)
-        self.tabla.setAlternatingRowColors(True)
-        self.tabla.verticalHeader().setVisible(False)
-        self.tabla.setShowGrid(False)
-        self.tabla.setStyleSheet("""
+        self.tabla_detalle.setEditTriggers(QAbstractItemView.NoEditTriggers)
+        self.tabla_detalle.setSelectionBehavior(QAbstractItemView.SelectRows)
+        self.tabla_detalle.setAlternatingRowColors(True)
+        self.tabla_detalle.verticalHeader().setVisible(False)
+        self.tabla_detalle.setShowGrid(False)
+        self.tabla_detalle.setStyleSheet("""
             QTableWidget { border:none; font-size:12px; }
             QTableWidget::item { padding:3px 8px; }
             QHeaderView::section {
@@ -267,22 +295,18 @@ class HistorialPanel(QWidget):
             QTableWidget::item:selected { background:#DBEAFE; color:#1E3A5F; }
         """)
 
-        hh = self.tabla.horizontalHeader()
-        hh.setSectionResizeMode(1,  QHeaderView.Fixed);  self.tabla.setColumnWidth(1,  88)
-        hh.setSectionResizeMode(2,  QHeaderView.Stretch)
-        hh.setSectionResizeMode(3,  QHeaderView.Fixed);  self.tabla.setColumnWidth(3,  46)
-        hh.setSectionResizeMode(4,  QHeaderView.Fixed);  self.tabla.setColumnWidth(4,  100)
-        hh.setSectionResizeMode(5,  QHeaderView.Fixed);  self.tabla.setColumnWidth(5,  130)
-        hh.setSectionResizeMode(6,  QHeaderView.Fixed);  self.tabla.setColumnWidth(6,  55)
-        hh.setSectionResizeMode(7,  QHeaderView.Fixed);  self.tabla.setColumnWidth(7,  105)
-        hh.setSectionResizeMode(8,  QHeaderView.Fixed);  self.tabla.setColumnWidth(8,  100)
-        hh.setSectionResizeMode(9,  QHeaderView.Fixed);  self.tabla.setColumnWidth(9,  100)
-        hh.setSectionResizeMode(10, QHeaderView.Fixed);  self.tabla.setColumnWidth(10, 100)
-        hh.setSectionResizeMode(11, QHeaderView.Fixed);  self.tabla.setColumnWidth(11, 80)
-        hh.setSectionResizeMode(12, QHeaderView.Fixed);  self.tabla.setColumnWidth(12, 38)
-        hh.setSectionResizeMode(13, QHeaderView.Fixed);  self.tabla.setColumnWidth(13, 38)
+        hh = self.tabla_detalle.horizontalHeader()
+        hh.setSectionResizeMode(0, QHeaderView.Stretch)
+        hh.setSectionResizeMode(1, QHeaderView.Fixed);  self.tabla_detalle.setColumnWidth(1, 50)
+        hh.setSectionResizeMode(2, QHeaderView.Fixed);  self.tabla_detalle.setColumnWidth(2, 110)
+        hh.setSectionResizeMode(3, QHeaderView.Fixed);  self.tabla_detalle.setColumnWidth(3, 130)
+        hh.setSectionResizeMode(4, QHeaderView.Fixed);  self.tabla_detalle.setColumnWidth(4, 105)
+        hh.setSectionResizeMode(5, QHeaderView.Stretch)
+        hh.setSectionResizeMode(6, QHeaderView.Fixed);  self.tabla_detalle.setColumnWidth(6, 38)
+        hh.setSectionResizeMode(7, QHeaderView.Fixed);  self.tabla_detalle.setColumnWidth(7, 38)
 
-        lay.addWidget(self.tabla)
+        self.tabla_detalle.setVisible(False)
+        lay.addWidget(self.tabla_detalle, stretch=1)
         return frame
 
     # ------------------------------------------------------------------
@@ -347,72 +371,76 @@ class HistorialPanel(QWidget):
             item_est.setForeground(QColor("#15803D") if rd.es_positivo else QColor("#DC2626"))
             self.tabla_diaria.setItem(row, 6, item_est)
 
-        # ---- Tabla ventas individuales ----
-        resumen_dia = {rd.fecha: rd for rd in r.resumen_por_dia}
-
-        self.tabla.setRowCount(0)
-        self.tabla.setRowCount(len(self._ventas))
-        for row, v in enumerate(self._ventas):
-            self.tabla.setRowHeight(row, 32)
-            rd = resumen_dia.get(v.fecha)
-
-            self.tabla.setItem(row, 0, QTableWidgetItem(str(v.id)))
-            self._celda(row, 1, fecha_corta(v.fecha), Qt.AlignCenter)
-            self._celda(row, 2, v.producto)
-            self._celda(row, 3, str(v.cantidad), Qt.AlignCenter)
-            self._celda(row, 4, cop(v.precio), Qt.AlignRight | Qt.AlignVCenter)
-            self._celda(row, 5, v.metodo_pago, Qt.AlignCenter)
-            self._celda(row, 6, str(rd.cantidad_ventas) if rd else "-", Qt.AlignCenter)
-            self._celda(row, 7, cop(rd.total_ingresos) if rd else "-", Qt.AlignRight | Qt.AlignVCenter)
-
-            item_gn = QTableWidgetItem(cop(v.ganancia_neta))
-            item_gn.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
-            item_gn.setForeground(QColor("#16A34A") if v.ganancia_neta >= 0 else QColor("#DC2626"))
-            self.tabla.setItem(row, 8, item_gn)
-
-            self._celda(row, 9, cop(rd.gasto_diario) if rd else "-",
-                        Qt.AlignRight | Qt.AlignVCenter)
-
-            if rd:
-                item_ut = QTableWidgetItem(cop(rd.utilidad_real))
-                item_ut.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
-                item_ut.setForeground(
-                    QColor("#16A34A") if rd.utilidad_real >= 0 else QColor("#DC2626")
-                )
-                self.tabla.setItem(row, 10, item_ut)
-            else:
-                self._celda(row, 10, "-", Qt.AlignCenter)
-
-            if rd:
-                estado_txt = "+" if rd.es_positivo else "−"
-                item_est = QTableWidgetItem(estado_txt)
-                item_est.setTextAlignment(Qt.AlignCenter)
-                item_est.setForeground(QColor("#15803D") if rd.es_positivo else QColor("#DC2626"))
-                self.tabla.setItem(row, 11, item_est)
-            else:
-                self._celda(row, 11, "-", Qt.AlignCenter)
-
-            # Botones directos (sin wrapper) para que se vean correctamente
-            self.tabla.setCellWidget(row, 12, self._btn_editar(v.id))
-            self.tabla.setCellWidget(row, 13, self._btn_eliminar(v.id))
-
         self.btn_exportar.setEnabled(r.cantidad_ventas > 0)
+
+        # ---- Refrescar detalle si había un día seleccionado ----
+        if self._fecha_seleccionada is not None:
+            ventas_dia = [v for v in self._ventas if v.fecha == self._fecha_seleccionada]
+            if ventas_dia:
+                self._poblar_detalle(ventas_dia, self._fecha_seleccionada)
+            else:
+                self._cerrar_detalle()
 
     # ------------------------------------------------------------------
     # Helpers de celda
     # ------------------------------------------------------------------
-
-    def _celda(self, row: int, col: int, texto: str,
-               alin: Qt.AlignmentFlag = Qt.AlignLeft | Qt.AlignVCenter) -> None:
-        item = QTableWidgetItem(texto)
-        item.setTextAlignment(alin)
-        self.tabla.setItem(row, col, item)
 
     def _celda_d(self, row: int, col: int, texto: str,
                  alin: Qt.AlignmentFlag = Qt.AlignLeft | Qt.AlignVCenter) -> None:
         item = QTableWidgetItem(texto)
         item.setTextAlignment(alin)
         self.tabla_diaria.setItem(row, col, item)
+
+    def _celda_det(self, row: int, col: int, texto: str,
+                   alin: Qt.AlignmentFlag = Qt.AlignLeft | Qt.AlignVCenter) -> None:
+        item = QTableWidgetItem(texto)
+        item.setTextAlignment(alin)
+        self.tabla_detalle.setItem(row, col, item)
+
+    # ------------------------------------------------------------------
+    # Detalle del día
+    # ------------------------------------------------------------------
+
+    def _on_dia_seleccionado(self, row: int, col: int) -> None:
+        if self._resumen is None or row >= len(self._resumen.resumen_por_dia):
+            return
+        rd = self._resumen.resumen_por_dia[row]
+        self._fecha_seleccionada = rd.fecha
+        ventas_dia = [v for v in self._ventas if v.fecha == rd.fecha]
+        self._poblar_detalle(ventas_dia, rd.fecha)
+
+    def _poblar_detalle(self, ventas: list, fecha: date) -> None:
+        self._lbl_placeholder.setVisible(False)
+        self.tabla_detalle.setVisible(True)
+        self._btn_cerrar_detalle.setVisible(True)
+        self._lbl_detalle_titulo.setText(
+            f"  Ventas del {fecha_corta(fecha)}  —  {len(ventas)} venta(s)"
+        )
+        self.tabla_detalle.setRowCount(len(ventas))
+        for row, v in enumerate(ventas):
+            self.tabla_detalle.setRowHeight(row, 32)
+            self._celda_det(row, 0, v.producto)
+            self._celda_det(row, 1, str(v.cantidad), Qt.AlignCenter)
+            self._celda_det(row, 2, cop(v.precio), Qt.AlignRight | Qt.AlignVCenter)
+            self._celda_det(row, 3, v.metodo_pago, Qt.AlignCenter)
+
+            item_gn = QTableWidgetItem(cop(v.ganancia_neta))
+            item_gn.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
+            item_gn.setForeground(
+                QColor("#16A34A") if v.ganancia_neta >= 0 else QColor("#DC2626")
+            )
+            self.tabla_detalle.setItem(row, 4, item_gn)
+
+            self._celda_det(row, 5, v.notas or "")
+            self.tabla_detalle.setCellWidget(row, 6, self._btn_editar(v.id))
+            self.tabla_detalle.setCellWidget(row, 7, self._btn_eliminar(v.id))
+
+    def _cerrar_detalle(self) -> None:
+        self._fecha_seleccionada = None
+        self.tabla_detalle.setVisible(False)
+        self._lbl_placeholder.setVisible(True)
+        self._btn_cerrar_detalle.setVisible(False)
+        self._lbl_detalle_titulo.setText("  Detalle del Día")
 
     # ------------------------------------------------------------------
     # Botones de acción (devuelven QPushButton directo, sin wrapper)

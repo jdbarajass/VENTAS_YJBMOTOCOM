@@ -14,6 +14,7 @@ from openpyxl.styles import (
 from openpyxl.utils import get_column_letter
 
 from models.venta import Venta
+from models.prestamo import Prestamo
 from utils.formatters import fecha_corta, nombre_mes
 
 
@@ -111,7 +112,8 @@ def generar_plantilla_ventas_dia(ruta: Path, fecha: date) -> None:
     wb.save(str(ruta))
 
 
-def generar_plantilla_ventas_mes(ruta: Path, año: int, mes: int) -> None:
+def generar_plantilla_ventas_mes(ruta: Path, año: int, mes: int,
+                                  prestamos: list | None = None) -> None:
     """
     Genera un .xlsx vacío con el formato correcto para registrar ventas de un mes
     y luego importarlo con ⬆ Importar Excel.
@@ -152,7 +154,68 @@ def generar_plantilla_ventas_mes(ruta: Path, año: int, mes: int) -> None:
     for i, ancho in enumerate(_ANCHOS_VENTAS, start=1):
         ws.column_dimensions[get_column_letter(i)].width = ancho
 
+    # ── Hoja Préstamos (vacía para que el usuario la llene) ───────────
+    ws_prest = wb.create_sheet("Préstamos")
+    _escribir_hoja_prestamos(ws_prest, prestamos or [])
+
     wb.save(str(ruta))
+
+
+_HEADERS_PRESTAMOS = ["Fecha", "Producto", "Almacén", "Observaciones", "Estado"]
+_ANCHOS_PRESTAMOS  = [14, 34, 22, 40, 14]
+_ESTADOS_COLOR = {
+    "pendiente": "FEF3C7",
+    "devuelto":  "D1FAE5",
+    "cobrado":   "DBEAFE",
+}
+
+
+def _escribir_hoja_prestamos(ws, prestamos: list) -> None:
+    """Escribe título, encabezados y datos de préstamos en el worksheet dado."""
+    lado = Side(style="thin", color="CCCCCC")
+    borde = Border(left=lado, right=lado, top=lado, bottom=lado)
+
+    # Título
+    ws.merge_cells("A1:E1")
+    t = ws["A1"]
+    t.value = "YJBMOTOCOM — Préstamos"
+    t.font = Font(name="Calibri", bold=True, size=13, color="FFFFFF")
+    t.fill = PatternFill("solid", fgColor=_AZUL_HEADER)
+    t.alignment = Alignment(horizontal="center", vertical="center")
+    ws.row_dimensions[1].height = 26
+
+    # Encabezados
+    ws.append(_HEADERS_PRESTAMOS)
+    for col_idx in range(1, 6):
+        cell = ws.cell(row=2, column=col_idx)
+        cell.font = Font(bold=True, color="FFFFFF", name="Calibri", size=10)
+        cell.fill = PatternFill("solid", fgColor="334155")
+        cell.alignment = Alignment(horizontal="center", vertical="center")
+        cell.border = borde
+    ws.row_dimensions[2].height = 20
+
+    # Filas de datos (o vacío para plantilla)
+    for p in prestamos:
+        ws.append([
+            p.fecha.strftime("%d/%m/%Y") if hasattr(p.fecha, "strftime") else str(p.fecha),
+            p.producto,
+            p.almacen,
+            p.observaciones or "",
+            p.estado,
+        ])
+        row = ws.max_row
+        color = _ESTADOS_COLOR.get(p.estado, "FFFFFF")
+        for col_idx in range(1, 6):
+            c = ws.cell(row=row, column=col_idx)
+            c.fill = PatternFill("solid", fgColor=color)
+            c.border = borde
+            c.font = Font(name="Calibri", size=10)
+            c.alignment = Alignment(vertical="center")
+        ws.row_dimensions[row].height = 18
+
+    # Anchos de columna
+    for i, ancho in enumerate(_ANCHOS_PRESTAMOS, start=1):
+        ws.column_dimensions[get_column_letter(i)].width = ancho
 
 
 def exportar_ventas_dia(ventas: list[Venta], fecha: date, ruta: Path) -> None:
@@ -251,9 +314,11 @@ def exportar_ventas_dia(ventas: list[Venta], fecha: date, ruta: Path) -> None:
     wb.save(str(ruta))
 
 
-def exportar_ventas_mes(ventas: list[Venta], año: int, mes: int, ruta: Path) -> None:
+def exportar_ventas_mes(ventas: list[Venta], año: int, mes: int, ruta: Path,
+                        prestamos: list | None = None) -> None:
     """
-    Genera un .xlsx con todas las ventas de un mes, agrupadas por día.
+    Genera un .xlsx con todas las ventas de un mes.
+    Si se pasan préstamos, agrega una segunda hoja «Préstamos».
     """
     wb = openpyxl.Workbook()
     ws = wb.active
@@ -312,5 +377,10 @@ def exportar_ventas_mes(ventas: list[Venta], año: int, mes: int, ruta: Path) ->
     anchos = [5, 12, 30, 7, 15, 16, 14, 14, 15, 28]
     for i, ancho in enumerate(anchos, start=1):
         ws.column_dimensions[get_column_letter(i)].width = ancho
+
+    # ── Hoja Préstamos ────────────────────────────────────────────────────
+    if prestamos is not None:
+        ws_prest = wb.create_sheet("Préstamos")
+        _escribir_hoja_prestamos(ws_prest, prestamos)
 
     wb.save(str(ruta))

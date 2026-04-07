@@ -12,6 +12,7 @@ from typing import Literal
 import openpyxl
 
 from models.venta import Venta
+from models.prestamo import Prestamo
 from utils.formatters import MESES_ES, nombre_mes
 
 
@@ -22,6 +23,7 @@ _MES_NUM: dict[str, int] = {v.lower(): k for k, v in MESES_ES.items()}
 @dataclass
 class ResultadoImportacion:
     ventas: list[Venta] = field(default_factory=list)
+    prestamos: list[Prestamo] = field(default_factory=list)
     tipo: Literal["dia", "mes"] = "dia"
     fecha: date | None = None       # tipo "dia"
     año: int | None = None          # tipo "mes"
@@ -35,6 +37,51 @@ class ResultadoImportacion:
         if self.tipo == "mes" and self.año and self.mes:
             return nombre_mes(self.mes, self.año)
         return "período desconocido"
+
+
+def _leer_prestamos(ws) -> list[Prestamo]:
+    """
+    Lee la hoja «Préstamos» generada por YJBMOTOCOM.
+    Espera: fila 1 = título, fila 2 = encabezados, fila 3+ = datos.
+    Columnas: Fecha | Producto | Almacén | Observaciones | Estado
+    """
+    prestamos: list[Prestamo] = []
+    for row_idx in range(3, ws.max_row + 1):
+        producto = str(ws.cell(row_idx, 2).value or "").strip()
+        if not producto:
+            continue
+        almacen = str(ws.cell(row_idx, 3).value or "").strip()
+        if not almacen:
+            continue
+
+        # Fecha — openpyxl puede devolver datetime (subclase de date)
+        fecha_val = ws.cell(row_idx, 1).value
+        try:
+            if isinstance(fecha_val, datetime):
+                p_fecha = fecha_val.date()
+            elif isinstance(fecha_val, date):
+                p_fecha = fecha_val
+            else:
+                p_fecha = datetime.strptime(str(fecha_val).strip(), "%d/%m/%Y").date()
+        except (ValueError, TypeError):
+            p_fecha = date.today()
+
+        observaciones = str(ws.cell(row_idx, 4).value or "").strip()
+        estado_raw = str(ws.cell(row_idx, 5).value or "pendiente").strip().lower()
+        if estado_raw not in ("pendiente", "devuelto", "cobrado"):
+            estado_raw = "pendiente"
+
+        try:
+            prestamos.append(Prestamo(
+                producto=producto,
+                almacen=almacen,
+                fecha=p_fecha,
+                observaciones=observaciones,
+                estado=estado_raw,
+            ))
+        except ValueError:
+            pass
+    return prestamos
 
 
 def importar_desde_excel(ruta: Path) -> ResultadoImportacion:
@@ -100,9 +147,11 @@ def importar_desde_excel(ruta: Path) -> ResultadoImportacion:
         if str(col2).upper().strip() == "TOTALES":
             break
 
-        # ── Fecha ──
+        # ── Fecha — openpyxl puede devolver datetime (subclase de date) ──
         try:
-            if isinstance(col2, date):
+            if isinstance(col2, datetime):
+                venta_fecha = col2.date()
+            elif isinstance(col2, date):
                 venta_fecha = col2
             else:
                 venta_fecha = datetime.strptime(str(col2).strip(), "%d/%m/%Y").date()
@@ -177,5 +226,13 @@ def importar_desde_excel(ruta: Path) -> ResultadoImportacion:
             resultado.ventas.append(v)
         except ValueError as exc:
             resultado.errores.append(f"Fila {row_idx}: {exc} — omitida")
+
+    # ── Leer hoja Préstamos si existe (acepta con o sin tilde) ────────
+    hoja_prest = next(
+        (s for s in wb.sheetnames if s.lower() in ("préstamos", "prestamos")),
+        None,
+    )
+    if hoja_prest:
+        resultado.prestamos = _leer_prestamos(wb[hoja_prest])
 
     return resultado

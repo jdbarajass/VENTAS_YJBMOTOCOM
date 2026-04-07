@@ -4,16 +4,24 @@ CRUD para la tabla prestamos.
 """
 
 import sqlite3
-from datetime import date
+from datetime import date, datetime
 
 from database.connection import DatabaseConnection
 from models.prestamo import Prestamo
 
 
+def _parse_fecha(valor: str) -> date:
+    """Acepta '2026-03-26' y '2026-03-26T00:00:00' por compatibilidad."""
+    try:
+        return date.fromisoformat(valor)
+    except ValueError:
+        return datetime.fromisoformat(valor).date()
+
+
 def _row_to_prestamo(row: sqlite3.Row) -> Prestamo:
     return Prestamo(
         id=row["id"],
-        fecha=date.fromisoformat(row["fecha"]),
+        fecha=_parse_fecha(row["fecha"]),
         producto=row["producto"],
         almacen=row["almacen"],
         observaciones=row["observaciones"] or "",
@@ -70,3 +78,11 @@ def eliminar_prestamo(prestamo_id: int) -> bool:
     cursor = conn.execute("DELETE FROM prestamos WHERE id = ?", (prestamo_id,))
     conn.commit()
     return cursor.rowcount > 0
+
+
+def eliminar_todos_prestamos() -> int:
+    """Elimina todos los préstamos. Retorna la cantidad eliminada."""
+    conn = DatabaseConnection.get()
+    cursor = conn.execute("DELETE FROM prestamos")
+    conn.commit()
+    return cursor.rowcount

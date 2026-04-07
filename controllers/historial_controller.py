@@ -8,6 +8,7 @@ from pathlib import Path
 from database.ventas_repo import obtener_ventas_por_mes
 from database.gastos_dia_repo import obtener_gastos_por_mes
 from database.config_repo import obtener_configuracion
+from database.prestamos_repo import obtener_todos_prestamos
 from services.reportes import calcular_resumen_mensual, ResumenMensual
 from services.exportador import exportar_ventas_mes
 
@@ -32,6 +33,7 @@ class HistorialController:
         return calcular_resumen_mensual(ventas, cfg, año, mes, gastos_por_dia)
 
     def exportar_excel(self, año: int, mes: int, ruta: Path) -> None:
-        """Genera el Excel con todas las ventas del mes."""
+        """Genera el Excel con todas las ventas del mes y hoja de préstamos."""
         ventas = obtener_ventas_por_mes(año, mes)
-        exportar_ventas_mes(ventas, año, mes, ruta)
+        prestamos = obtener_todos_prestamos()
+        exportar_ventas_mes(ventas, año, mes, ruta, prestamos=prestamos)

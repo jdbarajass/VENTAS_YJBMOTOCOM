@@ -312,8 +312,8 @@ class HistorialPanel(QWidget):
         hh.setSectionResizeMode(5, QHeaderView.Fixed);  self.tabla_detalle.setColumnWidth(5, 105)
         # Notas: ocupa el espacio restante
         hh.setSectionResizeMode(6, QHeaderView.Stretch)
-        hh.setSectionResizeMode(7, QHeaderView.Fixed);  self.tabla_detalle.setColumnWidth(7, 38)
-        hh.setSectionResizeMode(8, QHeaderView.Fixed);  self.tabla_detalle.setColumnWidth(8, 38)
+        hh.setSectionResizeMode(7, QHeaderView.Fixed);  self.tabla_detalle.setColumnWidth(7, 55)
+        hh.setSectionResizeMode(8, QHeaderView.Fixed);  self.tabla_detalle.setColumnWidth(8, 55)
 
         self.tabla_detalle.setVisible(False)
         lay.addWidget(self.tabla_detalle, stretch=1)
@@ -468,24 +468,24 @@ class HistorialPanel(QWidget):
     # ------------------------------------------------------------------
 
     def _btn_editar(self, venta_id: int) -> QPushButton:
-        btn = QPushButton("✎")
+        btn = QPushButton("Editar")
         btn.setCursor(Qt.PointingHandCursor)
         btn.setToolTip("Editar venta")
         btn.setStyleSheet(
             "QPushButton { background:#EFF6FF; color:#2563EB; border:1px solid #BFDBFE;"
-            "border-radius:4px; font-size:14px; margin:3px; }"
+            "border-radius:4px; font-size:11px; font-weight:bold; margin:3px; padding:0 6px; }"
             "QPushButton:hover { background:#DBEAFE; }"
         )
         btn.clicked.connect(lambda checked=False, vid=venta_id: self._on_editar_venta(vid))
         return btn
 
     def _btn_eliminar(self, venta_id: int) -> QPushButton:
-        btn = QPushButton("🗑")
+        btn = QPushButton("Borrar")
         btn.setCursor(Qt.PointingHandCursor)
         btn.setToolTip("Eliminar venta")
         btn.setStyleSheet(
             "QPushButton { background:#FEF2F2; color:#DC2626; border:1px solid #FECACA;"
-            "border-radius:4px; font-size:13px; margin:3px; }"
+            "border-radius:4px; font-size:11px; font-weight:bold; margin:3px; padding:0 6px; }"
             "QPushButton:hover { background:#FEE2E2; }"
         )
         btn.clicked.connect(lambda checked=False, vid=venta_id: self._on_eliminar_venta(vid))

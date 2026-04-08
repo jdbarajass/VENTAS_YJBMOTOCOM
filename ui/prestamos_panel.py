@@ -10,12 +10,134 @@ from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
     QTableWidget, QTableWidgetItem, QHeaderView, QAbstractItemView,
     QFrame, QLineEdit, QDateEdit, QMessageBox, QCheckBox, QSizePolicy,
+    QDialog, QComboBox, QDialogButtonBox,
 )
-from PySide6.QtCore import Qt, QDate
+from PySide6.QtCore import Qt, QDate, Signal
 from PySide6.QtGui import QFont, QColor
 
 from controllers.prestamos_controller import PrestamosController
+from models.prestamo import Prestamo
 from utils.formatters import fecha_corta
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Diálogo de edición de préstamo
+# ──────────────────────────────────────────────────────────────────────────────
+
+class EditPrestamoDialog(QDialog):
+    """Diálogo sencillo para editar los campos de un préstamo."""
+
+    prestamo_actualizado = Signal(object)
+
+    def __init__(self, prestamo: Prestamo, ctrl: PrestamosController,
+                 parent=None) -> None:
+        super().__init__(parent)
+        self._p = prestamo
+        self._ctrl = ctrl
+        self.setWindowTitle("Editar Préstamo")
+        self.setMinimumWidth(480)
+        self._build_ui()
+
+    def _build_ui(self) -> None:
+        lay = QVBoxLayout(self)
+        lay.setContentsMargins(20, 18, 20, 18)
+        lay.setSpacing(12)
+
+        titulo = QLabel("Editar Préstamo")
+        f = QFont(); f.setPointSize(13); f.setBold(True)
+        titulo.setFont(f)
+        lay.addWidget(titulo)
+
+        # Fecha
+        fila_fecha = QHBoxLayout()
+        fila_fecha.addWidget(QLabel("Fecha:"))
+        self.campo_fecha = QDateEdit()
+        self.campo_fecha.setCalendarPopup(True)
+        self.campo_fecha.setDisplayFormat("dd/MM/yyyy")
+        self.campo_fecha.setDate(QDate(self._p.fecha.year,
+                                       self._p.fecha.month,
+                                       self._p.fecha.day))
+        self.campo_fecha.setFixedHeight(32)
+        self.campo_fecha.setStyleSheet(self._campo_style())
+        fila_fecha.addWidget(self.campo_fecha)
+        fila_fecha.addStretch()
+        lay.addLayout(fila_fecha)
+
+        # Producto
+        lay.addWidget(QLabel("Producto:"))
+        self.campo_producto = QLineEdit(self._p.producto)
+        self.campo_producto.setFixedHeight(32)
+        self.campo_producto.setStyleSheet(self._campo_style())
+        lay.addWidget(self.campo_producto)
+
+        # Almacén
+        lay.addWidget(QLabel("Almacén / Local:"))
+        self.campo_almacen = QLineEdit(self._p.almacen)
+        self.campo_almacen.setFixedHeight(32)
+        self.campo_almacen.setStyleSheet(self._campo_style())
+        lay.addWidget(self.campo_almacen)
+
+        # Observaciones
+        lay.addWidget(QLabel("Observaciones:"))
+        self.campo_obs = QLineEdit(self._p.observaciones or "")
+        self.campo_obs.setFixedHeight(32)
+        self.campo_obs.setStyleSheet(self._campo_style())
+        lay.addWidget(self.campo_obs)
+
+        # Estado
+        lay.addWidget(QLabel("Estado:"))
+        self.combo_estado = QComboBox()
+        self.combo_estado.setFixedHeight(32)
+        self.combo_estado.addItems(["pendiente", "devuelto", "cobrado"])
+        self.combo_estado.setCurrentText(self._p.estado)
+        self.combo_estado.setStyleSheet(self._campo_style())
+        lay.addWidget(self.combo_estado)
+
+        # Botones
+        btns = QDialogButtonBox(QDialogButtonBox.Save | QDialogButtonBox.Cancel)
+        btns.button(QDialogButtonBox.Save).setText("Guardar cambios")
+        btns.button(QDialogButtonBox.Cancel).setText("Cancelar")
+        btns.button(QDialogButtonBox.Save).setStyleSheet(
+            "QPushButton { background:#2563EB; color:white; border-radius:5px;"
+            "padding:0 16px; font-weight:bold; }"
+            "QPushButton:hover { background:#1D4ED8; }"
+        )
+        btns.accepted.connect(self._on_guardar)
+        btns.rejected.connect(self.reject)
+        lay.addWidget(btns)
+
+    def _on_guardar(self) -> None:
+        producto = self.campo_producto.text().strip()
+        almacen  = self.campo_almacen.text().strip()
+        if not producto:
+            QMessageBox.warning(self, "Dato requerido", "Ingresa el nombre del producto.")
+            return
+        if not almacen:
+            QMessageBox.warning(self, "Dato requerido", "Ingresa el nombre del almacén.")
+            return
+
+        qd = self.campo_fecha.date()
+        self._p.fecha        = date(qd.year(), qd.month(), qd.day())
+        self._p.producto     = producto
+        self._p.almacen      = almacen
+        self._p.observaciones = self.campo_obs.text().strip()
+        self._p.estado       = self.combo_estado.currentText()
+
+        try:
+            self._ctrl.editar(self._p)
+            self.prestamo_actualizado.emit(self._p)
+            self.accept()
+        except ValueError as exc:
+            QMessageBox.warning(self, "Error", str(exc))
+
+    @staticmethod
+    def _campo_style() -> str:
+        return (
+            "QLineEdit, QDateEdit, QComboBox {"
+            "border:1px solid #D1D5DB; border-radius:6px; padding:0 8px; background:white; }"
+            "QLineEdit:focus, QDateEdit:focus, QComboBox:focus {"
+            "border:2px solid #2563EB; }"
+        )
 
 
 # Estado → (texto, color fondo, color texto)
@@ -217,7 +339,7 @@ class PrestamosPanel(QWidget):
         hh.setSectionResizeMode(4, QHeaderView.Fixed);   self.tabla.setColumnWidth(4, 160)
         hh.setSectionResizeMode(5, QHeaderView.Stretch)
         hh.setSectionResizeMode(6, QHeaderView.Fixed);   self.tabla.setColumnWidth(6, 100)
-        hh.setSectionResizeMode(7, QHeaderView.Fixed);   self.tabla.setColumnWidth(7, 210)
+        hh.setSectionResizeMode(7, QHeaderView.Fixed);   self.tabla.setColumnWidth(7, 260)
 
         lay.addWidget(self.tabla)
         return frame
@@ -351,12 +473,22 @@ class PrestamosPanel(QWidget):
             lay.addWidget(btn_dev)
             lay.addWidget(btn_cob)
 
-        btn_del = QPushButton("🗑")
+        # Editar — siempre disponible
+        btn_edit = QPushButton("Editar")
+        btn_edit.setFixedHeight(26)
+        btn_edit.setStyleSheet(
+            "QPushButton { background:#EFF6FF; color:#2563EB; border:1px solid #BFDBFE;"
+            "border-radius:4px; font-size:11px; font-weight:bold; padding:0 8px; }"
+            "QPushButton:hover { background:#DBEAFE; }"
+        )
+        btn_edit.clicked.connect(lambda _, pid=prestamo_id: self._on_editar(pid))
+        lay.addWidget(btn_edit)
+
+        btn_del = QPushButton("Borrar")
         btn_del.setFixedHeight(26)
-        btn_del.setFixedWidth(30)
         btn_del.setStyleSheet(
             "QPushButton { background:#FEF2F2; color:#DC2626; border:1px solid #FECACA;"
-            "border-radius:4px; font-size:13px; }"
+            "border-radius:4px; font-size:11px; font-weight:bold; padding:0 8px; }"
             "QPushButton:hover { background:#FEE2E2; }"
         )
         btn_del.clicked.connect(lambda _, pid=prestamo_id: self._on_eliminar(pid))
@@ -405,6 +537,14 @@ class PrestamosPanel(QWidget):
             )
         except ValueError as exc:
             QMessageBox.warning(self, "Error", str(exc))
+
+    def _on_editar(self, prestamo_id: int) -> None:
+        p = next((x for x in self._prestamos if x.id == prestamo_id), None)
+        if p is None:
+            return
+        dlg = EditPrestamoDialog(p, self._ctrl, self)
+        dlg.prestamo_actualizado.connect(lambda _: self._cargar_datos())
+        dlg.exec()
 
     def _on_devuelto(self, prestamo_id: int) -> None:
         p = next((x for x in self._prestamos if x.id == prestamo_id), None)

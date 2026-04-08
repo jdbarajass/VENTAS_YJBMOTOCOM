@@ -10,6 +10,7 @@ from database.prestamos_repo import (
     obtener_todos_prestamos,
     obtener_prestamos_pendientes,
     actualizar_estado_prestamo,
+    actualizar_prestamo,
     eliminar_prestamo,
 )
 from models.prestamo import Prestamo
@@ -47,6 +48,14 @@ class PrestamosController:
         )
         p.id = insertar_prestamo(p)
         return p
+
+    def editar(self, p: "Prestamo") -> bool:
+        """Persiste los cambios editados de un préstamo existente."""
+        if not p.producto.strip():
+            raise ValueError("El nombre del producto no puede estar vacío.")
+        if not p.almacen.strip():
+            raise ValueError("El nombre del almacén no puede estar vacío.")
+        return actualizar_prestamo(p)
 
     def marcar_devuelto(self, prestamo_id: int) -> bool:
         """Marca el préstamo como devuelto."""

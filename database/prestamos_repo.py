@@ -72,6 +72,22 @@ def actualizar_estado_prestamo(prestamo_id: int, estado: str) -> bool:
     return cursor.rowcount > 0
 
 
+def actualizar_prestamo(p: Prestamo) -> bool:
+    """Actualiza todos los campos editables de un préstamo."""
+    if p.id is None:
+        return False
+    conn = DatabaseConnection.get()
+    cursor = conn.execute(
+        """UPDATE prestamos
+           SET fecha=?, producto=?, almacen=?, observaciones=?, estado=?
+           WHERE id=?""",
+        (p.fecha.isoformat(), p.producto.strip(), p.almacen.strip(),
+         p.observaciones or "", p.estado, p.id),
+    )
+    conn.commit()
+    return cursor.rowcount > 0
+
+
 def eliminar_prestamo(prestamo_id: int) -> bool:
     """Elimina un préstamo por id."""
     conn = DatabaseConnection.get()

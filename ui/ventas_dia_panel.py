@@ -152,14 +152,21 @@ class VentasDiaPanel(QWidget):
                 font-weight: bold; font-size: 11px;
                 padding: 6px; border: none;
             }
+            QHeaderView::section:hover { background-color: #334155; }
             QTableWidget::item:selected { background-color: #DBEAFE; color: #1E3A5F; }
+            QToolTip {
+                background: #1E293B; color: #FFFFFF;
+                border: 1px solid #475569; padding: 5px 8px;
+                font-size: 12px; border-radius: 4px;
+            }
         """)
 
         # Anchos de columna
         hh = self.tabla.horizontalHeader()
         hh.setSectionResizeMode(COL_NUM,      QHeaderView.Fixed);       self.tabla.setColumnWidth(COL_NUM, 40)
         hh.setSectionResizeMode(COL_FECHA,    QHeaderView.Fixed);       self.tabla.setColumnWidth(COL_FECHA, 100)
-        hh.setSectionResizeMode(COL_PRODUCTO, QHeaderView.Stretch)
+        # Producto: arrastrable para ver nombres largos
+        hh.setSectionResizeMode(COL_PRODUCTO, QHeaderView.Interactive); self.tabla.setColumnWidth(COL_PRODUCTO, 210)
         hh.setSectionResizeMode(COL_CANT,     QHeaderView.Fixed);       self.tabla.setColumnWidth(COL_CANT, 52)
         hh.setSectionResizeMode(COL_COSTO,    QHeaderView.Fixed);       self.tabla.setColumnWidth(COL_COSTO, 110)
         hh.setSectionResizeMode(COL_PRECIO,   QHeaderView.Fixed);       self.tabla.setColumnWidth(COL_PRECIO, 120)
@@ -167,7 +174,7 @@ class VentasDiaPanel(QWidget):
         hh.setSectionResizeMode(COL_COMISION, QHeaderView.Fixed);       self.tabla.setColumnWidth(COL_COMISION, 105)
         hh.setSectionResizeMode(COL_NETA,     QHeaderView.Fixed);       self.tabla.setColumnWidth(COL_NETA, 120)
         hh.setSectionResizeMode(COL_NOTAS,    QHeaderView.Stretch)
-        hh.setSectionResizeMode(COL_ACCIONES, QHeaderView.Fixed);       self.tabla.setColumnWidth(COL_ACCIONES, 110)
+        hh.setSectionResizeMode(COL_ACCIONES, QHeaderView.Fixed);       self.tabla.setColumnWidth(COL_ACCIONES, 140)
 
         return self.tabla
 
@@ -337,7 +344,10 @@ class VentasDiaPanel(QWidget):
             self._celda(row, COL_ID,       str(v.id),            Qt.AlignCenter)
             self._celda(row, COL_NUM,      str(row + 1),         Qt.AlignCenter)
             self._celda(row, COL_FECHA,    fecha_corta(v.fecha), Qt.AlignCenter)
-            self._celda(row, COL_PRODUCTO, v.producto)
+            # Producto con tooltip para ver nombre completo al posar el mouse
+            item_prod = QTableWidgetItem(v.producto)
+            item_prod.setToolTip(v.producto)
+            self.tabla.setItem(row, COL_PRODUCTO, item_prod)
             self._celda(row, COL_CANT,     str(v.cantidad),      Qt.AlignCenter)
             self._celda(row, COL_COSTO,    cop(v.costo),         Qt.AlignRight | Qt.AlignVCenter)
             self._celda(row, COL_PRECIO,   cop(v.precio),        Qt.AlignRight | Qt.AlignVCenter)
@@ -420,21 +430,20 @@ class VentasDiaPanel(QWidget):
         lay.setContentsMargins(4, 2, 4, 2)
         lay.setSpacing(6)
 
-        btn_editar = QPushButton("✎ Editar")
+        btn_editar = QPushButton("Editar")
         btn_editar.setFixedHeight(26)
         btn_editar.setStyleSheet(
             "QPushButton { background:#EFF6FF; color:#1D4ED8; border:1px solid #BFDBFE;"
-            "border-radius:4px; font-size:11px; }"
+            "border-radius:4px; font-size:11px; font-weight:bold; padding:0 10px; }"
             "QPushButton:hover { background:#DBEAFE; }"
         )
         btn_editar.clicked.connect(lambda _, vid=venta_id: self._on_editar(vid))
 
-        btn_eliminar = QPushButton("🗑")
+        btn_eliminar = QPushButton("Borrar")
         btn_eliminar.setFixedHeight(26)
-        btn_eliminar.setFixedWidth(30)
         btn_eliminar.setStyleSheet(
             "QPushButton { background:#FEF2F2; color:#DC2626; border:1px solid #FECACA;"
-            "border-radius:4px; font-size:13px; }"
+            "border-radius:4px; font-size:11px; font-weight:bold; padding:0 10px; }"
             "QPushButton:hover { background:#FEE2E2; }"
         )
         btn_eliminar.clicked.connect(lambda _, vid=venta_id: self._on_eliminar(vid))

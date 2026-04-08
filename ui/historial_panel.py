@@ -312,8 +312,8 @@ class HistorialPanel(QWidget):
         hh.setSectionResizeMode(5, QHeaderView.Fixed);  self.tabla_detalle.setColumnWidth(5, 105)
         # Notas: ocupa el espacio restante
         hh.setSectionResizeMode(6, QHeaderView.Stretch)
-        hh.setSectionResizeMode(7, QHeaderView.Fixed);  self.tabla_detalle.setColumnWidth(7, 55)
-        hh.setSectionResizeMode(8, QHeaderView.Fixed);  self.tabla_detalle.setColumnWidth(8, 55)
+        hh.setSectionResizeMode(7, QHeaderView.Fixed);  self.tabla_detalle.setColumnWidth(7, 65)
+        hh.setSectionResizeMode(8, QHeaderView.Fixed);  self.tabla_detalle.setColumnWidth(8, 65)
 
         self.tabla_detalle.setVisible(False)
         lay.addWidget(self.tabla_detalle, stretch=1)

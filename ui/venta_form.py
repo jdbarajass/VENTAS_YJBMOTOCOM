@@ -152,12 +152,13 @@ class VentaForm(QWidget):
         # Fila producto + botón refresh
         fila_prod = QHBoxLayout()
         fila_prod.setSpacing(6)
+        fila_prod.setContentsMargins(0, 0, 0, 0)
         fila_prod.addWidget(self.campo_producto)
-        btn_refresh_inv = QPushButton("🔄")
+        btn_refresh_inv = QPushButton("↺")
         btn_refresh_inv.setFixedSize(34, 34)
         btn_refresh_inv.setToolTip("Refrescar inventario")
         btn_refresh_inv.setStyleSheet(
-            "QPushButton { border:1px solid #D1D5DB; border-radius:5px; font-size:14px; }"
+            "QPushButton { border:1px solid #D1D5DB; border-radius:5px; font-size:18px; }"
             "QPushButton:hover { background:#F3F4F6; }"
         )
         btn_refresh_inv.clicked.connect(self._on_refresh_inventario)
@@ -165,6 +166,7 @@ class VentaForm(QWidget):
 
         prod_widget = QWidget()
         prod_widget.setLayout(fila_prod)
+        prod_widget.setFixedHeight(34)
         form.addRow("Producto:", prod_widget)
 
         # Indicador de stock (visible solo cuando se selecciona un producto del inventario)

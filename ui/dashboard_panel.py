@@ -321,7 +321,7 @@ class DashboardPanel(QWidget):
             "color:#334155; font-size:11px; font-weight:bold;"
         )
 
-        self._proy_dia       = self._info_chip("Al día …/…",     "$ 0")
+        self._proy_dia       = self._info_chip("Día del mes",    "—")
         self._proy_meta      = self._info_chip("Meta acumulada",  "$ 0")
         self._proy_util      = self._info_chip("Utilidad real acumulada", "$ 0")
         self._proy_dif_chip  = self._proy_diferencia_chip()

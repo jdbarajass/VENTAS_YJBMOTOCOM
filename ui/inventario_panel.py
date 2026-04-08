@@ -249,7 +249,7 @@ class InventarioPanel(QWidget):
         hh.setSectionResizeMode(3, QHeaderView.Fixed);  self.tabla.setColumnWidth(3, 130)
         hh.setSectionResizeMode(4, QHeaderView.Fixed);  self.tabla.setColumnWidth(4, 90)
         hh.setSectionResizeMode(5, QHeaderView.Fixed);  self.tabla.setColumnWidth(5, 140)
-        hh.setSectionResizeMode(6, QHeaderView.Fixed);  self.tabla.setColumnWidth(6, 120)
+        hh.setSectionResizeMode(6, QHeaderView.Fixed);  self.tabla.setColumnWidth(6, 145)
 
         return self.tabla
 
@@ -344,20 +344,20 @@ class InventarioPanel(QWidget):
         lay.setContentsMargins(4, 2, 4, 2)
         lay.setSpacing(6)
 
-        btn_editar = QPushButton("✎ Editar")
+        btn_editar = QPushButton("Editar")
         btn_editar.setFixedHeight(26)
         btn_editar.setStyleSheet(
             "QPushButton { background:#EFF6FF; color:#1D4ED8; border:1px solid #BFDBFE;"
-            "border-radius:4px; font-size:11px; }"
+            "border-radius:4px; font-size:11px; font-weight:bold; padding:0 10px; }"
             "QPushButton:hover { background:#DBEAFE; }"
         )
         btn_editar.clicked.connect(lambda _, pid=producto_id: self._on_editar(pid))
 
-        btn_eliminar = QPushButton("🗑")
-        btn_eliminar.setFixedHeight(26); btn_eliminar.setFixedWidth(30)
+        btn_eliminar = QPushButton("Borrar")
+        btn_eliminar.setFixedHeight(26)
         btn_eliminar.setStyleSheet(
             "QPushButton { background:#FEF2F2; color:#DC2626; border:1px solid #FECACA;"
-            "border-radius:4px; font-size:13px; }"
+            "border-radius:4px; font-size:11px; font-weight:bold; padding:0 10px; }"
             "QPushButton:hover { background:#FEE2E2; }"
         )
         btn_eliminar.clicked.connect(lambda _, pid=producto_id: self._on_eliminar(pid))

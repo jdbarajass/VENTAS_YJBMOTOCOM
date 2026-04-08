@@ -170,7 +170,7 @@ class VentasDiaPanel(QWidget):
         hh.setSectionResizeMode(COL_CANT,     QHeaderView.Fixed);       self.tabla.setColumnWidth(COL_CANT, 52)
         hh.setSectionResizeMode(COL_COSTO,    QHeaderView.Fixed);       self.tabla.setColumnWidth(COL_COSTO, 110)
         hh.setSectionResizeMode(COL_PRECIO,   QHeaderView.Fixed);       self.tabla.setColumnWidth(COL_PRECIO, 120)
-        hh.setSectionResizeMode(COL_METODO,   QHeaderView.Fixed);       self.tabla.setColumnWidth(COL_METODO, 105)
+        hh.setSectionResizeMode(COL_METODO,   QHeaderView.Interactive); self.tabla.setColumnWidth(COL_METODO, 130)
         hh.setSectionResizeMode(COL_COMISION, QHeaderView.Fixed);       self.tabla.setColumnWidth(COL_COMISION, 105)
         hh.setSectionResizeMode(COL_NETA,     QHeaderView.Fixed);       self.tabla.setColumnWidth(COL_NETA, 120)
         hh.setSectionResizeMode(COL_NOTAS,    QHeaderView.Stretch)

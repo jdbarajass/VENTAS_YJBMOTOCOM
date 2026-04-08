@@ -26,15 +26,16 @@ COL_ID       = 0   # oculto
 COL_NUM      = 1
 COL_FECHA    = 2
 COL_PRODUCTO = 3
-COL_COSTO    = 4
-COL_PRECIO   = 5
-COL_METODO   = 6
-COL_COMISION = 7
-COL_NETA     = 8
-COL_NOTAS    = 9
-COL_ACCIONES = 10
+COL_CANT     = 4
+COL_COSTO    = 5
+COL_PRECIO   = 6
+COL_METODO   = 7
+COL_COMISION = 8
+COL_NETA     = 9
+COL_NOTAS    = 10
+COL_ACCIONES = 11
 
-TOTAL_COLS   = 11
+TOTAL_COLS   = 12
 
 
 class VentasDiaPanel(QWidget):
@@ -131,7 +132,7 @@ class VentasDiaPanel(QWidget):
         self.tabla = QTableWidget()
         self.tabla.setColumnCount(TOTAL_COLS)
         self.tabla.setHorizontalHeaderLabels([
-            "id", "#", "Fecha", "Producto",
+            "id", "#", "Fecha", "Producto", "Cant.",
             "Costo", "Precio venta", "Método",
             "Comisión", "Ganancia neta", "Notas", "Acciones"
         ])
@@ -159,6 +160,7 @@ class VentasDiaPanel(QWidget):
         hh.setSectionResizeMode(COL_NUM,      QHeaderView.Fixed);       self.tabla.setColumnWidth(COL_NUM, 40)
         hh.setSectionResizeMode(COL_FECHA,    QHeaderView.Fixed);       self.tabla.setColumnWidth(COL_FECHA, 100)
         hh.setSectionResizeMode(COL_PRODUCTO, QHeaderView.Stretch)
+        hh.setSectionResizeMode(COL_CANT,     QHeaderView.Fixed);       self.tabla.setColumnWidth(COL_CANT, 52)
         hh.setSectionResizeMode(COL_COSTO,    QHeaderView.Fixed);       self.tabla.setColumnWidth(COL_COSTO, 110)
         hh.setSectionResizeMode(COL_PRECIO,   QHeaderView.Fixed);       self.tabla.setColumnWidth(COL_PRECIO, 120)
         hh.setSectionResizeMode(COL_METODO,   QHeaderView.Fixed);       self.tabla.setColumnWidth(COL_METODO, 105)
@@ -336,6 +338,7 @@ class VentasDiaPanel(QWidget):
             self._celda(row, COL_NUM,      str(row + 1),         Qt.AlignCenter)
             self._celda(row, COL_FECHA,    fecha_corta(v.fecha), Qt.AlignCenter)
             self._celda(row, COL_PRODUCTO, v.producto)
+            self._celda(row, COL_CANT,     str(v.cantidad),      Qt.AlignCenter)
             self._celda(row, COL_COSTO,    cop(v.costo),         Qt.AlignRight | Qt.AlignVCenter)
             self._celda(row, COL_PRECIO,   cop(v.precio),        Qt.AlignRight | Qt.AlignVCenter)
             self._celda(row, COL_METODO,   v.metodo_pago,        Qt.AlignCenter)

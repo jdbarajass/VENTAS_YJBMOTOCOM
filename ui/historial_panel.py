@@ -294,6 +294,11 @@ class HistorialPanel(QWidget):
             }
             QHeaderView::section:hover { background:#334155; }
             QTableWidget::item:selected { background:#DBEAFE; color:#1E3A5F; }
+            QToolTip {
+                background:#1E293B; color:#FFFFFF;
+                border:1px solid #475569; padding:5px 8px;
+                font-size:12px; border-radius:4px;
+            }
         """)
 
         hh = self.tabla_detalle.horizontalHeader()

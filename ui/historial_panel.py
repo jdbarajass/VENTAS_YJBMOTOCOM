@@ -276,9 +276,9 @@ class HistorialPanel(QWidget):
 
         # ---- Tabla detalle (oculta inicialmente) ----
         self.tabla_detalle = QTableWidget()
-        self.tabla_detalle.setColumnCount(8)
+        self.tabla_detalle.setColumnCount(9)
         self.tabla_detalle.setHorizontalHeaderLabels([
-            "Producto", "Cant.", "Precio", "Método", "G. Neta", "Notas", "✎", "🗑"
+            "Producto", "Cant.", "Costo", "Precio de Venta", "Método", "G. Neta", "Notas", "✎", "🗑"
         ])
         self.tabla_detalle.setEditTriggers(QAbstractItemView.NoEditTriggers)
         self.tabla_detalle.setSelectionBehavior(QAbstractItemView.SelectRows)
@@ -292,18 +292,23 @@ class HistorialPanel(QWidget):
                 background:#1E293B; color:white; font-weight:bold;
                 font-size:11px; padding:5px; border:none;
             }
+            QHeaderView::section:hover { background:#334155; }
             QTableWidget::item:selected { background:#DBEAFE; color:#1E3A5F; }
         """)
 
         hh = self.tabla_detalle.horizontalHeader()
-        hh.setSectionResizeMode(0, QHeaderView.Stretch)
+        # Producto: arrastrable por el usuario para ver nombres largos
+        hh.setSectionResizeMode(0, QHeaderView.Interactive)
+        self.tabla_detalle.setColumnWidth(0, 190)
         hh.setSectionResizeMode(1, QHeaderView.Fixed);  self.tabla_detalle.setColumnWidth(1, 50)
-        hh.setSectionResizeMode(2, QHeaderView.Fixed);  self.tabla_detalle.setColumnWidth(2, 110)
-        hh.setSectionResizeMode(3, QHeaderView.Fixed);  self.tabla_detalle.setColumnWidth(3, 130)
-        hh.setSectionResizeMode(4, QHeaderView.Fixed);  self.tabla_detalle.setColumnWidth(4, 105)
-        hh.setSectionResizeMode(5, QHeaderView.Stretch)
-        hh.setSectionResizeMode(6, QHeaderView.Fixed);  self.tabla_detalle.setColumnWidth(6, 38)
+        hh.setSectionResizeMode(2, QHeaderView.Fixed);  self.tabla_detalle.setColumnWidth(2, 95)
+        hh.setSectionResizeMode(3, QHeaderView.Fixed);  self.tabla_detalle.setColumnWidth(3, 115)
+        hh.setSectionResizeMode(4, QHeaderView.Fixed);  self.tabla_detalle.setColumnWidth(4, 130)
+        hh.setSectionResizeMode(5, QHeaderView.Fixed);  self.tabla_detalle.setColumnWidth(5, 105)
+        # Notas: ocupa el espacio restante
+        hh.setSectionResizeMode(6, QHeaderView.Stretch)
         hh.setSectionResizeMode(7, QHeaderView.Fixed);  self.tabla_detalle.setColumnWidth(7, 38)
+        hh.setSectionResizeMode(8, QHeaderView.Fixed);  self.tabla_detalle.setColumnWidth(8, 38)
 
         self.tabla_detalle.setVisible(False)
         lay.addWidget(self.tabla_detalle, stretch=1)
@@ -419,21 +424,32 @@ class HistorialPanel(QWidget):
         self.tabla_detalle.setRowCount(len(ventas))
         for row, v in enumerate(ventas):
             self.tabla_detalle.setRowHeight(row, 32)
-            self._celda_det(row, 0, v.producto)
+
+            # Producto — con tooltip para ver nombre completo al posar el mouse
+            item_prod = QTableWidgetItem(v.producto)
+            item_prod.setToolTip(v.producto)
+            self.tabla_detalle.setItem(row, 0, item_prod)
+
             self._celda_det(row, 1, str(v.cantidad), Qt.AlignCenter)
-            self._celda_det(row, 2, cop(v.precio), Qt.AlignRight | Qt.AlignVCenter)
-            self._celda_det(row, 3, v.metodo_pago, Qt.AlignCenter)
+
+            # Costo unitario
+            self._celda_det(row, 2, cop(v.costo), Qt.AlignRight | Qt.AlignVCenter)
+
+            # Precio de Venta
+            self._celda_det(row, 3, cop(v.precio), Qt.AlignRight | Qt.AlignVCenter)
+
+            self._celda_det(row, 4, v.metodo_pago, Qt.AlignCenter)
 
             item_gn = QTableWidgetItem(cop(v.ganancia_neta))
             item_gn.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
             item_gn.setForeground(
                 QColor("#16A34A") if v.ganancia_neta >= 0 else QColor("#DC2626")
             )
-            self.tabla_detalle.setItem(row, 4, item_gn)
+            self.tabla_detalle.setItem(row, 5, item_gn)
 
-            self._celda_det(row, 5, v.notas or "")
-            self.tabla_detalle.setCellWidget(row, 6, self._btn_editar(v.id))
-            self.tabla_detalle.setCellWidget(row, 7, self._btn_eliminar(v.id))
+            self._celda_det(row, 6, v.notas or "")
+            self.tabla_detalle.setCellWidget(row, 7, self._btn_editar(v.id))
+            self.tabla_detalle.setCellWidget(row, 8, self._btn_eliminar(v.id))
 
     def _cerrar_detalle(self) -> None:
         self._fecha_seleccionada = None

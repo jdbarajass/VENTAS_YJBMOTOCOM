@@ -192,6 +192,7 @@ class DashboardPanel(QWidget):
         root.addLayout(self._fila_tarjetas_pequeñas())
         root.addLayout(self._fila_tarjetas_grandes())
         root.addWidget(self._barra_gasto())
+        root.addWidget(self._barra_proyeccion())
         root.addStretch()
 
     def _barra_superior(self) -> QHBoxLayout:
@@ -300,6 +301,58 @@ class DashboardPanel(QWidget):
         lay.addStretch()
         return self._barra
 
+    def _barra_proyeccion(self) -> QFrame:
+        """
+        Barra de proyección mensual: cuánto deberías llevar acumulado vs lo real.
+        Responde: '¿Voy bien o debo plata a estas alturas del mes?'
+        """
+        self._proy_frame = QFrame()
+        self._proy_frame.setFrameShape(QFrame.StyledPanel)
+        self._proy_frame.setStyleSheet(
+            "QFrame { background:#F8FAFC; border:1px solid #E2E8F0; border-radius:8px; }"
+        )
+        lay = QHBoxLayout(self._proy_frame)
+        lay.setContentsMargins(16, 10, 16, 10)
+        lay.setSpacing(20)
+
+        # Título/descripción de la barra
+        lbl_titulo = QLabel("Proyección del mes")
+        lbl_titulo.setStyleSheet(
+            "color:#334155; font-size:11px; font-weight:bold;"
+        )
+
+        self._proy_dia       = self._info_chip("Al día …/…",     "$ 0")
+        self._proy_meta      = self._info_chip("Meta acumulada",  "$ 0")
+        self._proy_util      = self._info_chip("Utilidad real acumulada", "$ 0")
+        self._proy_dif_chip  = self._proy_diferencia_chip()
+
+        lay.addWidget(lbl_titulo)
+        lay.addWidget(self._sep_v())
+        lay.addWidget(self._proy_dia)
+        lay.addWidget(self._sep_v())
+        lay.addWidget(self._proy_meta)
+        lay.addWidget(self._sep_v())
+        lay.addWidget(self._proy_util)
+        lay.addWidget(self._sep_v())
+        lay.addWidget(self._proy_dif_chip)
+        lay.addStretch()
+        return self._proy_frame
+
+    def _proy_diferencia_chip(self) -> QWidget:
+        """Widget especial para el superávit/déficit — cambia color y texto."""
+        w = QWidget()
+        lay = QVBoxLayout(w)
+        lay.setContentsMargins(0, 0, 0, 0)
+        lay.setSpacing(2)
+        lbl_e = QLabel("SITUACIÓN")
+        lbl_e.setStyleSheet("color:#6B7280; font-size:10px; font-weight:bold;")
+        self._proy_dif_label = QLabel("—")
+        self._proy_dif_label.setStyleSheet("font-size:14px; font-weight:bold; color:#374151;")
+        lay.addWidget(lbl_e)
+        lay.addWidget(self._proy_dif_label)
+        w._lbl_valor = self._proy_dif_label
+        return w
+
     def _info_chip(self, etiqueta: str, valor: str) -> QWidget:
         w = QWidget()
         lay = QVBoxLayout(w)
@@ -332,6 +385,8 @@ class DashboardPanel(QWidget):
         fecha = date(qd.year(), qd.month(), qd.day())
         resumen = self._ctrl.get_resumen_dia(fecha)
         self._actualizar_cards(resumen)
+        proy = self._ctrl.get_proyeccion_mes(fecha)
+        self._actualizar_proyeccion(proy, fecha)
 
     def _actualizar_cards(self, r: ResumenDiario) -> None:
         # Tarjetas pequeñas
@@ -388,3 +443,31 @@ class DashboardPanel(QWidget):
                 "font-weight:bold; font-size:12px; border-radius:5px; padding:0 12px;"
                 "background:#FEE2E2; color:#DC2626;"
             )
+
+    def _actualizar_proyeccion(self, p: dict, fecha: date) -> None:
+        """Actualiza la barra de proyección mensual."""
+        self._proy_dia._lbl_valor.setText(
+            f"Día {p['dia']} de {p['dias_mes']}"
+        )
+        self._proy_meta._lbl_valor.setText(cop(p["meta"]))
+        self._proy_util._lbl_valor.setText(cop(p["utilidad_acumulada"]))
+
+        dif = p["diferencia"]
+        if dif >= 0:
+            signo = "+"
+            color = "#15803D"
+            bg    = "#DCFCE7"
+            texto = f"{signo}{cop(dif)}  SUPERÁVIT"
+        else:
+            signo = ""
+            color = "#DC2626"
+            bg    = "#FEE2E2"
+            texto = f"{signo}{cop(dif)}  DÉFICIT"
+
+        self._proy_dif_label.setText(texto)
+        self._proy_dif_label.setStyleSheet(
+            f"font-size:13px; font-weight:bold; color:{color};"
+        )
+        self._proy_frame.setStyleSheet(
+            f"QFrame {{ background:{bg}; border:1px solid {color}40; border-radius:8px; }}"
+        )

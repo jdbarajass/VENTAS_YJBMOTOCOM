@@ -188,11 +188,11 @@ class PrestamosPanel(QWidget):
         lay = QVBoxLayout(frame)
         lay.setContentsMargins(0, 0, 0, 0)
 
-        # Cols: ID(oculto) | Fecha | Producto | Almacén | Observaciones | Estado | Acciones
+        # Cols: ID(oculto) | Fecha | Días | Producto | Almacén | Observaciones | Estado | Acciones
         self.tabla = QTableWidget()
-        self.tabla.setColumnCount(7)
+        self.tabla.setColumnCount(8)
         self.tabla.setHorizontalHeaderLabels([
-            "ID", "Fecha", "Producto", "Almacén", "Observaciones", "Estado", "Acciones"
+            "ID", "Fecha", "Días", "Producto", "Almacén", "Observaciones", "Estado", "Acciones"
         ])
         self.tabla.setColumnHidden(0, True)
         self.tabla.setEditTriggers(QAbstractItemView.NoEditTriggers)
@@ -212,11 +212,12 @@ class PrestamosPanel(QWidget):
 
         hh = self.tabla.horizontalHeader()
         hh.setSectionResizeMode(1, QHeaderView.Fixed);   self.tabla.setColumnWidth(1, 90)
-        hh.setSectionResizeMode(2, QHeaderView.Stretch)
-        hh.setSectionResizeMode(3, QHeaderView.Fixed);   self.tabla.setColumnWidth(3, 160)
-        hh.setSectionResizeMode(4, QHeaderView.Stretch)
-        hh.setSectionResizeMode(5, QHeaderView.Fixed);   self.tabla.setColumnWidth(5, 100)
-        hh.setSectionResizeMode(6, QHeaderView.Fixed);   self.tabla.setColumnWidth(6, 210)
+        hh.setSectionResizeMode(2, QHeaderView.Fixed);   self.tabla.setColumnWidth(2, 68)
+        hh.setSectionResizeMode(3, QHeaderView.Stretch)
+        hh.setSectionResizeMode(4, QHeaderView.Fixed);   self.tabla.setColumnWidth(4, 160)
+        hh.setSectionResizeMode(5, QHeaderView.Stretch)
+        hh.setSectionResizeMode(6, QHeaderView.Fixed);   self.tabla.setColumnWidth(6, 100)
+        hh.setSectionResizeMode(7, QHeaderView.Fixed);   self.tabla.setColumnWidth(7, 210)
 
         lay.addWidget(self.tabla)
         return frame
@@ -238,20 +239,26 @@ class PrestamosPanel(QWidget):
         self.tabla.setRowCount(0)
         self.tabla.setRowCount(len(self._prestamos))
 
+        hoy = date.today()
         for row, p in enumerate(self._prestamos):
             self.tabla.setRowHeight(row, 36)
 
             self.tabla.setItem(row, 0, QTableWidgetItem(str(p.id)))
             self._celda(row, 1, fecha_corta(p.fecha), Qt.AlignCenter)
-            self._celda(row, 2, p.producto)
-            self._celda(row, 3, p.almacen, Qt.AlignCenter)
-            self._celda(row, 4, p.observaciones or "")
+
+            # Días transcurridos
+            dias = max(0, (hoy - p.fecha).days)
+            self.tabla.setCellWidget(row, 2, self._badge_dias(dias, p.estado))
+
+            self._celda(row, 3, p.producto)
+            self._celda(row, 4, p.almacen, Qt.AlignCenter)
+            self._celda(row, 5, p.observaciones or "")
 
             # Estado con badge de color
-            self.tabla.setCellWidget(row, 5, self._badge_estado(p.estado))
+            self.tabla.setCellWidget(row, 6, self._badge_estado(p.estado))
 
             # Botones de acción
-            self.tabla.setCellWidget(row, 6, self._widget_acciones(p.id, p.estado))
+            self.tabla.setCellWidget(row, 7, self._widget_acciones(p.id, p.estado))
 
     def _actualizar_alerta(self) -> None:
         """Actualiza el banner de alerta de pendientes."""
@@ -274,6 +281,29 @@ class PrestamosPanel(QWidget):
     # ------------------------------------------------------------------
     # Widgets de celda
     # ------------------------------------------------------------------
+
+    def _badge_dias(self, dias: int, estado: str) -> QWidget:
+        """Badge con días transcurridos; color según urgencia (solo aplica a pendientes)."""
+        if estado != "pendiente":
+            bg, fg = "#F1F5F9", "#64748B"
+        elif dias <= 7:
+            bg, fg = "#DCFCE7", "#15803D"
+        elif dias <= 30:
+            bg, fg = "#FEF3C7", "#92400E"
+        else:
+            bg, fg = "#FEE2E2", "#DC2626"
+
+        w = QWidget()
+        lay = QHBoxLayout(w)
+        lay.setContentsMargins(4, 4, 4, 4)
+        lbl = QLabel(f"{dias}d")
+        lbl.setAlignment(Qt.AlignCenter)
+        lbl.setStyleSheet(
+            f"background:{bg}; color:{fg}; border-radius:4px;"
+            f"font-size:11px; font-weight:bold; padding:2px 6px;"
+        )
+        lay.addWidget(lbl)
+        return w
 
     def _badge_estado(self, estado: str) -> QWidget:
         bg, fg, txt = ESTADO_ESTILO.get(estado, ("#F3F4F6", "#374151", estado.upper()))

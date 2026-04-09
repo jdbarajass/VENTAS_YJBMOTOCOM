@@ -131,6 +131,22 @@ class ExportarImportarPanel(QWidget):
         fila_mes.addStretch()
         lay.addLayout(fila_mes)
 
+        fila_btns = QHBoxLayout()
+        fila_btns.setSpacing(10)
+
+        btn_plantilla = QPushButton("⬇  Descargar Plantilla")
+        btn_plantilla.setFixedHeight(42)
+        btn_plantilla.setStyleSheet(
+            "QPushButton { background:#059669; color:white; border-radius:7px;"
+            "font-size:13px; font-weight:bold; }"
+            "QPushButton:hover { background:#047857; }"
+        )
+        btn_plantilla.setToolTip(
+            "Descarga un Excel vacío con las tres hojas para rellenar\n"
+            "y luego importar con el botón Importar Todo"
+        )
+        btn_plantilla.clicked.connect(self._on_descargar_plantilla)
+
         btn = QPushButton("⬇  Exportar Todo")
         btn.setFixedHeight(42)
         btn.setStyleSheet(
@@ -139,7 +155,10 @@ class ExportarImportarPanel(QWidget):
             "QPushButton:hover { background:#15803D; }"
         )
         btn.clicked.connect(self._on_exportar)
-        lay.addWidget(btn)
+
+        fila_btns.addWidget(btn_plantilla)
+        fila_btns.addWidget(btn)
+        lay.addLayout(fila_btns)
 
         return frame
 
@@ -223,6 +242,32 @@ class ExportarImportarPanel(QWidget):
     # ------------------------------------------------------------------
     # Acciones
     # ------------------------------------------------------------------
+
+    def _on_descargar_plantilla(self) -> None:
+        mes = self.combo_mes.currentData()
+        año = self.spin_año.value()
+        nombre_sugerido = f"Plantilla_YJBMOTOCOM_{año}-{mes:02d}.xlsx"
+
+        ruta, _ = QFileDialog.getSaveFileName(
+            self, "Guardar plantilla", nombre_sugerido, "Excel (*.xlsx)"
+        )
+        if not ruta:
+            return
+        try:
+            from services.exportador import generar_plantilla_todo
+            generar_plantilla_todo(Path(ruta), año, mes)
+            QMessageBox.information(
+                self,
+                "Plantilla guardada",
+                f"Plantilla guardada en:\n{ruta}\n\n"
+                "El archivo tiene tres hojas:\n"
+                "  • Ventas — rellena tus ventas del mes\n"
+                "  • Préstamos — rellena los préstamos\n"
+                "  • Inventario — rellena los productos\n\n"
+                "Borra las filas de ejemplo (en gris) antes de importar.",
+            )
+        except Exception as exc:
+            QMessageBox.critical(self, "Error al guardar", str(exc))
 
     def _on_exportar(self) -> None:
         mes = self.combo_mes.currentData()

@@ -359,6 +359,106 @@ def exportar_todo(
     wb.save(str(ruta))
 
 
+def generar_plantilla_todo(ruta: Path, año: int, mes: int) -> None:
+    """
+    Genera un .xlsx vacío con las tres hojas (Ventas, Préstamos, Inventario)
+    listo para ser rellenado por el usuario e importado desde el panel
+    Exportar / Importar.
+    Incluye filas de ejemplo en gris para guiar el formato.
+    """
+    wb = openpyxl.Workbook()
+
+    # ── Hoja Ventas ───────────────────────────────────────────────────────
+    ws_v = wb.active
+    ws_v.title = "Ventas"
+    _escribir_encabezados_ventas(ws_v, "A1", f"YJBMOTOCOM — {nombre_mes(mes, año)}")
+
+    for ej in _EJEMPLOS_VENTAS:
+        ws_v.append(list(ej))
+        row = ws_v.max_row
+        for col_idx in range(1, 11):
+            c = ws_v.cell(row=row, column=col_idx)
+            c.fill = PatternFill("solid", fgColor="F1F5F9")
+            c.font = Font(name="Calibri", size=10, italic=True, color="94A3B8")
+            c.border = _borde_fino()
+            c.alignment = Alignment(vertical="center")
+        ws_v.row_dimensions[row].height = 18
+
+    ws_v.merge_cells(f"A{ws_v.max_row + 1}:J{ws_v.max_row + 1}")
+    nota_v = ws_v.cell(ws_v.max_row, 1)
+    nota_v.value = (
+        "↑ Borra las filas de ejemplo. Agrega tus ventas desde la fila 4. "
+        "Cada fila tiene su propia fecha dentro del mes."
+    )
+    nota_v.font = Font(name="Calibri", size=9, italic=True, color="6B7280")
+    nota_v.fill = PatternFill("solid", fgColor="FFFBEB")
+    nota_v.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+    ws_v.row_dimensions[ws_v.max_row].height = 24
+    for i, ancho in enumerate(_ANCHOS_VENTAS, start=1):
+        ws_v.column_dimensions[get_column_letter(i)].width = ancho
+
+    # ── Hoja Préstamos ────────────────────────────────────────────────────
+    ws_p = wb.create_sheet("Préstamos")
+    _escribir_hoja_prestamos(ws_p, [])   # vacía con encabezados y formato
+
+    lado = Side(style="thin", color="CCCCCC")
+    borde = Border(left=lado, right=lado, top=lado, bottom=lado)
+    _EJEMPLOS_PRESTAMOS = [
+        ("15/04/2026", "Casco X-Sport Rojo T.M", "Almacén Norte", "Para revisión", "pendiente"),
+        ("20/04/2026", "Guantes cuero talla L",  "Almacén Sur",   "",              "devuelto"),
+    ]
+    for ej in _EJEMPLOS_PRESTAMOS:
+        ws_p.append(list(ej))
+        row = ws_p.max_row
+        for col_idx in range(1, 6):
+            c = ws_p.cell(row=row, column=col_idx)
+            c.fill = PatternFill("solid", fgColor="F1F5F9")
+            c.font = Font(name="Calibri", size=10, italic=True, color="94A3B8")
+            c.border = borde
+            c.alignment = Alignment(vertical="center")
+        ws_p.row_dimensions[row].height = 18
+
+    ws_p.merge_cells(f"A{ws_p.max_row + 1}:E{ws_p.max_row + 1}")
+    nota_p = ws_p.cell(ws_p.max_row, 1)
+    nota_p.value = "↑ Borra los ejemplos. Estados válidos: pendiente | devuelto | cobrado"
+    nota_p.font = Font(name="Calibri", size=9, italic=True, color="6B7280")
+    nota_p.fill = PatternFill("solid", fgColor="FFFBEB")
+    nota_p.alignment = Alignment(horizontal="center", vertical="center")
+    ws_p.row_dimensions[ws_p.max_row].height = 20
+
+    # ── Hoja Inventario ───────────────────────────────────────────────────
+    ws_i = wb.create_sheet("Inventario")
+    _escribir_hoja_inventario(ws_i, [])   # vacía con encabezados y formato
+
+    _EJEMPLOS_INV = [
+        ("001", "Casco X-Sport Rojo T.M",  85000, 5,  "7709001234567"),
+        ("002", "Aceite 10W-40 1 litro",   18000, 12, ""),
+        ("003", "Guantes cuero talla L",   25000, 8,  "7709009876543"),
+    ]
+    lado2 = Side(style="thin", color="CCCCCC")
+    borde2 = Border(left=lado2, right=lado2, top=lado2, bottom=lado2)
+    for ej in _EJEMPLOS_INV:
+        ws_i.append(list(ej))
+        row = ws_i.max_row
+        for col_idx in range(1, 6):
+            c = ws_i.cell(row=row, column=col_idx)
+            c.fill = PatternFill("solid", fgColor="F1F5F9")
+            c.font = Font(name="Calibri", size=10, italic=True, color="94A3B8")
+            c.border = borde2
+            c.alignment = Alignment(vertical="center")
+        ws_i.row_dimensions[row].height = 18
+
+    ws_i.merge_cells(f"A{ws_i.max_row + 1}:E{ws_i.max_row + 1}")
+    nota_i = ws_i.cell(ws_i.max_row, 1)
+    nota_i.value = "↑ Borra los ejemplos. Agrega tus productos desde la fila 3."
+    nota_i.font = Font(name="Calibri", size=9, italic=True, color="6B7280")
+    nota_i.fill = PatternFill("solid", fgColor="FFFBEB")
+    nota_i.alignment = Alignment(horizontal="center", vertical="center")
+    ws_i.row_dimensions[ws_i.max_row].height = 20
+
+    wb.save(str(ruta))
+
+
 def exportar_ventas_dia(ventas: list[Venta], fecha: date, ruta: Path) -> None:
     """
     Genera un .xlsx con todas las ventas de un día.

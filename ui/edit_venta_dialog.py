@@ -229,6 +229,18 @@ class EditVentaDialog(QDialog):
         combo.addItems(METODOS_PAGO)
         combo.setCurrentText(metodo)
         combo.setFixedHeight(28)
+        combo.setStyleSheet("""
+            QComboBox {
+                background: white; color: #1E293B;
+                border: 1px solid #D1D5DB; border-radius: 4px; padding: 0 8px;
+            }
+            QComboBox::drop-down { border: none; width: 18px; }
+            QComboBox QAbstractItemView {
+                background: white; color: #1E293B;
+                selection-background-color: #DBEAFE; selection-color: #1E3A5F;
+                border: 1px solid #BFDBFE;
+            }
+        """)
 
         monto_edit = MoneyLineEdit()
         monto_edit.setPlaceholderText("0")

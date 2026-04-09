@@ -561,10 +561,27 @@ class VentaForm(QWidget):
         combo.addItems(METODOS_PAGO)
         combo.setCurrentText(metodo)
         combo.setFixedHeight(28)
+        combo.setStyleSheet("""
+            QComboBox {
+                background: white; color: #1E293B;
+                border: 1px solid #D1D5DB; border-radius: 4px; padding: 0 8px;
+            }
+            QComboBox::drop-down { border: none; width: 18px; }
+            QComboBox QAbstractItemView {
+                background: white; color: #1E293B;
+                selection-background-color: #DBEAFE; selection-color: #1E3A5F;
+                border: 1px solid #BFDBFE;
+            }
+        """)
 
         monto_edit = MoneyLineEdit()
         monto_edit.setPlaceholderText("0")
         monto_edit.setFixedHeight(28)
+        monto_edit.setStyleSheet(
+            "QLineEdit { background:white; color:#1E293B; border:1px solid #D1D5DB;"
+            "border-radius:4px; padding:0 6px; }"
+            "QLineEdit:focus { border:2px solid #93C5FD; }"
+        )
         if monto:
             monto_edit.set_valor(monto)
 

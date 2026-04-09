@@ -21,6 +21,7 @@ from ui.historial_panel import HistorialPanel
 from ui.config_panel import ConfigPanel
 from ui.prestamos_panel import PrestamosPanel
 from ui.inventario_panel import InventarioPanel
+from ui.exportar_importar_panel import ExportarImportarPanel
 
 
 # Índices de página en el QStackedWidget
@@ -31,6 +32,7 @@ PAGE_HISTORIAL   = 3
 PAGE_CONFIG      = 4
 PAGE_PRESTAMOS   = 5
 PAGE_INVENTARIO  = 6
+PAGE_EXPORTAR    = 7
 
 
 class MainWindow(QMainWindow):
@@ -126,6 +128,7 @@ class MainWindow(QMainWindow):
             (PAGE_HISTORIAL,  "📅  Historial Mensual"),
             (PAGE_INVENTARIO, "📦  Inventario"),
             (PAGE_PRESTAMOS,  "🤝  Préstamos"),
+            (PAGE_EXPORTAR,   "⬇⬆  Exportar / Importar"),
             (PAGE_CONFIG,     "⚙  Configuración"),
         ]
 
@@ -218,6 +221,10 @@ class MainWindow(QMainWindow):
         self._inventario = InventarioPanel()
         self._stack.addWidget(self._inventario)
 
+        # Página 7 — Exportar / Importar
+        self._exportar_importar = ExportarImportarPanel()
+        self._stack.addWidget(self._exportar_importar)
+
         # Señales
         self._form_venta.venta_guardada.connect(self._on_venta_guardada)
         self._config.configuracion_guardada.connect(self._on_config_guardada)
@@ -225,6 +232,7 @@ class MainWindow(QMainWindow):
         self._inventario.inventario_actualizado.connect(
             self._form_venta.actualizar_inventario
         )
+        self._exportar_importar.datos_importados.connect(self._on_datos_importados)
 
         layout.addWidget(self._stack)
         return wrapper
@@ -295,3 +303,12 @@ class MainWindow(QMainWindow):
         """Al editar o eliminar desde historial, refresca ventas del día y dashboard."""
         self._ventas_dia.refresh()
         self._dashboard.refresh()
+
+    def _on_datos_importados(self) -> None:
+        """Al importar desde el panel unificado, refresca todas las vistas."""
+        self._ventas_dia.refresh()
+        self._dashboard.refresh()
+        self._historial.refresh()
+        self._inventario.refresh()
+        self._form_venta.actualizar_inventario()
+        self._status.showMessage("Importación completada  •  Todos los datos actualizados")

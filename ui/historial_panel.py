@@ -9,7 +9,7 @@ from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
     QComboBox, QSpinBox, QTableWidget, QTableWidgetItem,
     QHeaderView, QAbstractItemView, QFrame, QSizePolicy,
-    QFileDialog, QMessageBox,
+    QMessageBox,
 )
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QFont, QColor
@@ -78,34 +78,6 @@ class HistorialPanel(QWidget):
         btn_prev.clicked.connect(self._mes_anterior)
         btn_next.clicked.connect(self._mes_siguiente)
 
-        self.btn_exportar = QPushButton("⬇  Exportar Excel")
-        self.btn_exportar.setFixedHeight(34)
-        self.btn_exportar.setStyleSheet(
-            "QPushButton { background:#16A34A; color:white; border-radius:5px;"
-            "padding:0 14px; font-weight:bold; }"
-            "QPushButton:hover { background:#15803D; }"
-            "QPushButton:disabled { background:#9CA3AF; }"
-        )
-        self.btn_exportar.clicked.connect(self._on_exportar)
-
-        btn_plantilla = QPushButton("⬇  Plantilla")
-        btn_plantilla.setFixedHeight(34)
-        btn_plantilla.setStyleSheet(
-            "QPushButton { background:#059669; color:white; border-radius:5px;"
-            "padding:0 14px; font-weight:bold; }"
-            "QPushButton:hover { background:#047857; }"
-        )
-        btn_plantilla.clicked.connect(self._on_descargar_plantilla)
-
-        btn_importar = QPushButton("⬆  Importar Excel")
-        btn_importar.setFixedHeight(34)
-        btn_importar.setStyleSheet(
-            "QPushButton { background:#2563EB; color:white; border-radius:5px;"
-            "padding:0 14px; font-weight:bold; }"
-            "QPushButton:hover { background:#1D4ED8; }"
-        )
-        btn_importar.clicked.connect(self._on_importar_excel)
-
         self.combo_mes.currentIndexChanged.connect(lambda _: self.refresh())
         self.spin_año.valueChanged.connect(lambda _: self.refresh())
 
@@ -116,9 +88,6 @@ class HistorialPanel(QWidget):
         lay.addWidget(self.spin_año)
         lay.addWidget(btn_next)
         lay.addStretch()
-        lay.addWidget(btn_plantilla)
-        lay.addWidget(btn_importar)
-        lay.addWidget(self.btn_exportar)
         return lay
 
     def _btn_nav(self, texto: str) -> QPushButton:
@@ -379,8 +348,6 @@ class HistorialPanel(QWidget):
             item_est.setForeground(QColor("#15803D") if rd.es_positivo else QColor("#DC2626"))
             self.tabla_diaria.setItem(row, 6, item_est)
 
-        self.btn_exportar.setEnabled(r.cantidad_ventas > 0)
-
         # ---- Refrescar detalle si había un día seleccionado ----
         if self._fecha_seleccionada is not None:
             ventas_dia = [v for v in self._ventas if v.fecha == self._fecha_seleccionada]
@@ -548,54 +515,3 @@ class HistorialPanel(QWidget):
         else:
             self.combo_mes.setCurrentIndex(mes)
 
-    # ------------------------------------------------------------------
-    # Exportar Excel
-    # ------------------------------------------------------------------
-
-    def _on_descargar_plantilla(self) -> None:
-        mes = self.combo_mes.currentData()
-        año = self.spin_año.value()
-        nombre = f"Plantilla_Ventas_{año}-{mes:02d}.xlsx"
-        ruta, _ = QFileDialog.getSaveFileName(
-            self, "Guardar plantilla de ventas mensuales", nombre, "Excel (*.xlsx)"
-        )
-        if not ruta:
-            return
-        try:
-            from services.exportador import generar_plantilla_ventas_mes
-            from pathlib import Path
-            generar_plantilla_ventas_mes(Path(ruta), año, mes)
-            QMessageBox.information(
-                self, "Plantilla guardada",
-                f"Plantilla guardada en:\n{ruta}\n\n"
-                "Llena las ventas desde la fila 4 y luego usa\n"
-                "⬆ Importar Excel para cargarlas al sistema."
-            )
-        except Exception as exc:
-            QMessageBox.critical(self, "Error al guardar", str(exc))
-
-    def _on_importar_excel(self) -> None:
-        from ui.importar_dialog import ImportarDialog
-        dlg = ImportarDialog(self)
-        dlg.importacion_completada.connect(self.refresh)
-        dlg.importacion_completada.connect(self.venta_modificada.emit)
-        dlg.exec()
-
-    def _on_exportar(self) -> None:
-        mes = self.combo_mes.currentData()
-        año = self.spin_año.value()
-        nombre_sugerido = f"Historial_{año}-{mes:02d}.xlsx"
-
-        ruta, _ = QFileDialog.getSaveFileName(
-            self, "Guardar Excel mensual", nombre_sugerido, "Excel (*.xlsx)"
-        )
-        if not ruta:
-            return
-        try:
-            from pathlib import Path
-            self._ctrl.exportar_excel(año, mes, Path(ruta))
-            QMessageBox.information(
-                self, "Exportación exitosa", f"Archivo guardado en:\n{ruta}"
-            )
-        except Exception as exc:
-            QMessageBox.critical(self, "Error al exportar", str(exc))

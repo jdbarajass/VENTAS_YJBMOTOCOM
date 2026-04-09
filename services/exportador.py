@@ -15,6 +15,7 @@ from openpyxl.utils import get_column_letter
 
 from models.venta import Venta
 from models.prestamo import Prestamo
+from models.producto import Producto
 from utils.formatters import fecha_corta, nombre_mes
 
 
@@ -216,6 +217,146 @@ def _escribir_hoja_prestamos(ws, prestamos: list) -> None:
     # Anchos de columna
     for i, ancho in enumerate(_ANCHOS_PRESTAMOS, start=1):
         ws.column_dimensions[get_column_letter(i)].width = ancho
+
+
+_HEADERS_INVENTARIO = ["Serial", "Producto", "Costo unitario", "Cantidad", "Código barras"]
+_ANCHOS_INVENTARIO  = [12, 38, 16, 12, 20]
+
+
+def _escribir_hoja_inventario(ws, productos: list) -> None:
+    """Escribe título, encabezados y datos de inventario en el worksheet dado."""
+    lado = Side(style="thin", color="CCCCCC")
+    borde = Border(left=lado, right=lado, top=lado, bottom=lado)
+    from datetime import date as _date
+    hoy = _date.today().strftime("%d/%m/%Y")
+
+    # Título
+    ws.merge_cells("A1:E1")
+    t = ws["A1"]
+    t.value = f"YJBMOTOCOM — Inventario ({hoy})"
+    t.font = Font(name="Calibri", bold=True, size=13, color="FFFFFF")
+    t.fill = PatternFill("solid", fgColor="0369A1")
+    t.alignment = Alignment(horizontal="center", vertical="center")
+    ws.row_dimensions[1].height = 26
+
+    # Encabezados
+    ws.append(_HEADERS_INVENTARIO)
+    for col_idx in range(1, 6):
+        cell = ws.cell(row=2, column=col_idx)
+        cell.font = Font(bold=True, color="FFFFFF", name="Calibri", size=10)
+        cell.fill = PatternFill("solid", fgColor="0284C7")
+        cell.alignment = Alignment(horizontal="center", vertical="center")
+        cell.border = borde
+    ws.row_dimensions[2].height = 20
+
+    # Datos
+    for i, p in enumerate(productos, start=1):
+        ws.append([
+            p.serial or "",
+            p.producto,
+            p.costo_unitario,
+            p.cantidad,
+            p.codigo_barras or "",
+        ])
+        row = ws.max_row
+        fondo = "F0F9FF" if i % 2 == 0 else "FFFFFF"
+        for col_idx in range(1, 6):
+            c = ws.cell(row=row, column=col_idx)
+            c.fill = PatternFill("solid", fgColor=fondo)
+            c.border = borde
+            c.font = Font(name="Calibri", size=10)
+            c.alignment = Alignment(vertical="center")
+        ws.row_dimensions[row].height = 18
+
+    # Anchos
+    for i, ancho in enumerate(_ANCHOS_INVENTARIO, start=1):
+        ws.column_dimensions[get_column_letter(i)].width = ancho
+
+
+def exportar_todo(
+    ruta: Path,
+    año: int,
+    mes: int,
+    ventas: list[Venta],
+    prestamos: list,
+    productos: list[Producto],
+) -> None:
+    """
+    Genera un único .xlsx con tres hojas:
+      • Ventas   — ventas del mes indicado
+      • Préstamos — todos los préstamos
+      • Inventario — snapshot actual del inventario
+    """
+    wb = openpyxl.Workbook()
+
+    # ── Hoja Ventas ───────────────────────────────────────────────────────
+    ws_v = wb.active
+    ws_v.title = "Ventas"
+
+    ws_v.merge_cells("A1:J1")
+    titulo = ws_v["A1"]
+    titulo.value = f"YJBMOTOCOM — {nombre_mes(mes, año)}"
+    titulo.font = Font(name="Calibri", bold=True, size=14, color="FFFFFF")
+    titulo.fill = PatternFill("solid", fgColor=_AZUL_HEADER)
+    titulo.alignment = Alignment(horizontal="center", vertical="center")
+    ws_v.row_dimensions[1].height = 28
+
+    headers = [
+        "#", "Fecha", "Producto", "Cant.", "Costo", "Precio venta",
+        "Método pago", "Comisión", "Ganancia neta", "Notas"
+    ]
+    ws_v.append([])
+    ws_v.append(headers)
+    for col_idx in range(1, 11):
+        cell = ws_v.cell(row=3, column=col_idx)
+        cell.font = Font(bold=True, color="FFFFFF", name="Calibri", size=10)
+        cell.fill = PatternFill("solid", fgColor="2563EB")
+        cell.alignment = Alignment(horizontal="center", vertical="center")
+        cell.border = _borde_fino()
+    ws_v.row_dimensions[3].height = 20
+
+    total_neta = 0.0
+    for i, v in enumerate(ventas, start=1):
+        ws_v.append([
+            i, fecha_corta(v.fecha), v.producto, v.cantidad,
+            v.costo, v.precio, v.metodo_pago,
+            v.comision, v.ganancia_neta, v.notas,
+        ])
+        row = ws_v.max_row
+        fondo = _GRIS_FILA if i % 2 == 0 else "FFFFFF"
+        for col_idx in range(1, 11):
+            c = ws_v.cell(row=row, column=col_idx)
+            c.fill = PatternFill("solid", fgColor=fondo)
+            c.border = _borde_fino()
+            c.font = Font(name="Calibri", size=10)
+        cell_neta = ws_v.cell(row=row, column=9)
+        cell_neta.fill = PatternFill(
+            "solid", fgColor=_VERDE if v.ganancia_neta >= 0 else _ROJO
+        )
+        total_neta += v.ganancia_neta
+
+    ws_v.append([
+        "", "TOTALES", f"{len(ventas)} venta(s)", "", "", "", "", "", total_neta, ""
+    ])
+    total_row = ws_v.max_row
+    for col_idx in range(1, 11):
+        c = ws_v.cell(row=total_row, column=col_idx)
+        c.font = Font(bold=True, name="Calibri", size=10)
+        c.fill = PatternFill("solid", fgColor=_AZUL_SUAVE)
+        c.border = _borde_fino()
+
+    for i, ancho in enumerate([5, 12, 30, 7, 15, 16, 14, 14, 15, 28], start=1):
+        ws_v.column_dimensions[get_column_letter(i)].width = ancho
+
+    # ── Hoja Préstamos ────────────────────────────────────────────────────
+    ws_p = wb.create_sheet("Préstamos")
+    _escribir_hoja_prestamos(ws_p, prestamos)
+
+    # ── Hoja Inventario ───────────────────────────────────────────────────
+    ws_i = wb.create_sheet("Inventario")
+    _escribir_hoja_inventario(ws_i, productos)
+
+    wb.save(str(ruta))
 
 
 def exportar_ventas_dia(ventas: list[Venta], fecha: date, ruta: Path) -> None:

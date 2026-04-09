@@ -3,12 +3,10 @@ ui/inventario_panel.py
 Panel de gestión de inventario: tabla, formulario, importación desde Excel.
 """
 
-from pathlib import Path
-
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
     QLineEdit, QTableWidget, QTableWidgetItem, QHeaderView,
-    QAbstractItemView, QFrame, QFileDialog, QMessageBox,
+    QAbstractItemView, QFrame, QMessageBox,
     QSpinBox, QSizePolicy,
 )
 from PySide6.QtCore import Qt, Signal
@@ -16,9 +14,8 @@ from PySide6.QtGui import QFont, QColor
 
 from database.inventario_repo import (
     obtener_todos_productos, insertar_producto,
-    actualizar_producto, eliminar_producto, eliminar_todo_inventario,
+    actualizar_producto, eliminar_producto,
 )
-from services.inventario_importador import importar_inventario_excel, generar_plantilla_inventario
 from models.producto import Producto
 from ui.venta_form import MoneyLineEdit
 from utils.formatters import cop
@@ -76,31 +73,11 @@ class InventarioPanel(QWidget):
         )
         btn_nuevo.clicked.connect(self._on_nuevo)
 
-        btn_plantilla = QPushButton("⬇  Descargar Plantilla")
-        btn_plantilla.setFixedHeight(34)
-        btn_plantilla.setStyleSheet(
-            "QPushButton { background:#059669; color:white; border-radius:5px;"
-            "padding:0 14px; font-weight:bold; }"
-            "QPushButton:hover { background:#047857; }"
-        )
-        btn_plantilla.clicked.connect(self._on_descargar_plantilla)
-
-        btn_importar = QPushButton("⬆  Importar Excel")
-        btn_importar.setFixedHeight(34)
-        btn_importar.setStyleSheet(
-            "QPushButton { background:#2563EB; color:white; border-radius:5px;"
-            "padding:0 14px; font-weight:bold; }"
-            "QPushButton:hover { background:#1D4ED8; }"
-        )
-        btn_importar.clicked.connect(self._on_importar)
-
         lay.addWidget(titulo)
         lay.addSpacing(16)
         lay.addWidget(self._campo_busqueda)
         lay.addStretch()
         lay.addWidget(btn_nuevo)
-        lay.addWidget(btn_plantilla)
-        lay.addWidget(btn_importar)
         return lay
 
     def _panel_form(self) -> QFrame:
@@ -442,78 +419,6 @@ class InventarioPanel(QWidget):
             eliminar_producto(producto_id)
             self.refresh()
             self.inventario_actualizado.emit()
-
-    def _on_descargar_plantilla(self) -> None:
-        ruta, _ = QFileDialog.getSaveFileName(
-            self, "Guardar plantilla de inventario",
-            "Plantilla_Inventario_YJBMOTOCOM.xlsx",
-            "Excel (*.xlsx)",
-        )
-        if not ruta:
-            return
-        try:
-            generar_plantilla_inventario(Path(ruta))
-            QMessageBox.information(
-                self, "Plantilla guardada",
-                f"Plantilla guardada en:\n{ruta}\n\n"
-                "Llena los productos desde la fila 4 y luego usa\n"
-                "⬆ Importar Excel para cargarlo al sistema."
-            )
-        except Exception as exc:
-            QMessageBox.critical(self, "Error al guardar", str(exc))
-
-    def _on_importar(self) -> None:
-        ruta, _ = QFileDialog.getOpenFileName(
-            self, "Seleccionar Excel de inventario", "", "Excel (*.xlsx)"
-        )
-        if not ruta:
-            return
-
-        resultado = importar_inventario_excel(Path(ruta))
-
-        if resultado.errores and not resultado.productos:
-            QMessageBox.critical(
-                self, "Error al leer el archivo",
-                "\n".join(resultado.errores)
-            )
-            return
-
-        if not resultado.productos:
-            QMessageBox.warning(self, "Sin datos",
-                                "No se encontraron productos en el archivo.")
-            return
-
-        n = len(resultado.productos)
-        existentes = len(self._productos)
-        msg = (
-            f"Se encontraron <b>{n} productos</b> en el archivo.<br><br>"
-        )
-        if existentes > 0:
-            msg += (
-                f"El inventario actual tiene <b>{existentes} productos</b> "
-                f"que serán <b>reemplazados</b> completamente.<br><br>"
-            )
-        if resultado.errores:
-            msg += f"<i>Advertencias: {'; '.join(resultado.errores[:3])}</i><br><br>"
-        msg += "¿Continuar con la importación?"
-
-        resp = QMessageBox.question(
-            self, "Confirmar importación", msg,
-            QMessageBox.Yes | QMessageBox.No, QMessageBox.No,
-        )
-        if resp != QMessageBox.Yes:
-            return
-
-        eliminar_todo_inventario()
-        for p in resultado.productos:
-            insertar_producto(p)
-
-        QMessageBox.information(
-            self, "Importación exitosa",
-            f"Se importaron <b>{n} productos</b> al inventario correctamente."
-        )
-        self.refresh()
-        self.inventario_actualizado.emit()
 
     def _limpiar_form(self) -> None:
         self._f_serial.clear()

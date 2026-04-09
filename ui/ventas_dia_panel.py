@@ -10,7 +10,7 @@ from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel,
     QPushButton, QDateEdit, QTableWidget, QTableWidgetItem,
     QHeaderView, QAbstractItemView, QMessageBox,
-    QFileDialog, QFrame, QSizePolicy, QLineEdit, QScrollArea,
+    QFrame, QSizePolicy, QLineEdit, QScrollArea,
 )
 from PySide6.QtCore import Qt, QDate
 from PySide6.QtGui import QFont, QColor
@@ -92,40 +92,12 @@ class VentasDiaPanel(QWidget):
         )
         self.btn_hoy.clicked.connect(self._ir_hoy)
 
-        self.btn_exportar = QPushButton("⬇  Exportar Excel")
-        self.btn_exportar.setFixedHeight(34)
-        self.btn_exportar.setStyleSheet(
-            "QPushButton { background:#16A34A; color:white; border-radius:5px; padding:0 14px; font-weight:bold; }"
-            "QPushButton:hover { background:#15803D; }"
-            "QPushButton:disabled { background:#9CA3AF; }"
-        )
-        self.btn_exportar.clicked.connect(self._on_exportar)
-
-        btn_plantilla = QPushButton("⬇  Plantilla")
-        btn_plantilla.setFixedHeight(34)
-        btn_plantilla.setStyleSheet(
-            "QPushButton { background:#059669; color:white; border-radius:5px; padding:0 14px; font-weight:bold; }"
-            "QPushButton:hover { background:#047857; }"
-        )
-        btn_plantilla.clicked.connect(self._on_descargar_plantilla)
-
-        btn_importar = QPushButton("⬆  Importar Excel")
-        btn_importar.setFixedHeight(34)
-        btn_importar.setStyleSheet(
-            "QPushButton { background:#2563EB; color:white; border-radius:5px; padding:0 14px; font-weight:bold; }"
-            "QPushButton:hover { background:#1D4ED8; }"
-        )
-        btn_importar.clicked.connect(self._on_importar_excel)
-
         lay.addWidget(titulo)
         lay.addSpacing(16)
         lay.addWidget(lbl_fecha)
         lay.addWidget(self.date_selector)
         lay.addWidget(self.btn_hoy)
         lay.addStretch()
-        lay.addWidget(btn_plantilla)
-        lay.addWidget(btn_importar)
-        lay.addWidget(self.btn_exportar)
         return lay
 
     def _build_tabla(self) -> QTableWidget:
@@ -375,8 +347,6 @@ class VentasDiaPanel(QWidget):
             # Botones de acción
             self.tabla.setCellWidget(row, COL_ACCIONES, self._widget_acciones(v.id))
 
-        self.btn_exportar.setEnabled(len(self._ventas) > 0)
-
     def _poblar_gastos(self) -> None:
         """Actualiza la lista visual de gastos operativos."""
         while self._gastos_lista_layout.count():
@@ -558,32 +528,6 @@ class VentasDiaPanel(QWidget):
             self._ctrl.eliminar(venta_id)
             self._cargar_datos()
 
-    def _on_exportar(self) -> None:
-        if not self._ventas:
-            return
-
-        qd = self.date_selector.date()
-        fecha = date(qd.year(), qd.month(), qd.day())
-        nombre_sugerido = f"Ventas_{fecha.strftime('%Y-%m-%d')}.xlsx"
-
-        ruta, _ = QFileDialog.getSaveFileName(
-            self,
-            "Guardar Excel",
-            nombre_sugerido,
-            "Excel (*.xlsx)",
-        )
-        if not ruta:
-            return
-
-        try:
-            self._ctrl.exportar_excel(self._ventas, fecha, Path(ruta))
-            QMessageBox.information(
-                self, "Exportación exitosa",
-                f"Archivo guardado en:\n{ruta}"
-            )
-        except Exception as exc:
-            QMessageBox.critical(self, "Error al exportar", str(exc))
-
     # ------------------------------------------------------------------
     # Acciones CRUD — gastos operativos
     # ------------------------------------------------------------------
@@ -615,33 +559,6 @@ class VentasDiaPanel(QWidget):
             self._actualizar_resumen()
         except ValueError as exc:
             QMessageBox.warning(self, "Error", str(exc))
-
-    def _on_descargar_plantilla(self) -> None:
-        qd = self.date_selector.date()
-        fecha = date(qd.year(), qd.month(), qd.day())
-        nombre = f"Plantilla_Ventas_Dia_{fecha.strftime('%Y-%m-%d')}.xlsx"
-        ruta, _ = QFileDialog.getSaveFileName(
-            self, "Guardar plantilla de ventas diarias", nombre, "Excel (*.xlsx)"
-        )
-        if not ruta:
-            return
-        try:
-            from services.exportador import generar_plantilla_ventas_dia
-            generar_plantilla_ventas_dia(Path(ruta), fecha)
-            QMessageBox.information(
-                self, "Plantilla guardada",
-                f"Plantilla guardada en:\n{ruta}\n\n"
-                "Llena las ventas desde la fila 4 y luego usa\n"
-                "⬆ Importar Excel para cargarlas al sistema."
-            )
-        except Exception as exc:
-            QMessageBox.critical(self, "Error al guardar", str(exc))
-
-    def _on_importar_excel(self) -> None:
-        from ui.importar_dialog import ImportarDialog
-        dlg = ImportarDialog(self)
-        dlg.importacion_completada.connect(self._cargar_datos)
-        dlg.exec()
 
     def _on_eliminar_gasto(self, gasto_id: int) -> None:
         self._ctrl.eliminar_gasto(gasto_id)

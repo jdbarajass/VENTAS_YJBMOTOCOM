@@ -13,6 +13,7 @@ import openpyxl
 
 from models.venta import Venta
 from models.prestamo import Prestamo
+from models.producto import Producto
 from utils.formatters import MESES_ES, nombre_mes
 
 
@@ -82,6 +83,183 @@ def _leer_prestamos(ws) -> list[Prestamo]:
         except ValueError:
             pass
     return prestamos
+
+
+@dataclass
+class ResultadoImportacionTotal:
+    ventas: list[Venta] = field(default_factory=list)
+    año: int | None = None
+    mes: int | None = None
+    prestamos: list[Prestamo] = field(default_factory=list)
+    productos: list[Producto] = field(default_factory=list)
+    errores: list[str] = field(default_factory=list)
+
+
+def _leer_inventario(ws) -> list[Producto]:
+    """Lee la hoja «Inventario» generada por exportar_todo."""
+    from services.inventario_importador import _detectar_columnas
+    productos: list[Producto] = []
+
+    # Detectar fila de encabezados en las primeras 5 filas
+    header_row_idx = None
+    mapa: dict = {}
+    for row_idx in range(1, min(6, ws.max_row + 1)):
+        fila = [ws.cell(row_idx, col).value for col in range(1, ws.max_column + 1)]
+        celdas = sum(1 for x in fila if x is not None and str(x).strip())
+        if celdas < 2:
+            continue
+        mapa = _detectar_columnas(fila)
+        if mapa["producto"] is not None:
+            header_row_idx = row_idx
+            break
+
+    if header_row_idx is None or mapa["producto"] is None:
+        mapa = {"serial": 0, "producto": 1, "costo": 2, "cantidad": 3, "codigo_barras": 4}
+        header_row_idx = 1
+
+    for row_idx in range(header_row_idx + 1, ws.max_row + 1):
+        col_prod = mapa.get("producto")
+        val_prod = ws.cell(row_idx, (col_prod or 0) + 1).value if col_prod is not None else None
+        if not val_prod or not str(val_prod).strip():
+            continue
+
+        def _get(campo, default):
+            idx = mapa.get(campo)
+            if idx is None:
+                return default
+            return ws.cell(row_idx, idx + 1).value
+
+        serial = str(_get("serial", "") or "").strip()
+        try:
+            costo = float(_get("costo", 0) or 0)
+        except (ValueError, TypeError):
+            costo = 0.0
+        try:
+            cantidad = int(float(str(_get("cantidad", 0) or 0).replace(",", ".")))
+        except (ValueError, TypeError):
+            cantidad = 0
+        cod = str(_get("codigo_barras", "") or "").strip()
+
+        try:
+            productos.append(Producto(
+                serial=serial,
+                producto=str(val_prod).strip(),
+                costo_unitario=costo,
+                cantidad=cantidad,
+                codigo_barras=cod,
+            ))
+        except ValueError:
+            pass
+    return productos
+
+
+def importar_todo(ruta: Path) -> ResultadoImportacionTotal:
+    """
+    Lee un .xlsx exportado por exportar_todo() y devuelve ventas, préstamos
+    e inventario parseados.
+    Espera hojas: «Ventas», «Préstamos», «Inventario».
+    """
+    resultado = ResultadoImportacionTotal()
+
+    try:
+        wb = openpyxl.load_workbook(str(ruta), data_only=True)
+    except Exception as exc:
+        resultado.errores.append(f"No se pudo abrir el archivo: {exc}")
+        return resultado
+
+    # ── Hoja Ventas ────────────────────────────────────────────────────────
+    ws_v = next(
+        (wb[s] for s in wb.sheetnames if s.lower() == "ventas"),
+        None,
+    )
+    if ws_v is None:
+        resultado.errores.append("No se encontró la hoja 'Ventas' en el archivo.")
+    else:
+        titulo = str(ws_v.cell(1, 1).value or "")
+        parte = titulo.split("—")[-1].strip()  # "Abril 2026"
+        partes = parte.split()
+        if len(partes) >= 2:
+            resultado.mes = _MES_NUM.get(partes[0].lower())
+            try:
+                resultado.año = int(partes[1])
+            except ValueError:
+                pass
+        if not resultado.mes or not resultado.año:
+            resultado.errores.append(
+                f"No se pudo leer el mes del título: '{titulo}'"
+            )
+
+        for row_idx in range(4, ws_v.max_row + 1):
+            col2 = ws_v.cell(row_idx, 2).value
+            if col2 is None:
+                continue
+            if str(col2).upper().strip() == "TOTALES":
+                break
+            try:
+                if isinstance(col2, datetime):
+                    venta_fecha = col2.date()
+                elif isinstance(col2, date):
+                    venta_fecha = col2
+                else:
+                    venta_fecha = datetime.strptime(str(col2).strip(), "%d/%m/%Y").date()
+            except (ValueError, TypeError):
+                resultado.errores.append(f"Fila {row_idx}: fecha inválida — omitida")
+                continue
+
+            producto = str(ws_v.cell(row_idx, 3).value or "").strip()
+            if not producto:
+                continue
+            try:
+                cantidad = int(ws_v.cell(row_idx, 4).value or 1)
+                if cantidad < 1:
+                    cantidad = 1
+            except (ValueError, TypeError):
+                cantidad = 1
+            try:
+                costo = float(ws_v.cell(row_idx, 5).value or 0)
+            except (ValueError, TypeError):
+                costo = 0.0
+            try:
+                precio = float(ws_v.cell(row_idx, 6).value or 0)
+            except (ValueError, TypeError):
+                precio = 0.0
+            metodo = str(ws_v.cell(row_idx, 7).value or "Efectivo").strip() or "Efectivo"
+            try:
+                comision = float(ws_v.cell(row_idx, 8).value or 0)
+            except (ValueError, TypeError):
+                comision = 0.0
+            try:
+                ganancia = float(ws_v.cell(row_idx, 9).value or 0)
+            except (ValueError, TypeError):
+                ganancia = 0.0
+            notas = str(ws_v.cell(row_idx, 10).value or "").strip()
+            try:
+                resultado.ventas.append(Venta(
+                    producto=producto, costo=costo, precio=precio,
+                    metodo_pago=metodo, cantidad=cantidad,
+                    comision=comision, ganancia_neta=ganancia,
+                    notas=notas, fecha=venta_fecha,
+                ))
+            except ValueError as exc:
+                resultado.errores.append(f"Fila {row_idx}: {exc} — omitida")
+
+    # ── Hoja Préstamos ─────────────────────────────────────────────────────
+    ws_p = next(
+        (wb[s] for s in wb.sheetnames if s.lower() in ("préstamos", "prestamos")),
+        None,
+    )
+    if ws_p:
+        resultado.prestamos = _leer_prestamos(ws_p)
+
+    # ── Hoja Inventario ────────────────────────────────────────────────────
+    ws_i = next(
+        (wb[s] for s in wb.sheetnames if s.lower() == "inventario"),
+        None,
+    )
+    if ws_i:
+        resultado.productos = _leer_inventario(ws_i)
+
+    return resultado
 
 
 def importar_desde_excel(ruta: Path) -> ResultadoImportacion:

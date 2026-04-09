@@ -26,6 +26,11 @@ METODOS_PAGO = ["Efectivo", "Bold", "Addi", "Transferencia", "Otro"]
 TRANSFERENCIA_SUBTIPOS = ["NU", "QR", "NEQUI", "DAVIPLATA"]
 
 
+def _fmt(valor: int) -> str:
+    """Formato de miles colombiano para uso interno en el formulario."""
+    return f"$ {valor:,}".replace(",", ".")
+
+
 class MoneyLineEdit(QLineEdit):
     """
     Campo numérico con separador de miles automático (punto colombiano).
@@ -207,11 +212,32 @@ class VentaForm(QWidget):
         self.campo_cantidad.setPrefix("× ")
         form.addRow("Cantidad:", self.campo_cantidad)
 
-        # Método de pago
+        # Método de pago (con toggle de pago combinado)
+        fila_metodo = QHBoxLayout()
+        fila_metodo.setSpacing(6)
+        fila_metodo.setContentsMargins(0, 0, 0, 0)
         self.campo_metodo = QComboBox()
         self.campo_metodo.addItems(METODOS_PAGO)
         self.campo_metodo.setFixedHeight(34)
-        form.addRow("Método de pago:", self.campo_metodo)
+        self._btn_combinado = QPushButton("Combinado")
+        self._btn_combinado.setCheckable(True)
+        self._btn_combinado.setFixedHeight(34)
+        self._btn_combinado.setToolTip(
+            "Activar cuando el cliente paga con más de un método"
+        )
+        self._btn_combinado.setStyleSheet(
+            "QPushButton { border:1px solid #D1D5DB; border-radius:5px;"
+            "padding:0 10px; font-size:12px; background:white; color:#374151; }"
+            "QPushButton:hover { background:#F3F4F6; }"
+            "QPushButton:checked { background:#DBEAFE; color:#1D4ED8;"
+            "border-color:#93C5FD; font-weight:bold; }"
+        )
+        fila_metodo.addWidget(self.campo_metodo)
+        fila_metodo.addWidget(self._btn_combinado)
+        metodo_widget = QWidget()
+        metodo_widget.setLayout(fila_metodo)
+        metodo_widget.setFixedHeight(34)
+        form.addRow("Método de pago:", metodo_widget)
 
         # Sub-tipo de transferencia (oculto por defecto)
         self.lbl_sub_transferencia = QLabel("Tipo transferencia:")
@@ -221,6 +247,12 @@ class VentaForm(QWidget):
         form.addRow(self.lbl_sub_transferencia, self.campo_sub_transferencia)
         self.lbl_sub_transferencia.setVisible(False)
         self.campo_sub_transferencia.setVisible(False)
+
+        # Panel de pagos combinados (oculto hasta activar el toggle)
+        self._filas_pago: list[tuple] = []  # (QComboBox, MoneyLineEdit, QWidget)
+        self._panel_combinado = self._build_panel_combinado()
+        form.addRow("", self._panel_combinado)
+        self._panel_combinado.setVisible(False)
 
         # Notas
         self.campo_notas = QTextEdit()
@@ -250,6 +282,46 @@ class VentaForm(QWidget):
         layout.addStretch()
 
         return panel
+
+    def _build_panel_combinado(self) -> QWidget:
+        """Panel de pagos combinados con filas dinámicas."""
+        w = QWidget()
+        w.setStyleSheet(
+            "QWidget#panelCombinado { background:#F0F9FF; border:1px solid #BAE6FD;"
+            "border-radius:6px; }"
+        )
+        w.setObjectName("panelCombinado")
+        outer = QVBoxLayout(w)
+        outer.setContentsMargins(10, 8, 10, 8)
+        outer.setSpacing(5)
+
+        # Contenedor dinámico de filas
+        self._pagos_container = QWidget()
+        self._pagos_container.setStyleSheet("background:transparent;")
+        self._pagos_layout = QVBoxLayout(self._pagos_container)
+        self._pagos_layout.setContentsMargins(0, 0, 0, 0)
+        self._pagos_layout.setSpacing(4)
+        outer.addWidget(self._pagos_container)
+
+        # Botón agregar fila
+        btn_add = QPushButton("+ Agregar método")
+        btn_add.setFixedHeight(28)
+        btn_add.setStyleSheet(
+            "QPushButton { background:#E0F2FE; color:#0369A1; border:1px solid #7DD3FC;"
+            "border-radius:4px; font-size:11px; font-weight:bold; padding:0 10px; }"
+            "QPushButton:hover { background:#BAE6FD; }"
+        )
+        btn_add.clicked.connect(self._on_agregar_pago)
+        outer.addWidget(btn_add)
+
+        # Indicador de asignación
+        self._lbl_pagos_status = QLabel("Asignado: $ 0  /  Total: $ 0")
+        self._lbl_pagos_status.setStyleSheet(
+            "font-size:11px; color:#374151; background:transparent;"
+        )
+        outer.addWidget(self._lbl_pagos_status)
+
+        return w
 
     def _panel_preview(self) -> QWidget:
         panel = QWidget()
@@ -342,10 +414,15 @@ class VentaForm(QWidget):
     def _connect_signals(self) -> None:
         self.campo_costo.textChanged.connect(self._actualizar_preview)
         self.campo_precio.textChanged.connect(self._actualizar_preview)
+        self.campo_precio.textChanged.connect(self._actualizar_status_combinado)
         self.campo_cantidad.valueChanged.connect(self._actualizar_preview)
+        self.campo_cantidad.valueChanged.connect(self._actualizar_status_combinado)
         self.campo_metodo.currentTextChanged.connect(self._on_metodo_changed)
         self.campo_sub_transferencia.currentTextChanged.connect(self._actualizar_preview)
         self.btn_guardar.clicked.connect(self._on_guardar)
+
+        # Toggle de pago combinado
+        self._btn_combinado.toggled.connect(self._on_toggle_combinado)
 
         # Inventario: buscar mientras se escribe y auto-rellenar al seleccionar
         self.campo_producto.textEdited.connect(self._on_producto_editado)
@@ -450,6 +527,112 @@ class VentaForm(QWidget):
             )
         self._lbl_stock.setVisible(True)
 
+    # ------------------------------------------------------------------
+    # Pagos combinados
+    # ------------------------------------------------------------------
+
+    def _on_toggle_combinado(self, activo: bool) -> None:
+        """Activa/desactiva el modo pago combinado."""
+        self.campo_metodo.setEnabled(not activo)
+        self.lbl_sub_transferencia.setVisible(False)
+        self.campo_sub_transferencia.setVisible(False)
+        self._panel_combinado.setVisible(activo)
+
+        if activo:
+            # Inicializar con dos filas vacías si no hay ninguna
+            if not self._filas_pago:
+                self._agregar_fila_pago("Efectivo", 0)
+                self._agregar_fila_pago("Bold", 0)
+        else:
+            # Limpiar filas al desactivar
+            self._limpiar_filas_pago()
+
+        self._actualizar_preview()
+
+    def _agregar_fila_pago(self, metodo: str = "Efectivo", monto: int = 0) -> None:
+        """Agrega una fila de pago al panel combinado."""
+        row_w = QWidget()
+        row_w.setStyleSheet("background:transparent;")
+        lay = QHBoxLayout(row_w)
+        lay.setContentsMargins(0, 0, 0, 0)
+        lay.setSpacing(4)
+
+        combo = QComboBox()
+        combo.addItems(METODOS_PAGO)
+        combo.setCurrentText(metodo)
+        combo.setFixedHeight(28)
+
+        monto_edit = MoneyLineEdit()
+        monto_edit.setPlaceholderText("0")
+        monto_edit.setFixedHeight(28)
+        if monto:
+            monto_edit.set_valor(monto)
+
+        btn_del = QPushButton("✕")
+        btn_del.setFixedSize(26, 26)
+        btn_del.setStyleSheet(
+            "QPushButton { background:#FEE2E2; color:#DC2626; border:1px solid #FECACA;"
+            "border-radius:4px; font-size:11px; }"
+            "QPushButton:hover { background:#FECACA; }"
+        )
+
+        lay.addWidget(combo, stretch=2)
+        lay.addWidget(monto_edit, stretch=2)
+        lay.addWidget(btn_del)
+
+        combo.currentTextChanged.connect(self._actualizar_preview)
+        monto_edit.textChanged.connect(self._actualizar_status_combinado)
+        monto_edit.textChanged.connect(self._actualizar_preview)
+        btn_del.clicked.connect(lambda _=False, w=row_w: self._eliminar_fila_pago(w))
+
+        self._pagos_layout.addWidget(row_w)
+        self._filas_pago.append((combo, monto_edit, row_w))
+        self._actualizar_status_combinado()
+
+    def _eliminar_fila_pago(self, row_w: QWidget) -> None:
+        """Elimina una fila de pago del panel combinado."""
+        self._filas_pago = [(c, m, w) for c, m, w in self._filas_pago if w is not row_w]
+        row_w.setParent(None)
+        row_w.deleteLater()
+        self._actualizar_status_combinado()
+        self._actualizar_preview()
+
+    def _limpiar_filas_pago(self) -> None:
+        """Elimina todas las filas de pago."""
+        for _, _, w in self._filas_pago:
+            w.setParent(None)
+            w.deleteLater()
+        self._filas_pago = []
+
+    def _on_agregar_pago(self) -> None:
+        self._agregar_fila_pago()
+
+    def _actualizar_status_combinado(self) -> None:
+        """Actualiza el indicador Asignado / Total."""
+        asignado = sum(m.valor_int() for _, m, _ in self._filas_pago)
+        precio = self._parse_int(self.campo_precio.text())
+        total = precio * self.campo_cantidad.value()
+        color = "#15803D" if asignado == total and total > 0 else (
+            "#DC2626" if asignado > total else "#374151"
+        )
+        self._lbl_pagos_status.setText(
+            f"Asignado: {_fmt(asignado)}  /  Total: {_fmt(total)}"
+        )
+        self._lbl_pagos_status.setStyleSheet(
+            f"font-size:11px; color:{color}; background:transparent;"
+        )
+
+    def _get_pagos_combinados(self) -> list | None:
+        """Devuelve la lista de pagos si el modo combinado está activo, si no None."""
+        if not self._btn_combinado.isChecked():
+            return None
+        pagos = []
+        for combo, monto_edit, _ in self._filas_pago:
+            monto = monto_edit.valor_int()
+            if monto > 0:
+                pagos.append({"metodo": combo.currentText(), "monto": float(monto)})
+        return pagos if pagos else None
+
     def _on_refresh_inventario(self) -> None:
         """Recarga la búsqueda con el texto actual."""
         texto = self.campo_producto.text().strip()
@@ -484,13 +667,19 @@ class VentaForm(QWidget):
         costo = self._parse_int(self.campo_costo.text())
         precio = self._parse_int(self.campo_precio.text())
         metodo = self._metodo_completo()
+        pagos = self._get_pagos_combinados()
 
-        data = self._ctrl.calcular_preview(costo, precio, metodo, self.campo_cantidad.value())
+        data = self._ctrl.calcular_preview(
+            costo, precio, metodo, self.campo_cantidad.value(), pagos
+        )
 
         self.lbl_bruta.setText(cop(data["ganancia_bruta"]))
-        self.lbl_comision_titulo.setText(
-            f"Comisión ({porcentaje(data['porcentaje'], 2)})"
-        )
+        if data.get("es_combinado"):
+            self.lbl_comision_titulo.setText("Comisión (combinada)")
+        else:
+            self.lbl_comision_titulo.setText(
+                f"Comisión ({porcentaje(data['porcentaje'], 2)})"
+            )
         self.lbl_comision.setText(
             f"- {cop(data['comision'])}" if data["comision"] > 0 else cop(0)
         )
@@ -529,6 +718,18 @@ class VentaForm(QWidget):
             precio = float(self._parse_int(self.campo_precio.text()))
             metodo = self._metodo_completo()
             notas = self.campo_notas.toPlainText().strip()
+            pagos = self._get_pagos_combinados()
+
+            # Validar que la suma de pagos combinados sea igual al total
+            if pagos is not None:
+                total_esperado = int(precio) * self.campo_cantidad.value()
+                total_asignado = sum(int(p["monto"]) for p in pagos)
+                if total_asignado != total_esperado:
+                    from utils.formatters import cop as _cop
+                    raise ValueError(
+                        f"La suma de los pagos ({_cop(total_asignado)}) debe ser igual "
+                        f"al precio total ({_cop(total_esperado)})."
+                    )
 
             venta = self._ctrl.guardar_nueva_venta(
                 fecha=fecha,
@@ -538,6 +739,7 @@ class VentaForm(QWidget):
                 metodo_pago=metodo,
                 notas=notas,
                 cantidad=self.campo_cantidad.value(),
+                pagos_combinados=pagos,
             )
             self._mostrar_exito(venta)
             self.venta_guardada.emit(venta)
@@ -564,9 +766,14 @@ class VentaForm(QWidget):
         self.campo_precio.clear()
         self.campo_cantidad.setValue(1)
         self.campo_metodo.setCurrentIndex(0)
+        self.campo_metodo.setEnabled(True)
         self.campo_sub_transferencia.setCurrentIndex(0)
         self.campo_notas.clear()
         self._lbl_stock.setVisible(False)
+        # Resetear modo combinado
+        self._btn_combinado.setChecked(False)
+        self._limpiar_filas_pago()
+        self._panel_combinado.setVisible(False)
         self._actualizar_preview()
         self.campo_producto.setFocus()
 

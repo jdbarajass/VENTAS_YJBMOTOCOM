@@ -15,13 +15,16 @@ class Venta:
     producto: str
     costo: float
     precio: float
-    metodo_pago: str           # 'Efectivo', 'Bold', 'Addi', 'Transferencia', 'Otro'
+    metodo_pago: str           # 'Efectivo', 'Bold', 'Addi', 'Transferencia', 'Otro', 'Combinado'
     fecha: date = field(default_factory=date.today)
     cantidad: int = 1          # Unidades vendidas en este registro
     comision: float = 0.0      # Valor calculado en pesos total (todas las unidades)
     ganancia_neta: float = 0.0 # (precio - costo - comision_unit) * cantidad
     notas: str = ""
     id: int | None = None      # None hasta ser persistido
+    # Pagos combinados: lista de {"metodo": str, "monto": float} cuando el cliente
+    # paga con más de un método. Si está presente, metodo_pago = "Combinado".
+    pagos_combinados: list | None = None
 
     # ------------------------------------------------------------------
     # Propiedades derivadas (sin acceso a BD)

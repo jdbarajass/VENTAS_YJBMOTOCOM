@@ -33,17 +33,38 @@ def calcular_ganancia_neta(precio: float, costo: float, comision: float) -> floa
     return round(precio - costo - comision, 2)
 
 
+def calcular_comision_combinada(pagos: list, cfg: Configuracion) -> float:
+    """
+    Calcula la comisión total para una venta con pagos combinados.
+    pagos = [{"metodo": "Efectivo", "monto": 50000}, {"metodo": "Bold", "monto": 30000}]
+    Los montos son totales (todas las unidades), no unitarios.
+    """
+    total = 0.0
+    for pago in pagos:
+        pct = cfg.porcentaje_para(pago["metodo"])
+        total += pago["monto"] * pct / 100
+    return round(total, 2)
+
+
 def completar_venta(venta: Venta, cfg: Configuracion) -> Venta:
     """
     Toma una Venta con precio/costo/metodo_pago/cantidad y calcula + rellena
     comision y ganancia_neta (totales para todas las unidades).
     precio y costo se almacenan como valores UNITARIOS.
+    Si venta.pagos_combinados está presente, la comisión se calcula por partes.
     """
-    comision_unit = calcular_comision(venta.precio, venta.metodo_pago, cfg)
-    venta.comision = round(comision_unit * venta.cantidad, 2)
-    venta.ganancia_neta = round(
-        calcular_ganancia_neta(venta.precio, venta.costo, comision_unit) * venta.cantidad, 2
-    )
+    if venta.pagos_combinados:
+        total_comision = calcular_comision_combinada(venta.pagos_combinados, cfg)
+        venta.comision = total_comision
+        venta.ganancia_neta = round(
+            venta.precio * venta.cantidad - venta.costo * venta.cantidad - total_comision, 2
+        )
+    else:
+        comision_unit = calcular_comision(venta.precio, venta.metodo_pago, cfg)
+        venta.comision = round(comision_unit * venta.cantidad, 2)
+        venta.ganancia_neta = round(
+            calcular_ganancia_neta(venta.precio, venta.costo, comision_unit) * venta.cantidad, 2
+        )
     return venta
 
 

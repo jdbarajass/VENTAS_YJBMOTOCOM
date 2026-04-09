@@ -6,6 +6,7 @@ Todas las funciones reciben/retornan objetos Venta del dominio.
 La UI nunca toca sqlite3 directamente.
 """
 
+import json
 import sqlite3
 from datetime import date
 from typing import Optional
@@ -16,6 +17,8 @@ from database.connection import DatabaseConnection
 def _row_to_venta(row: sqlite3.Row) -> Venta:
     """Convierte una fila de SQLite al modelo de dominio Venta."""
     keys = row.keys()
+    pagos_raw = row["pagos_combinados"] if "pagos_combinados" in keys else None
+    pagos = json.loads(pagos_raw) if pagos_raw else None
     return Venta(
         id=row["id"],
         fecha=date.fromisoformat(row["fecha"]),
@@ -27,6 +30,7 @@ def _row_to_venta(row: sqlite3.Row) -> Venta:
         comision=row["comision"],
         ganancia_neta=row["ganancia_neta"],
         notas=row["notas"] or "",
+        pagos_combinados=pagos,
     )
 
 
@@ -40,11 +44,13 @@ def insertar_venta(venta: Venta) -> int:
     Actualiza venta.id en el objeto pasado.
     """
     conn = DatabaseConnection.get()
+    pagos_json = json.dumps(venta.pagos_combinados) if venta.pagos_combinados else None
     cursor = conn.execute(
         """
         INSERT INTO ventas
-            (fecha, producto, costo, precio, metodo_pago, cantidad, comision, ganancia_neta, notas)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            (fecha, producto, costo, precio, metodo_pago, cantidad,
+             comision, ganancia_neta, notas, pagos_combinados)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         (
             venta.fecha.isoformat(),
@@ -56,6 +62,7 @@ def insertar_venta(venta: Venta) -> int:
             venta.comision,
             venta.ganancia_neta,
             venta.notas,
+            pagos_json,
         ),
     )
     conn.commit()
@@ -121,18 +128,20 @@ def actualizar_venta(venta: Venta) -> bool:
     if venta.id is None:
         raise ValueError("No se puede actualizar una venta sin id.")
     conn = DatabaseConnection.get()
+    pagos_json = json.dumps(venta.pagos_combinados) if venta.pagos_combinados else None
     cursor = conn.execute(
         """
         UPDATE ventas SET
-            fecha         = ?,
-            producto      = ?,
-            costo         = ?,
-            precio        = ?,
-            metodo_pago   = ?,
-            cantidad      = ?,
-            comision      = ?,
-            ganancia_neta = ?,
-            notas         = ?
+            fecha              = ?,
+            producto           = ?,
+            costo              = ?,
+            precio             = ?,
+            metodo_pago        = ?,
+            cantidad           = ?,
+            comision           = ?,
+            ganancia_neta      = ?,
+            notas              = ?,
+            pagos_combinados   = ?
         WHERE id = ?
         """,
         (
@@ -145,6 +154,7 @@ def actualizar_venta(venta: Venta) -> bool:
             venta.comision,
             venta.ganancia_neta,
             venta.notas,
+            pagos_json,
             venta.id,
         ),
     )

@@ -12,6 +12,7 @@ from services.calculator import (
     calcular_comision,
     calcular_ganancia_bruta,
     calcular_ganancia_neta,
+    calcular_comision_combinada,
     completar_venta,
 )
 from database.ventas_repo import insertar_venta, actualizar_venta, eliminar_venta as _eliminar_venta
@@ -39,22 +40,36 @@ class VentaController:
         precio: float,
         metodo_pago: str,
         cantidad: int = 1,
+        pagos_combinados: list | None = None,
     ) -> dict:
         """
         Retorna los valores calculados para mostrar en tiempo real en el form.
         No toca la base de datos. Los montos se multiplican por cantidad.
+        Si pagos_combinados está presente, la comisión se calcula por partes.
         """
         cfg = self.get_configuracion()
+        ganancia_bruta = calcular_ganancia_bruta(precio, costo) * cantidad
+
+        if pagos_combinados:
+            total_comision = calcular_comision_combinada(pagos_combinados, cfg)
+            ganancia_neta = round(ganancia_bruta - total_comision, 2)
+            return {
+                "ganancia_bruta": ganancia_bruta,
+                "comision": total_comision,
+                "porcentaje": 0.0,
+                "ganancia_neta": ganancia_neta,
+                "es_combinado": True,
+            }
+
         porcentaje = cfg.porcentaje_para(metodo_pago)
         comision_unit = calcular_comision(precio, metodo_pago, cfg)
-        ganancia_bruta = calcular_ganancia_bruta(precio, costo) * cantidad
         ganancia_neta = calcular_ganancia_neta(precio, costo, comision_unit) * cantidad
-
         return {
             "ganancia_bruta": ganancia_bruta,
             "comision": comision_unit * cantidad,
             "porcentaje": porcentaje,
             "ganancia_neta": ganancia_neta,
+            "es_combinado": False,
         }
 
     # ------------------------------------------------------------------
@@ -70,23 +85,27 @@ class VentaController:
         metodo_pago: str,
         notas: str,
         cantidad: int = 1,
+        pagos_combinados: list | None = None,
     ) -> Venta:
         """
         Valida, calcula comisión/ganancia y persiste una nueva venta.
         Retorna el objeto Venta con su id asignado.
         Lanza ValueError si los datos no son válidos.
+        Si pagos_combinados está presente, metodo_pago se ignora y se usa "Combinado".
         """
         self._validar(producto, costo, precio)
 
         cfg = self.get_configuracion()
+        metodo_final = "Combinado" if pagos_combinados else metodo_pago
         venta = Venta(
             producto=producto.strip(),
             costo=costo,
             precio=precio,
-            metodo_pago=metodo_pago,
+            metodo_pago=metodo_final,
             fecha=fecha,
             cantidad=cantidad,
             notas=notas.strip(),
+            pagos_combinados=pagos_combinados,
         )
         completar_venta(venta, cfg)
         insertar_venta(venta)
@@ -104,12 +123,19 @@ class VentaController:
     # Actualizar venta existente (CRUD — edición)
     # ------------------------------------------------------------------
 
-    def actualizar_venta_existente(self, venta: Venta) -> bool:
+    def actualizar_venta_existente(
+        self,
+        venta: Venta,
+        pagos_combinados: list | None = None,
+    ) -> bool:
         """
         Recalcula comisión y ganancia neta con la config actual y persiste.
         Retorna True si se actualizó correctamente.
         """
         self._validar(venta.producto, venta.costo, venta.precio)
+        if pagos_combinados is not None:
+            venta.pagos_combinados = pagos_combinados
+            venta.metodo_pago = "Combinado" if pagos_combinados else venta.metodo_pago
         cfg = self.get_configuracion()
         completar_venta(venta, cfg)
         return actualizar_venta(venta)

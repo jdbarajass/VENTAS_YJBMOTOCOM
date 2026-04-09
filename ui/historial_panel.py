@@ -216,13 +216,13 @@ class HistorialPanel(QWidget):
         """)
 
         hh = self.tabla_diaria.horizontalHeader()
-        hh.setSectionResizeMode(0, QHeaderView.Fixed);  self.tabla_diaria.setColumnWidth(0, 90)
-        hh.setSectionResizeMode(1, QHeaderView.Fixed);  self.tabla_diaria.setColumnWidth(1, 55)
-        hh.setSectionResizeMode(2, QHeaderView.Fixed);  self.tabla_diaria.setColumnWidth(2, 115)
-        hh.setSectionResizeMode(3, QHeaderView.Fixed);  self.tabla_diaria.setColumnWidth(3, 110)
-        hh.setSectionResizeMode(4, QHeaderView.Fixed);  self.tabla_diaria.setColumnWidth(4, 110)
+        hh.setSectionResizeMode(0, QHeaderView.Interactive); self.tabla_diaria.setColumnWidth(0, 90)
+        hh.setSectionResizeMode(1, QHeaderView.Interactive); self.tabla_diaria.setColumnWidth(1, 55)
+        hh.setSectionResizeMode(2, QHeaderView.Interactive); self.tabla_diaria.setColumnWidth(2, 115)
+        hh.setSectionResizeMode(3, QHeaderView.Interactive); self.tabla_diaria.setColumnWidth(3, 110)
+        hh.setSectionResizeMode(4, QHeaderView.Interactive); self.tabla_diaria.setColumnWidth(4, 110)
         hh.setSectionResizeMode(5, QHeaderView.Stretch)
-        hh.setSectionResizeMode(6, QHeaderView.Fixed);  self.tabla_diaria.setColumnWidth(6, 90)
+        hh.setSectionResizeMode(6, QHeaderView.Interactive); self.tabla_diaria.setColumnWidth(6, 90)
 
         self.tabla_diaria.setCursor(Qt.PointingHandCursor)
         self.tabla_diaria.cellClicked.connect(self._on_dia_seleccionado)
@@ -302,18 +302,16 @@ class HistorialPanel(QWidget):
         """)
 
         hh = self.tabla_detalle.horizontalHeader()
-        # Producto: arrastrable por el usuario para ver nombres largos
-        hh.setSectionResizeMode(0, QHeaderView.Interactive)
-        self.tabla_detalle.setColumnWidth(0, 190)
-        hh.setSectionResizeMode(1, QHeaderView.Fixed);  self.tabla_detalle.setColumnWidth(1, 50)
-        hh.setSectionResizeMode(2, QHeaderView.Fixed);  self.tabla_detalle.setColumnWidth(2, 95)
-        hh.setSectionResizeMode(3, QHeaderView.Fixed);  self.tabla_detalle.setColumnWidth(3, 115)
-        hh.setSectionResizeMode(4, QHeaderView.Fixed);  self.tabla_detalle.setColumnWidth(4, 130)
-        hh.setSectionResizeMode(5, QHeaderView.Fixed);  self.tabla_detalle.setColumnWidth(5, 105)
+        hh.setSectionResizeMode(0, QHeaderView.Interactive); self.tabla_detalle.setColumnWidth(0, 190)
+        hh.setSectionResizeMode(1, QHeaderView.Interactive); self.tabla_detalle.setColumnWidth(1, 50)
+        hh.setSectionResizeMode(2, QHeaderView.Interactive); self.tabla_detalle.setColumnWidth(2, 95)
+        hh.setSectionResizeMode(3, QHeaderView.Interactive); self.tabla_detalle.setColumnWidth(3, 115)
+        hh.setSectionResizeMode(4, QHeaderView.Interactive); self.tabla_detalle.setColumnWidth(4, 130)
+        hh.setSectionResizeMode(5, QHeaderView.Interactive); self.tabla_detalle.setColumnWidth(5, 105)
         # Notas: ocupa el espacio restante
         hh.setSectionResizeMode(6, QHeaderView.Stretch)
-        hh.setSectionResizeMode(7, QHeaderView.Fixed);  self.tabla_detalle.setColumnWidth(7, 68)
-        hh.setSectionResizeMode(8, QHeaderView.Fixed);  self.tabla_detalle.setColumnWidth(8, 68)
+        hh.setSectionResizeMode(7, QHeaderView.Fixed);       self.tabla_detalle.setColumnWidth(7, 68)
+        hh.setSectionResizeMode(8, QHeaderView.Fixed);       self.tabla_detalle.setColumnWidth(8, 68)
 
         self.tabla_detalle.setVisible(False)
         lay.addWidget(self.tabla_detalle, stretch=1)
@@ -443,7 +441,15 @@ class HistorialPanel(QWidget):
             # Precio de Venta
             self._celda_det(row, 3, cop(v.precio), Qt.AlignRight | Qt.AlignVCenter)
 
-            self._celda_det(row, 4, v.metodo_pago, Qt.AlignCenter)
+            item_met = QTableWidgetItem(v.metodo_pago)
+            item_met.setTextAlignment(Qt.AlignCenter)
+            if v.pagos_combinados:
+                from utils.formatters import cop as _cop
+                detalle = "  |  ".join(
+                    f"{p['metodo']}: {_cop(p['monto'])}" for p in v.pagos_combinados
+                )
+                item_met.setToolTip(detalle)
+            self.tabla_detalle.setItem(row, 4, item_met)
 
             item_gn = QTableWidgetItem(cop(v.ganancia_neta))
             item_gn.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)

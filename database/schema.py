@@ -72,6 +72,10 @@ def _migrate_ventas(conn: sqlite3.Connection) -> None:
         conn.execute("ALTER TABLE ventas ADD COLUMN cantidad INTEGER NOT NULL DEFAULT 1")
     except sqlite3.OperationalError:
         pass  # La columna ya existe
+    try:
+        conn.execute("ALTER TABLE ventas ADD COLUMN pagos_combinados TEXT DEFAULT NULL")
+    except sqlite3.OperationalError:
+        pass  # La columna ya existe
 
 
 def _create_configuracion(conn: sqlite3.Connection) -> None:

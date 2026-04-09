@@ -161,18 +161,17 @@ class VentasDiaPanel(QWidget):
             }
         """)
 
-        # Anchos de columna
+        # Anchos de columna — todas interactivas (el usuario puede deslizar cualquier columna)
         hh = self.tabla.horizontalHeader()
-        hh.setSectionResizeMode(COL_NUM,      QHeaderView.Fixed);       self.tabla.setColumnWidth(COL_NUM, 40)
-        hh.setSectionResizeMode(COL_FECHA,    QHeaderView.Fixed);       self.tabla.setColumnWidth(COL_FECHA, 100)
-        # Producto: arrastrable para ver nombres largos
+        hh.setSectionResizeMode(COL_NUM,      QHeaderView.Interactive); self.tabla.setColumnWidth(COL_NUM, 40)
+        hh.setSectionResizeMode(COL_FECHA,    QHeaderView.Interactive); self.tabla.setColumnWidth(COL_FECHA, 100)
         hh.setSectionResizeMode(COL_PRODUCTO, QHeaderView.Interactive); self.tabla.setColumnWidth(COL_PRODUCTO, 210)
-        hh.setSectionResizeMode(COL_CANT,     QHeaderView.Fixed);       self.tabla.setColumnWidth(COL_CANT, 52)
-        hh.setSectionResizeMode(COL_COSTO,    QHeaderView.Fixed);       self.tabla.setColumnWidth(COL_COSTO, 110)
-        hh.setSectionResizeMode(COL_PRECIO,   QHeaderView.Fixed);       self.tabla.setColumnWidth(COL_PRECIO, 120)
+        hh.setSectionResizeMode(COL_CANT,     QHeaderView.Interactive); self.tabla.setColumnWidth(COL_CANT, 52)
+        hh.setSectionResizeMode(COL_COSTO,    QHeaderView.Interactive); self.tabla.setColumnWidth(COL_COSTO, 110)
+        hh.setSectionResizeMode(COL_PRECIO,   QHeaderView.Interactive); self.tabla.setColumnWidth(COL_PRECIO, 120)
         hh.setSectionResizeMode(COL_METODO,   QHeaderView.Interactive); self.tabla.setColumnWidth(COL_METODO, 130)
-        hh.setSectionResizeMode(COL_COMISION, QHeaderView.Fixed);       self.tabla.setColumnWidth(COL_COMISION, 105)
-        hh.setSectionResizeMode(COL_NETA,     QHeaderView.Fixed);       self.tabla.setColumnWidth(COL_NETA, 120)
+        hh.setSectionResizeMode(COL_COMISION, QHeaderView.Interactive); self.tabla.setColumnWidth(COL_COMISION, 105)
+        hh.setSectionResizeMode(COL_NETA,     QHeaderView.Interactive); self.tabla.setColumnWidth(COL_NETA, 120)
         hh.setSectionResizeMode(COL_NOTAS,    QHeaderView.Stretch)
         hh.setSectionResizeMode(COL_ACCIONES, QHeaderView.Fixed);       self.tabla.setColumnWidth(COL_ACCIONES, 140)
 
@@ -351,7 +350,15 @@ class VentasDiaPanel(QWidget):
             self._celda(row, COL_CANT,     str(v.cantidad),      Qt.AlignCenter)
             self._celda(row, COL_COSTO,    cop(v.costo),         Qt.AlignRight | Qt.AlignVCenter)
             self._celda(row, COL_PRECIO,   cop(v.precio),        Qt.AlignRight | Qt.AlignVCenter)
-            self._celda(row, COL_METODO,   v.metodo_pago,        Qt.AlignCenter)
+            item_met = QTableWidgetItem(v.metodo_pago)
+            item_met.setTextAlignment(Qt.AlignCenter)
+            if v.pagos_combinados:
+                from utils.formatters import cop as _cop
+                detalle = "  |  ".join(
+                    f"{p['metodo']}: {_cop(p['monto'])}" for p in v.pagos_combinados
+                )
+                item_met.setToolTip(detalle)
+            self.tabla.setItem(row, COL_METODO, item_met)
             self._celda(row, COL_COMISION, cop(v.comision),      Qt.AlignRight | Qt.AlignVCenter)
 
             # Ganancia neta con color

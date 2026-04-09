@@ -72,9 +72,6 @@ class VentasDiaPanel(QWidget):
         font = QFont(); font.setPointSize(16); font.setBold(True)
         titulo.setFont(font)
 
-        lbl_fecha = QLabel("Fecha:")
-        lbl_fecha.setStyleSheet("color: #6B7280;")
-
         self.date_selector = QDateEdit()
         self.date_selector.setCalendarPopup(True)
         self.date_selector.setDate(QDate.currentDate())
@@ -82,6 +79,21 @@ class VentasDiaPanel(QWidget):
         self.date_selector.setFixedHeight(34)
         self.date_selector.setFixedWidth(130)
         self.date_selector.dateChanged.connect(lambda _: self._cargar_datos())
+
+        _nav_style = (
+            "QPushButton { border:1px solid #D1D5DB; border-radius:5px;"
+            "padding:0 12px; background:white; color:#374151; }"
+            "QPushButton:hover { background:#F3F4F6; }"
+        )
+        btn_prev = QPushButton("< Anterior")
+        btn_prev.setFixedHeight(34)
+        btn_prev.setStyleSheet(_nav_style)
+        btn_prev.clicked.connect(self._dia_anterior)
+
+        btn_next = QPushButton("Siguiente >")
+        btn_next.setFixedHeight(34)
+        btn_next.setStyleSheet(_nav_style)
+        btn_next.clicked.connect(self._dia_siguiente)
 
         self.btn_hoy = QPushButton("Hoy")
         self.btn_hoy.setFixedHeight(34)
@@ -94,8 +106,9 @@ class VentasDiaPanel(QWidget):
 
         lay.addWidget(titulo)
         lay.addSpacing(16)
-        lay.addWidget(lbl_fecha)
+        lay.addWidget(btn_prev)
         lay.addWidget(self.date_selector)
+        lay.addWidget(btn_next)
         lay.addWidget(self.btn_hoy)
         lay.addStretch()
         return lay
@@ -578,3 +591,9 @@ class VentasDiaPanel(QWidget):
 
     def _ir_hoy(self) -> None:
         self.date_selector.setDate(QDate.currentDate())
+
+    def _dia_anterior(self) -> None:
+        self.date_selector.setDate(self.date_selector.date().addDays(-1))
+
+    def _dia_siguiente(self) -> None:
+        self.date_selector.setDate(self.date_selector.date().addDays(1))

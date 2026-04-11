@@ -1,19 +1,28 @@
 """
 ui/exportar_importar_panel.py
 Centro unificado de exportación e importación de datos.
-Un solo archivo Excel con tres hojas: Ventas | Préstamos | Inventario.
+Un solo archivo Excel con hasta 6 hojas: Ventas | Préstamos | Inventario |
+Facturas | Gastos | Configuración.
 """
 
+from datetime import date as _date
 from pathlib import Path
 
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
-    QFrame, QMessageBox, QFileDialog,
+    QFrame, QMessageBox, QFileDialog, QCheckBox, QComboBox, QSpinBox,
+    QGroupBox,
 )
-from PySide6.QtCore import Signal
+from PySide6.QtCore import Signal, Qt
 from PySide6.QtGui import QFont
 
 from utils.formatters import nombre_mes
+
+
+_MESES_NOMBRES = [
+    "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
+    "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre",
+]
 
 
 class ExportarImportarPanel(QWidget):
@@ -41,7 +50,8 @@ class ExportarImportarPanel(QWidget):
         root.addWidget(titulo)
 
         sub = QLabel(
-            "Un único archivo Excel con 4 pestañas: ventas, préstamos, inventario y facturas."
+            "Un único archivo Excel con hasta 6 pestañas: ventas, préstamos, inventario, "
+            "facturas, gastos y configuración."
         )
         sub.setStyleSheet("color:#6B7280; font-size:12px;")
         root.addWidget(sub)
@@ -51,8 +61,8 @@ class ExportarImportarPanel(QWidget):
         # Bloque de contenido en dos columnas
         cols = QHBoxLayout()
         cols.setSpacing(24)
-        cols.addWidget(self._bloque_exportar(), stretch=1)
-        cols.addWidget(self._bloque_importar(), stretch=1)
+        cols.addWidget(self._bloque_exportar(), stretch=3)
+        cols.addWidget(self._bloque_importar(), stretch=2)
         root.addLayout(cols)
 
         root.addStretch()
@@ -70,7 +80,7 @@ class ExportarImportarPanel(QWidget):
         lay.setContentsMargins(20, 18, 20, 18)
         lay.setSpacing(14)
 
-        icon_titulo = QLabel("⬇  Exportar Todo")
+        icon_titulo = QLabel("⬇  Exportar")
         ft = QFont(); ft.setPointSize(13); ft.setBold(True)
         icon_titulo.setFont(ft)
         icon_titulo.setStyleSheet(
@@ -79,24 +89,83 @@ class ExportarImportarPanel(QWidget):
         lay.addWidget(icon_titulo)
 
         lay.addWidget(self._lbl_info(
-            "Genera el archivo con todo el historial. Incluye:"
+            "Selecciona qué datos incluir en el archivo exportado:"
         ))
 
-        for linea in (
-            "  • Ventas — historial completo (con desglose de pagos combinados)",
-            "  • Préstamos — todos los estados",
-            "  • Inventario — snapshot de hoy",
-            "  • Facturas y recibos — todos los estados",
-            "  • Gastos operativos diarios",
-            "  • Configuración (arriendo, sueldo, comisiones)",
-        ):
-            l = QLabel(linea)
-            l.setStyleSheet("color:#374151; font-size:12px; background:transparent; border:none;")
-            lay.addWidget(l)
+        # --- Filtros por hoja ---
+        grupo = QGroupBox("Hojas a incluir")
+        grupo.setStyleSheet(
+            "QGroupBox { font-size:12px; font-weight:bold; color:#374151;"
+            "border:1px solid #BBF7D0; border-radius:6px; margin-top:6px;"
+            "background:transparent; }"
+            "QGroupBox::title { subcontrol-origin:margin; left:10px; padding:0 4px; }"
+        )
+        g_lay = QVBoxLayout(grupo)
+        g_lay.setSpacing(8)
+        g_lay.setContentsMargins(12, 12, 12, 12)
+
+        chk_style = (
+            "QCheckBox { color:#374151; font-size:12px; background:transparent; border:none; }"
+            "QCheckBox::indicator { width:16px; height:16px; }"
+        )
+
+        # Ventas + filtro de mes
+        fila_ventas = QHBoxLayout()
+        fila_ventas.setSpacing(8)
+        self._chk_ventas = QCheckBox("Ventas")
+        self._chk_ventas.setChecked(True)
+        self._chk_ventas.setStyleSheet(chk_style)
+        fila_ventas.addWidget(self._chk_ventas)
+
+        # Combo mes
+        self._combo_mes = QComboBox()
+        self._combo_mes.addItem("Todos los meses", userData=0)
+        for i, nombre in enumerate(_MESES_NOMBRES, start=1):
+            self._combo_mes.addItem(nombre, userData=i)
+        self._combo_mes.setCurrentIndex(0)
+        self._combo_mes.setFixedWidth(150)
+        self._combo_mes.setStyleSheet(
+            "QComboBox { font-size:11px; padding:2px 6px; border:1px solid #BBF7D0;"
+            "border-radius:4px; background:white; color:#374151; }"
+        )
+        fila_ventas.addWidget(self._combo_mes)
+
+        # Spin año
+        self._spin_año = QSpinBox()
+        self._spin_año.setRange(2020, 2100)
+        self._spin_año.setValue(_date.today().year)
+        self._spin_año.setFixedWidth(70)
+        self._spin_año.setStyleSheet(
+            "QSpinBox { font-size:11px; padding:2px 4px; border:1px solid #BBF7D0;"
+            "border-radius:4px; background:white; color:#374151; }"
+        )
+        fila_ventas.addWidget(self._spin_año)
+        fila_ventas.addStretch()
+
+        g_lay.addLayout(fila_ventas)
+
+        # Resto de hojas
+        self._chk_prestamos   = QCheckBox("Préstamos")
+        self._chk_inventario  = QCheckBox("Inventario")
+        self._chk_facturas    = QCheckBox("Facturas")
+        self._chk_gastos      = QCheckBox("Gastos operativos")
+        self._chk_config      = QCheckBox("Configuración")
+
+        for chk in (self._chk_prestamos, self._chk_inventario,
+                    self._chk_facturas, self._chk_gastos, self._chk_config):
+            chk.setChecked(True)
+            chk.setStyleSheet(chk_style)
+            g_lay.addWidget(chk)
+
+        lay.addWidget(grupo)
+
+        # Conectar checkbox ventas → habilitar/deshabilitar filtros de mes
+        self._chk_ventas.toggled.connect(self._on_ventas_toggle)
+        self._combo_mes.currentIndexChanged.connect(self._on_mes_cambiado)
 
         lay.addWidget(self._sep_interno())
-        lay.addStretch()
 
+        # Botones
         fila_btns = QHBoxLayout()
         fila_btns.setSpacing(10)
 
@@ -108,12 +177,12 @@ class ExportarImportarPanel(QWidget):
             "QPushButton:hover { background:#047857; }"
         )
         btn_plantilla.setToolTip(
-            "Descarga un Excel vacío con las tres hojas para rellenar\n"
+            "Descarga un Excel vacío con las hojas para rellenar\n"
             "y luego importar con el botón Importar Todo"
         )
         btn_plantilla.clicked.connect(self._on_descargar_plantilla)
 
-        btn = QPushButton("⬇  Exportar Todo")
+        btn = QPushButton("⬇  Exportar selección")
         btn.setFixedHeight(42)
         btn.setStyleSheet(
             "QPushButton { background:#16A34A; color:white; border-radius:7px;"
@@ -209,6 +278,20 @@ class ExportarImportarPanel(QWidget):
         return s
 
     # ------------------------------------------------------------------
+    # Slots auxiliares
+    # ------------------------------------------------------------------
+
+    def _on_ventas_toggle(self, checked: bool) -> None:
+        """Habilita/deshabilita los filtros de mes al marcar/desmarcar Ventas."""
+        self._combo_mes.setEnabled(checked)
+        self._spin_año.setEnabled(checked and self._combo_mes.currentData() != 0)
+
+    def _on_mes_cambiado(self, index: int) -> None:
+        """Habilita el spin de año solo cuando se elige un mes específico."""
+        mes = self._combo_mes.currentData()
+        self._spin_año.setEnabled(self._chk_ventas.isChecked() and mes != 0)
+
+    # ------------------------------------------------------------------
     # Acciones
     # ------------------------------------------------------------------
 
@@ -227,19 +310,32 @@ class ExportarImportarPanel(QWidget):
                 self,
                 "Plantilla guardada",
                 f"Plantilla guardada en:\n{ruta}\n\n"
-                "El archivo tiene cuatro pestañas:\n"
+                "El archivo tiene hojas:\n"
                 "  • Ventas — tus ventas (cualquier mes o año)\n"
                 "  • Préstamos — préstamos a locales\n"
                 "  • Inventario — productos en stock\n"
-                "  • Facturas — facturas y recibos\n\n"
+                "  • Facturas — facturas y recibos\n"
+                "  • Gastos — gastos operativos diarios\n"
+                "  • Configuración — arriendo, sueldo, etc.\n\n"
                 "Borra las filas de ejemplo (en gris) antes de importar.",
             )
         except Exception as exc:
             QMessageBox.critical(self, "Error al guardar", str(exc))
 
     def _on_exportar(self) -> None:
-        nombre_sugerido = "YJBMOTOCOM_Historial.xlsx"
+        # Verificar que al menos una hoja esté seleccionada
+        if not any([
+            self._chk_ventas.isChecked(), self._chk_prestamos.isChecked(),
+            self._chk_inventario.isChecked(), self._chk_facturas.isChecked(),
+            self._chk_gastos.isChecked(), self._chk_config.isChecked(),
+        ]):
+            QMessageBox.warning(
+                self, "Sin selección",
+                "Selecciona al menos una hoja para exportar."
+            )
+            return
 
+        nombre_sugerido = "YJBMOTOCOM_Historial.xlsx"
         ruta, _ = QFileDialog.getSaveFileName(
             self, "Guardar archivo de datos", nombre_sugerido, "Excel (*.xlsx)"
         )
@@ -249,33 +345,52 @@ class ExportarImportarPanel(QWidget):
         try:
             from services.exportador import exportar_todo
             from database.ventas_repo import obtener_todas_las_ventas as obtener_todas_ventas
+            from database.ventas_repo import obtener_ventas_por_mes
             from database.prestamos_repo import obtener_todos_prestamos
             from database.inventario_repo import obtener_todos_productos
             from database.facturas_repo import obtener_todas_facturas
-            from database.gastos_dia_repo import obtener_todos_gastos
+            from database.gastos_dia_repo import obtener_todos_gastos, obtener_gastos_por_mes
             from database.config_repo import obtener_configuracion
 
-            ventas         = obtener_todas_ventas()
-            prestamos      = obtener_todos_prestamos()
-            productos      = obtener_todos_productos()
-            facturas       = obtener_todas_facturas()
-            gastos         = obtener_todos_gastos()
-            configuracion  = obtener_configuracion()
+            # --- Ventas ---
+            ventas = None
+            if self._chk_ventas.isChecked():
+                mes_sel  = self._combo_mes.currentData()   # 0 = todos
+                año_sel  = self._spin_año.value()
+                if mes_sel == 0:
+                    ventas = obtener_todas_ventas()
+                else:
+                    ventas = obtener_ventas_por_mes(año_sel, mes_sel)
+
+            prestamos     = obtener_todos_prestamos()     if self._chk_prestamos.isChecked()  else None
+            productos     = obtener_todos_productos()     if self._chk_inventario.isChecked() else None
+            facturas      = obtener_todas_facturas()      if self._chk_facturas.isChecked()   else None
+            gastos        = obtener_todos_gastos()        if self._chk_gastos.isChecked()     else None
+            configuracion = obtener_configuracion()       if self._chk_config.isChecked()     else None
 
             exportar_todo(Path(ruta), ventas, prestamos, productos,
                           facturas, gastos, configuracion)
+
+            # Construir resumen para el mensaje
+            lineas = []
+            if ventas is not None:
+                mes_sel = self._combo_mes.currentData()
+                if mes_sel == 0:
+                    lineas.append(f"  • {len(ventas)} venta(s) — todos los meses")
+                else:
+                    nm = _MESES_NOMBRES[mes_sel - 1]
+                    lineas.append(f"  • {len(ventas)} venta(s) — {nm} {self._spin_año.value()}")
+            if prestamos  is not None: lineas.append(f"  • {len(prestamos)} préstamo(s)")
+            if productos  is not None: lineas.append(f"  • {len(productos)} producto(s) de inventario")
+            if facturas   is not None: lineas.append(f"  • {len(facturas)} factura(s)")
+            if gastos     is not None: lineas.append(f"  • {len(gastos)} gasto(s) operativo(s)")
+            if configuracion is not None: lineas.append("  • Configuración incluida")
 
             QMessageBox.information(
                 self,
                 "Exportación exitosa",
                 f"Archivo guardado en:\n{ruta}\n\n"
-                f"Contenido exportado:\n"
-                f"  • {len(ventas)} venta(s) en total\n"
-                f"  • {len(prestamos)} préstamo(s)\n"
-                f"  • {len(productos)} producto(s) de inventario\n"
-                f"  • {len(facturas)} factura(s)\n"
-                f"  • {len(gastos)} gasto(s) operativo(s)\n"
-                f"  • Configuración incluida",
+                f"Contenido exportado:\n" + "\n".join(lineas),
             )
         except Exception as exc:
             QMessageBox.critical(self, "Error al exportar", str(exc))
@@ -371,14 +486,10 @@ class ExportarImportarPanel(QWidget):
         cfg_actual = obtener_configuracion()
 
         # Ventas: eliminar los meses del archivo y reinsertar
-        # Los valores de comision/ganancia_neta ya vienen calculados desde el archivo;
-        # completar_venta() solo recalcula si pagos_combinados está presente (correcto)
-        # o si el método no es "Combinado" (standard).
         for año_m, mes_m in res.meses_afectados:
             eliminar_ventas_por_mes(año_m, mes_m)
         cfg_para_calc = res.configuracion if res.configuracion else cfg_actual
         for v in res.ventas:
-            # Solo recalcular si los valores no vienen pre-calculados (template manual)
             if v.pagos_combinados or v.metodo_pago != "Combinado":
                 completar_venta(v, cfg_para_calc)
             insertar_venta(v)

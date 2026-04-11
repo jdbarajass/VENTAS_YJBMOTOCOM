@@ -22,3 +22,5 @@ ENV/
 .claude/
 PROGRESO.txt
 PROMPT_YJBMOTOCOM_NIVEL_DIOS_V2.txt
+*.xlsx
+*.rar

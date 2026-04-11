@@ -261,6 +261,9 @@ def _escribir_hoja_inventario(ws, productos: list) -> None:
     ws.row_dimensions[2].height = 20
 
     # Datos
+    total_referencias  = 0   # líneas con stock > 0
+    total_unidades     = 0   # suma de cantidades con stock
+    total_valor_inv    = 0.0 # suma de costo_unitario × cantidad (solo stock > 0)
     for i, p in enumerate(productos, start=1):
         ws.append([
             p.serial or "",
@@ -278,6 +281,27 @@ def _escribir_hoja_inventario(ws, productos: list) -> None:
             c.font = Font(name="Calibri", size=10)
             c.alignment = Alignment(vertical="center")
         ws.row_dimensions[row].height = 18
+        if p.cantidad > 0:
+            total_referencias += 1
+            total_unidades    += p.cantidad
+            total_valor_inv   += p.costo_unitario * p.cantidad
+
+    # ── Fila de totales ───────────────────────────────────────────────────
+    ws.append([
+        "TOTALES",
+        f"{total_referencias} ref. con stock",
+        total_valor_inv,   # valor del inventario en col "Costo unitario"
+        total_unidades,    # unidades totales en stock en col "Cantidad"
+        "",
+    ])
+    total_row = ws.max_row
+    for col_idx in range(1, 6):
+        c = ws.cell(row=total_row, column=col_idx)
+        c.font = Font(bold=True, name="Calibri", size=10)
+        c.fill = PatternFill("solid", fgColor="E0F2FE")
+        c.border = borde
+        c.alignment = Alignment(vertical="center")
+    ws.row_dimensions[total_row].height = 20
 
     # Anchos
     for i, ancho in enumerate(_ANCHOS_INVENTARIO, start=1):
@@ -446,109 +470,140 @@ def _escribir_hoja_configuracion(ws, cfg) -> None:
 
 def exportar_todo(
     ruta: Path,
-    ventas: list[Venta],
-    prestamos: list,
-    productos: list[Producto],
+    ventas: list | None = None,
+    prestamos: list | None = None,
+    productos: list | None = None,
     facturas: list | None = None,
     gastos: list | None = None,
     configuracion=None,
 ) -> None:
     """
-    Genera un único .xlsx con seis hojas:
-      • Ventas        — historial completo (col 11 = pagos_combinados JSON)
-      • Préstamos     — todos los préstamos
-      • Inventario    — snapshot actual del inventario
-      • Facturas      — facturas y recibos
-      • Gastos        — gastos operativos diarios
-      • Configuración — parámetros de gastos fijos y comisiones
+    Genera un .xlsx con las hojas que se pasen (None = omitir esa hoja).
+    Hojas disponibles: Ventas | Préstamos | Inventario | Facturas | Gastos | Configuración
     """
     wb = openpyxl.Workbook()
+    primera_hoja_usada = False
 
-    # ── Hoja Ventas ───────────────────────────────────────────────────────
-    ws_v = wb.active
-    ws_v.title = "Ventas"
-
-    ws_v.merge_cells("A1:J1")
-    titulo = ws_v["A1"]
-    titulo.value = "YJBMOTOCOM — Historial de Ventas"
-    titulo.font = Font(name="Calibri", bold=True, size=14, color="FFFFFF")
-    titulo.fill = PatternFill("solid", fgColor=_AZUL_HEADER)
-    titulo.alignment = Alignment(horizontal="center", vertical="center")
-    ws_v.row_dimensions[1].height = 28
-
-    ws_v.append([])
-    ws_v.append(_HEADERS_VENTAS)
-    for col_idx in range(1, 12):
-        cell = ws_v.cell(row=3, column=col_idx)
-        if col_idx == 11:
-            cell.font = Font(bold=False, color="AAAAAA", name="Calibri", size=8)
-            cell.fill = PatternFill("solid", fgColor="F3F4F6")
+    def _hoja(titulo_hoja: str) -> object:
+        """Crea o reutiliza la hoja activa (la primera se crea automáticamente)."""
+        nonlocal primera_hoja_usada
+        if not primera_hoja_usada:
+            ws = wb.active
+            ws.title = titulo_hoja
+            primera_hoja_usada = True
         else:
-            cell.font = Font(bold=True, color="FFFFFF", name="Calibri", size=10)
-            cell.fill = PatternFill("solid", fgColor="2563EB")
-        cell.alignment = Alignment(horizontal="center", vertical="center")
-        cell.border = _borde_fino()
-    ws_v.row_dimensions[3].height = 20
+            ws = wb.create_sheet(titulo_hoja)
+        return ws
 
-    total_neta = 0.0
-    for i, v in enumerate(ventas, start=1):
-        pagos_json = json.dumps(v.pagos_combinados, ensure_ascii=False) if v.pagos_combinados else ""
-        ws_v.append([
-            i, fecha_corta(v.fecha), v.producto, v.cantidad,
-            v.costo, v.precio, v.metodo_pago,
-            v.comision, v.ganancia_neta, v.notas, pagos_json,
-        ])
-        row = ws_v.max_row
-        fondo = _GRIS_FILA if i % 2 == 0 else "FFFFFF"
+    # ── Hoja Ventas (opcional) ────────────────────────────────────────────
+    if ventas is not None:
+        ws_v = _hoja("Ventas")
+        ws_v.merge_cells("A1:J1")
+        titulo_c = ws_v["A1"]
+        titulo_c.value = "YJBMOTOCOM — Historial de Ventas"
+        titulo_c.font = Font(name="Calibri", bold=True, size=14, color="FFFFFF")
+        titulo_c.fill = PatternFill("solid", fgColor=_AZUL_HEADER)
+        titulo_c.alignment = Alignment(horizontal="center", vertical="center")
+        ws_v.row_dimensions[1].height = 28
+
+        ws_v.append([])
+        ws_v.append(_HEADERS_VENTAS)
         for col_idx in range(1, 12):
-            c = ws_v.cell(row=row, column=col_idx)
+            cell = ws_v.cell(row=3, column=col_idx)
             if col_idx == 11:
-                c.fill = PatternFill("solid", fgColor="F9FAFB")
-                c.font = Font(name="Calibri", size=8, color="AAAAAA")
+                cell.font = Font(bold=False, color="AAAAAA", name="Calibri", size=8)
+                cell.fill = PatternFill("solid", fgColor="F3F4F6")
             else:
-                c.fill = PatternFill("solid", fgColor=fondo)
-                c.font = Font(name="Calibri", size=10)
+                cell.font = Font(bold=True, color="FFFFFF", name="Calibri", size=10)
+                cell.fill = PatternFill("solid", fgColor="2563EB")
+            cell.alignment = Alignment(horizontal="center", vertical="center")
+            cell.border = _borde_fino()
+        ws_v.row_dimensions[3].height = 20
+
+        total_cant    = 0
+        total_costos  = 0.0
+        total_ingresos = 0.0
+        total_comision = 0.0
+        total_neta    = 0.0
+        for i, v in enumerate(ventas, start=1):
+            pagos_json = json.dumps(v.pagos_combinados, ensure_ascii=False) if v.pagos_combinados else ""
+            ws_v.append([
+                i, fecha_corta(v.fecha), v.producto, v.cantidad,
+                v.costo, v.precio, v.metodo_pago,
+                v.comision, v.ganancia_neta, v.notas, pagos_json,
+            ])
+            row = ws_v.max_row
+            fondo = _GRIS_FILA if i % 2 == 0 else "FFFFFF"
+            for col_idx in range(1, 12):
+                c = ws_v.cell(row=row, column=col_idx)
+                if col_idx == 11:
+                    c.fill = PatternFill("solid", fgColor="F9FAFB")
+                    c.font = Font(name="Calibri", size=8, color="AAAAAA")
+                else:
+                    c.fill = PatternFill("solid", fgColor=fondo)
+                    c.font = Font(name="Calibri", size=10)
+                c.border = _borde_fino()
+            cell_neta = ws_v.cell(row=row, column=9)
+            cell_neta.fill = PatternFill(
+                "solid", fgColor=_VERDE if v.ganancia_neta >= 0 else _ROJO
+            )
+            total_cant     += v.cantidad
+            total_costos   += v.costo * v.cantidad
+            total_ingresos += v.precio * v.cantidad
+            total_comision += v.comision
+            total_neta     += v.ganancia_neta
+
+        # ── Fila de totales ───────────────────────────────────────────────
+        ws_v.append([
+            "", "TOTALES",
+            f"{len(ventas)} venta(s)",
+            total_cant,          # Cant.
+            total_costos,        # Costo total
+            total_ingresos,      # Ingresos totales
+            "",                  # Método pago
+            total_comision,      # Comisión total
+            total_neta,          # Ganancia neta total
+            "", "",
+        ])
+        total_row = ws_v.max_row
+        for col_idx in range(1, 12):
+            c = ws_v.cell(row=total_row, column=col_idx)
+            c.font = Font(bold=True, name="Calibri", size=10)
+            c.fill = PatternFill("solid", fgColor=_AZUL_SUAVE)
             c.border = _borde_fino()
-        cell_neta = ws_v.cell(row=row, column=9)
-        cell_neta.fill = PatternFill(
-            "solid", fgColor=_VERDE if v.ganancia_neta >= 0 else _ROJO
+        # Colorear celda de ganancia neta total
+        ws_v.cell(row=total_row, column=9).fill = PatternFill(
+            "solid", fgColor=_VERDE if total_neta >= 0 else _ROJO
         )
-        total_neta += v.ganancia_neta
 
-    ws_v.append([
-        "", "TOTALES", f"{len(ventas)} venta(s)", "", "", "", "", "", total_neta, "", ""
-    ])
-    total_row = ws_v.max_row
-    for col_idx in range(1, 12):
-        c = ws_v.cell(row=total_row, column=col_idx)
-        c.font = Font(bold=True, name="Calibri", size=10)
-        c.fill = PatternFill("solid", fgColor=_AZUL_SUAVE)
-        c.border = _borde_fino()
+        for i, ancho in enumerate(_ANCHOS_VENTAS, start=1):
+            ws_v.column_dimensions[get_column_letter(i)].width = ancho
+        ws_v.column_dimensions["K"].width = 1
 
-    for i, ancho in enumerate(_ANCHOS_VENTAS, start=1):
-        ws_v.column_dimensions[get_column_letter(i)].width = ancho
-    # Ocultar col K (pagos JSON) — ancho mínimo
-    ws_v.column_dimensions["K"].width = 1
+    # ── Hoja Préstamos (opcional) ─────────────────────────────────────────
+    if prestamos is not None:
+        _escribir_hoja_prestamos(_hoja("Préstamos"), prestamos)
 
-    # ── Hoja Préstamos ────────────────────────────────────────────────────
-    ws_p = wb.create_sheet("Préstamos")
-    _escribir_hoja_prestamos(ws_p, prestamos)
+    # ── Hoja Inventario (opcional) ────────────────────────────────────────
+    if productos is not None:
+        _escribir_hoja_inventario(_hoja("Inventario"), productos)
 
-    # ── Hoja Inventario ───────────────────────────────────────────────────
-    ws_i = wb.create_sheet("Inventario")
-    _escribir_hoja_inventario(ws_i, productos)
+    # ── Hoja Facturas (opcional) ──────────────────────────────────────────
+    if facturas is not None:
+        _escribir_hoja_facturas(_hoja("Facturas"), facturas)
 
-    # ── Hoja Facturas ─────────────────────────────────────────────────────
-    ws_f = wb.create_sheet("Facturas")
-    _escribir_hoja_facturas(ws_f, facturas or [])
+    # ── Hoja Gastos (opcional) ────────────────────────────────────────────
+    if gastos is not None:
+        _escribir_hoja_gastos(_hoja("Gastos"), gastos)
 
-    # ── Hoja Gastos ───────────────────────────────────────────────────────
-    ws_g = wb.create_sheet("Gastos")
-    _escribir_hoja_gastos(ws_g, gastos or [])
+    # ── Hoja Configuración (opcional) ─────────────────────────────────────
+    if configuracion is not None:
+        _escribir_hoja_configuracion(_hoja("Configuración"), configuracion)
 
-    # ── Hoja Configuración ────────────────────────────────────────────────
-    ws_c = wb.create_sheet("Configuración")
-    _escribir_hoja_configuracion(ws_c, configuracion)
+    # Si ninguna hoja fue incluida, agregar una de aviso
+    if not primera_hoja_usada:
+        wb.active.title = "Sin datos"
+        wb.active["A1"] = "No se seleccionó ninguna hoja para exportar."
 
     wb.save(str(ruta))
 

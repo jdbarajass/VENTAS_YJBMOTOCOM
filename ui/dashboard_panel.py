@@ -1,14 +1,14 @@
 """
 ui/dashboard_panel.py
-Dashboard diario: tarjetas métricas + indicador utilidad real.
-La vista más importante del sistema — responde "¿cuánto REALMENTE gané hoy?"
+Dashboard diario: métricas, desglose por método de pago, productos del día,
+proyección mensual y alertas de facturas/préstamos pendientes.
 """
 
-from datetime import date
+from datetime import date, timedelta
 
 from PySide6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QGridLayout,
-    QLabel, QPushButton, QDateEdit, QFrame, QSizePolicy,
+    QWidget, QVBoxLayout, QHBoxLayout,
+    QLabel, QPushButton, QDateEdit, QFrame, QSizePolicy, QScrollArea,
 )
 from PySide6.QtCore import Qt, QDate
 from PySide6.QtGui import QFont
@@ -19,30 +19,26 @@ from utils.formatters import cop, porcentaje, fecha_corta
 from ui.styles import aplicar_sombra
 
 
-class MetricCard(QFrame):
-    """
-    Tarjeta de métrica reutilizable.
-    Muestra: título (gris pequeño) + valor principal (grande) + subtítulo opcional.
-    """
+# Colores por método de pago (mismos que VentasDiaPanel)
+_COLORES_METODO = {
+    "Efectivo":      ("#DCFCE7", "#15803D"),
+    "Bold":          ("#FEF3C7", "#92400E"),
+    "Addi":          ("#EDE9FE", "#6D28D9"),
+    "Transferencia": ("#DBEAFE", "#1D4ED8"),
+    "Combinado":     ("#FFF7ED", "#C2410C"),
+    "Otro":          ("#F3F4F6", "#374151"),
+}
 
-    def __init__(
-        self,
-        titulo: str,
-        valor: str = "—",
-        subtitulo: str = "",
-        color_valor: str = "#111827",
-        fondo: str = "#FFFFFF",
-        parent=None,
-    ) -> None:
+
+class MetricCard(QFrame):
+    """Tarjeta de métrica reutilizable: título + valor grande + subtítulo."""
+
+    def __init__(self, titulo, valor="—", subtitulo="",
+                 color_valor="#111827", fondo="#FFFFFF", parent=None):
         super().__init__(parent)
         self.setFrameShape(QFrame.StyledPanel)
-        self.setStyleSheet(f"""
-            MetricCard {{
-                background-color: {fondo};
-                border: 1px solid #E5E7EB;
-                border-radius: 10px;
-            }}
-        """)
+        self._fondo_base = fondo
+        self._aplicar_fondo(fondo)
         self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
 
         lay = QVBoxLayout(self)
@@ -50,52 +46,46 @@ class MetricCard(QFrame):
         lay.setSpacing(4)
 
         self._lbl_titulo = QLabel(titulo.upper())
-        self._lbl_titulo.setStyleSheet("color: #6B7280; font-size: 10px; font-weight: bold; letter-spacing: 0.5px;")
+        self._lbl_titulo.setStyleSheet(
+            "color:#6B7280; font-size:10px; font-weight:bold; letter-spacing:0.5px;"
+        )
         lay.addWidget(self._lbl_titulo)
 
         self._lbl_valor = QLabel(valor)
-        font_v = QFont()
-        font_v.setPointSize(20)
-        font_v.setBold(True)
-        self._lbl_valor.setFont(font_v)
-        self._lbl_valor.setStyleSheet(f"color: {color_valor};")
+        fv = QFont(); fv.setPointSize(20); fv.setBold(True)
+        self._lbl_valor.setFont(fv)
+        self._lbl_valor.setStyleSheet(f"color:{color_valor};")
         lay.addWidget(self._lbl_valor)
 
         self._lbl_sub = QLabel(subtitulo)
-        self._lbl_sub.setStyleSheet("color: #9CA3AF; font-size: 11px;")
+        self._lbl_sub.setStyleSheet("color:#9CA3AF; font-size:11px;")
         self._lbl_sub.setVisible(bool(subtitulo))
         lay.addWidget(self._lbl_sub)
 
-    def actualizar(
-        self,
-        valor: str,
-        subtitulo: str = "",
-        color_valor: str = "#111827",
-        fondo: str = "#FFFFFF",
-    ) -> None:
+    def actualizar(self, valor, subtitulo="", color_valor="#111827", fondo="#FFFFFF"):
         self._lbl_valor.setText(valor)
-        self._lbl_valor.setStyleSheet(f"color: {color_valor};")
+        self._lbl_valor.setStyleSheet(f"color:{color_valor};")
         self._lbl_sub.setText(subtitulo)
         self._lbl_sub.setVisible(bool(subtitulo))
+        self._aplicar_fondo(fondo)
+
+    def _aplicar_fondo(self, fondo):
         self.setStyleSheet(f"""
             MetricCard {{
-                background-color: {fondo};
-                border: 1px solid #E5E7EB;
-                border-radius: 10px;
+                background-color:{fondo};
+                border:1px solid #E5E7EB;
+                border-radius:10px;
             }}
         """)
 
 
 class UtilityCard(QFrame):
-    """
-    Tarjeta grande y prominente para la UTILIDAD REAL.
-    Es EL número que define si el día fue bueno o malo.
-    """
+    """Tarjeta grande y prominente para la UTILIDAD REAL del día."""
 
-    def __init__(self, parent=None) -> None:
+    def __init__(self, parent=None):
         super().__init__(parent)
         self.setFrameShape(QFrame.StyledPanel)
-        self.setMinimumHeight(130)
+        self.setMinimumHeight(120)
         self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
 
         lay = QVBoxLayout(self)
@@ -104,76 +94,62 @@ class UtilityCard(QFrame):
 
         self._lbl_titulo = QLabel("UTILIDAD REAL DEL DÍA")
         self._lbl_titulo.setStyleSheet(
-            "font-size: 11px; font-weight: bold; letter-spacing: 0.5px;"
+            "font-size:11px; font-weight:bold; letter-spacing:0.5px;"
         )
         lay.addWidget(self._lbl_titulo)
 
         self._lbl_valor = QLabel("$ 0")
-        font = QFont(); font.setPointSize(32); font.setBold(True)
-        self._lbl_valor.setFont(font)
+        fv = QFont(); fv.setPointSize(30); fv.setBold(True)
+        self._lbl_valor.setFont(fv)
         lay.addWidget(self._lbl_valor)
 
         self._lbl_formula = QLabel("Ganancia neta  −  Gasto operativo diario")
-        self._lbl_formula.setStyleSheet("font-size: 11px;")
+        self._lbl_formula.setStyleSheet("font-size:11px;")
         lay.addWidget(self._lbl_formula)
 
-        self._set_estado_neutro()
+        self._set_neutro()
 
-    def actualizar(
-        self,
-        utilidad: float,
-        ganancia_neta: float,
-        gasto_diario: float,
-        gastos_op: float = 0.0,
-    ) -> None:
+    def actualizar(self, utilidad, ganancia_neta, gasto_diario, gastos_op=0.0):
         self._lbl_valor.setText(cop(utilidad))
         if gastos_op > 0:
-            formula = (
+            self._lbl_formula.setText(
                 f"{cop(ganancia_neta)}  −  {cop(gasto_diario)} (fijo)"
                 f"  −  {cop(gastos_op)} (extra)  =  {cop(utilidad)}"
             )
         else:
-            formula = (
-                f"{cop(ganancia_neta)}  −  {cop(gasto_diario)}"
-                f"  =  {cop(utilidad)}"
+            self._lbl_formula.setText(
+                f"{cop(ganancia_neta)}  −  {cop(gasto_diario)}  =  {cop(utilidad)}"
             )
-        self._lbl_formula.setText(formula)
-
         if utilidad > 0:
             self._set_positivo()
         elif utilidad < 0:
             self._set_negativo()
         else:
-            self._set_estado_neutro()
+            self._set_neutro()
 
-    def _set_positivo(self) -> None:
-        self._aplicar_estilo("#DCFCE7", "#15803D", "#166534")
+    def _set_positivo(self):  self._estilo("#DCFCE7", "#15803D", "#166534")
+    def _set_negativo(self):  self._estilo("#FEE2E2", "#DC2626", "#991B1B")
+    def _set_neutro(self):    self._estilo("#F8FAFC", "#374151", "#6B7280")
 
-    def _set_negativo(self) -> None:
-        self._aplicar_estilo("#FEE2E2", "#DC2626", "#991B1B")
-
-    def _set_estado_neutro(self) -> None:
-        self._aplicar_estilo("#F8FAFC", "#374151", "#6B7280")
-
-    def _aplicar_estilo(self, fondo: str, color_titulo: str, color_valor: str) -> None:
+    def _estilo(self, fondo, ct, cv):
         self.setStyleSheet(f"""
             UtilityCard {{
-                background-color: {fondo};
-                border: 2px solid {color_valor}40;
-                border-radius: 12px;
+                background-color:{fondo};
+                border:2px solid {cv}40;
+                border-radius:12px;
             }}
         """)
         self._lbl_titulo.setStyleSheet(
-            f"font-size: 11px; font-weight: bold; letter-spacing: 0.5px; color: {color_titulo};"
+            f"font-size:11px; font-weight:bold; letter-spacing:0.5px; color:{ct};"
         )
-        self._lbl_valor.setStyleSheet(f"color: {color_valor};")
-        self._lbl_formula.setStyleSheet(f"font-size: 11px; color: {color_titulo};")
+        self._lbl_valor.setStyleSheet(f"color:{cv};")
+        self._lbl_formula.setStyleSheet(f"font-size:11px; color:{ct};")
 
 
 class DashboardPanel(QWidget):
-    """Vista de dashboard con tarjetas métricas del día."""
+    """Vista de dashboard con métricas del día, desglose y proyección mensual."""
 
-    def __init__(self, parent=None) -> None:
+    def __init__(self, parent=None):
         super().__init__(parent)
         self._ctrl = DashboardController()
         self._build_ui()
@@ -183,24 +159,41 @@ class DashboardPanel(QWidget):
     # Construcción de UI
     # ------------------------------------------------------------------
 
-    def _build_ui(self) -> None:
+    def _build_ui(self):
         root = QVBoxLayout(self)
         root.setContentsMargins(28, 22, 28, 22)
-        root.setSpacing(16)
+        root.setSpacing(14)
 
         root.addLayout(self._barra_superior())
+        root.addWidget(self._banner_alertas())
         root.addLayout(self._fila_tarjetas_pequeñas())
         root.addLayout(self._fila_tarjetas_grandes())
+        root.addLayout(self._seccion_desglose())
         root.addWidget(self._barra_gasto())
         root.addWidget(self._barra_proyeccion())
         root.addStretch()
+
+    # ── Barra superior con navegación ─────────────────────────────────
 
     def _barra_superior(self) -> QHBoxLayout:
         lay = QHBoxLayout()
 
         titulo = QLabel("Dashboard Diario")
-        font = QFont(); font.setPointSize(16); font.setBold(True)
-        titulo.setFont(font)
+        ft = QFont(); ft.setPointSize(16); ft.setBold(True)
+        titulo.setFont(ft)
+
+        # Navegación ← / →
+        btn_ant = QPushButton("← Anterior")
+        btn_sig = QPushButton("Siguiente →")
+        for b in (btn_ant, btn_sig):
+            b.setFixedHeight(34)
+            b.setStyleSheet(
+                "QPushButton { border:1px solid #D1D5DB; border-radius:5px;"
+                "padding:0 12px; font-size:12px; }"
+                "QPushButton:hover { background:#F3F4F6; }"
+            )
+        btn_ant.clicked.connect(self._dia_anterior)
+        btn_sig.clicked.connect(self._dia_siguiente)
 
         self.date_selector = QDateEdit()
         self.date_selector.setCalendarPopup(True)
@@ -212,7 +205,7 @@ class DashboardPanel(QWidget):
 
         btn_hoy = QPushButton("Hoy")
         btn_hoy.setFixedHeight(34)
-        btn_hoy.setFixedWidth(60)
+        btn_hoy.setFixedWidth(55)
         btn_hoy.setStyleSheet(
             "QPushButton { border:1px solid #D1D5DB; border-radius:5px; }"
             "QPushButton:hover { background:#F3F4F6; }"
@@ -222,61 +215,160 @@ class DashboardPanel(QWidget):
         self._lbl_estado = QLabel("")
         self._lbl_estado.setFixedHeight(28)
         self._lbl_estado.setStyleSheet(
-            "font-weight: bold; font-size: 12px; border-radius: 5px; padding: 0 12px;"
+            "font-weight:bold; font-size:12px; border-radius:5px; padding:0 12px;"
         )
 
         lay.addWidget(titulo)
         lay.addSpacing(12)
+        lay.addWidget(btn_ant)
         lay.addWidget(QLabel("Fecha:"))
         lay.addWidget(self.date_selector)
+        lay.addWidget(btn_sig)
         lay.addWidget(btn_hoy)
         lay.addSpacing(16)
         lay.addWidget(self._lbl_estado)
         lay.addStretch()
         return lay
 
+    # ── Banner de alertas ──────────────────────────────────────────────
+
+    def _banner_alertas(self) -> QFrame:
+        self._banner = QFrame()
+        self._banner.setVisible(False)
+        self._banner.setStyleSheet(
+            "QFrame { background:#FFFBEB; border:1px solid #FDE68A;"
+            "border-radius:7px; }"
+        )
+        lay = QHBoxLayout(self._banner)
+        lay.setContentsMargins(14, 8, 14, 8)
+        self._lbl_alertas = QLabel("")
+        self._lbl_alertas.setStyleSheet("color:#92400E; font-size:12px;")
+        lay.addWidget(self._lbl_alertas)
+        lay.addStretch()
+        return self._banner
+
+    # ── Tarjetas métricas ──────────────────────────────────────────────
+
     def _fila_tarjetas_pequeñas(self) -> QHBoxLayout:
-        """4 tarjetas de métricas secundarias."""
-        lay = QHBoxLayout()
-        lay.setSpacing(14)
-
+        lay = QHBoxLayout(); lay.setSpacing(14)
         self.card_ventas     = MetricCard("Ventas registradas", "0",  color_valor="#1D4ED8")
-        self.card_ingresos   = MetricCard("Ingresos totales",   "$ 0", color_valor="#374151")
-        self.card_costos     = MetricCard("Costos totales",     "$ 0", color_valor="#374151")
+        self.card_ingresos   = MetricCard("Ingresos totales",   "$ 0")
+        self.card_costos     = MetricCard("Costos totales",     "$ 0")
         self.card_comisiones = MetricCard("Comisiones pagadas", "$ 0", color_valor="#92400E")
-
-        for card in (self.card_ventas, self.card_ingresos,
-                     self.card_costos, self.card_comisiones):
-            aplicar_sombra(card)
-            lay.addWidget(card)
-
+        for c in (self.card_ventas, self.card_ingresos, self.card_costos, self.card_comisiones):
+            aplicar_sombra(c); lay.addWidget(c)
         return lay
 
     def _fila_tarjetas_grandes(self) -> QHBoxLayout:
-        """2 tarjetas grandes: Ganancia neta y Utilidad real."""
-        lay = QHBoxLayout()
-        lay.setSpacing(14)
-
-        self.card_g_bruta = MetricCard("Ganancia bruta",
-                                       "$ 0", subtitulo="Precio − Costo",
-                                       color_valor="#374151")
-        self.card_g_neta  = MetricCard("Ganancia neta de ventas",
-                                       "$ 0", subtitulo="Bruta − Comisiones",
-                                       color_valor="#374151")
+        lay = QHBoxLayout(); lay.setSpacing(14)
+        self.card_g_bruta  = MetricCard("Ganancia bruta",            "$ 0", subtitulo="Precio − Costo")
+        self.card_g_neta   = MetricCard("Ganancia neta de ventas",   "$ 0", subtitulo="Bruta − Comisiones")
         self.card_utilidad = UtilityCard()
-
         aplicar_sombra(self.card_g_bruta)
         aplicar_sombra(self.card_g_neta)
         aplicar_sombra(self.card_utilidad, radio=16, opacidad=22)
-
-        lay.addWidget(self.card_g_bruta, stretch=1)
-        lay.addWidget(self.card_g_neta,  stretch=1)
+        lay.addWidget(self.card_g_bruta,  stretch=1)
+        lay.addWidget(self.card_g_neta,   stretch=1)
         lay.addWidget(self.card_utilidad, stretch=2)
-
         return lay
 
+    # ── Sección de desglose: métodos + productos ───────────────────────
+
+    def _seccion_desglose(self) -> QHBoxLayout:
+        lay = QHBoxLayout(); lay.setSpacing(14)
+        lay.addWidget(self._panel_metodos(),  stretch=1)
+        lay.addWidget(self._panel_productos(), stretch=2)
+        return lay
+
+    def _panel_metodos(self) -> QFrame:
+        """Panel izquierdo: ingresos por método de pago."""
+        self._frame_metodos = QFrame()
+        self._frame_metodos.setFrameShape(QFrame.StyledPanel)
+        self._frame_metodos.setStyleSheet(
+            "QFrame { background:#FFFFFF; border:1px solid #E5E7EB; border-radius:10px; }"
+        )
+        aplicar_sombra(self._frame_metodos)
+        lay = QVBoxLayout(self._frame_metodos)
+        lay.setContentsMargins(16, 14, 16, 14)
+        lay.setSpacing(10)
+
+        lbl = QLabel("INGRESOS POR MÉTODO")
+        lbl.setStyleSheet("color:#6B7280; font-size:10px; font-weight:bold; letter-spacing:0.5px;")
+        lay.addWidget(lbl)
+
+        self._lay_metodos = QVBoxLayout()
+        self._lay_metodos.setSpacing(6)
+        lay.addLayout(self._lay_metodos)
+
+        self._lbl_sin_ventas_met = QLabel("Sin ventas hoy")
+        self._lbl_sin_ventas_met.setStyleSheet("color:#9CA3AF; font-size:12px; font-style:italic;")
+        self._lay_metodos.addWidget(self._lbl_sin_ventas_met)
+
+        lay.addStretch()
+        return self._frame_metodos
+
+    def _panel_productos(self) -> QFrame:
+        """Panel derecho: productos vendidos en el día."""
+        self._frame_productos = QFrame()
+        self._frame_productos.setFrameShape(QFrame.StyledPanel)
+        self._frame_productos.setStyleSheet(
+            "QFrame { background:#FFFFFF; border:1px solid #E5E7EB; border-radius:10px; }"
+        )
+        aplicar_sombra(self._frame_productos)
+        lay = QVBoxLayout(self._frame_productos)
+        lay.setContentsMargins(16, 14, 16, 14)
+        lay.setSpacing(8)
+
+        lbl = QLabel("PRODUCTOS VENDIDOS HOY")
+        lbl.setStyleSheet("color:#6B7280; font-size:10px; font-weight:bold; letter-spacing:0.5px;")
+        lay.addWidget(lbl)
+
+        # Encabezado de columnas
+        hdr = QHBoxLayout()
+        for texto, stretch, alin in [
+            ("Producto", 4, Qt.AlignLeft),
+            ("Cant.", 1, Qt.AlignCenter),
+            ("Ingresos", 2, Qt.AlignRight),
+            ("Ganancia", 2, Qt.AlignRight),
+        ]:
+            l = QLabel(texto)
+            l.setStyleSheet("color:#6B7280; font-size:10px; font-weight:bold;")
+            l.setAlignment(alin)
+            hdr.addWidget(l, stretch=stretch)
+        lay.addLayout(hdr)
+
+        sep = QFrame(); sep.setFrameShape(QFrame.HLine)
+        sep.setStyleSheet("color:#E5E7EB;")
+        lay.addWidget(sep)
+
+        # Área scrollable para las filas de productos
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QFrame.NoFrame)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        scroll.setMaximumHeight(160)
+        scroll.setStyleSheet("QScrollArea { border:none; background:transparent; }")
+
+        self._contenedor_prods = QWidget()
+        self._contenedor_prods.setStyleSheet("background:transparent;")
+        self._lay_productos = QVBoxLayout(self._contenedor_prods)
+        self._lay_productos.setContentsMargins(0, 0, 0, 0)
+        self._lay_productos.setSpacing(2)
+
+        self._lbl_sin_ventas_prod = QLabel("Sin ventas registradas para esta fecha.")
+        self._lbl_sin_ventas_prod.setStyleSheet(
+            "color:#9CA3AF; font-size:12px; font-style:italic; padding:4px 0;"
+        )
+        self._lay_productos.addWidget(self._lbl_sin_ventas_prod)
+
+        scroll.setWidget(self._contenedor_prods)
+        lay.addWidget(scroll)
+
+        return self._frame_productos
+
+    # ── Barras informativas ────────────────────────────────────────────
+
     def _barra_gasto(self) -> QFrame:
-        """Barra informativa sobre los gastos operativos."""
         self._barra = QFrame()
         self._barra.setFrameShape(QFrame.StyledPanel)
         self._barra.setStyleSheet(
@@ -302,10 +394,6 @@ class DashboardPanel(QWidget):
         return self._barra
 
     def _barra_proyeccion(self) -> QFrame:
-        """
-        Barra de proyección mensual: cuánto deberías llevar acumulado vs lo real.
-        Responde: '¿Voy bien o debo plata a estas alturas del mes?'
-        """
         self._proy_frame = QFrame()
         self._proy_frame.setFrameShape(QFrame.StyledPanel)
         self._proy_frame.setStyleSheet(
@@ -315,18 +403,15 @@ class DashboardPanel(QWidget):
         lay.setContentsMargins(16, 10, 16, 10)
         lay.setSpacing(20)
 
-        # Título/descripción de la barra
-        lbl_titulo = QLabel("Proyección del mes")
-        lbl_titulo.setStyleSheet(
-            "color:#334155; font-size:11px; font-weight:bold;"
-        )
+        lbl_tit = QLabel("Proyección del mes")
+        lbl_tit.setStyleSheet("color:#334155; font-size:11px; font-weight:bold;")
 
-        self._proy_dia       = self._info_chip("Día del mes",    "—")
-        self._proy_meta      = self._info_chip("Meta acumulada",  "$ 0")
-        self._proy_util      = self._info_chip("Utilidad real acumulada", "$ 0")
-        self._proy_dif_chip  = self._proy_diferencia_chip()
+        self._proy_dia      = self._info_chip("Día del mes",             "—")
+        self._proy_meta     = self._info_chip("Meta acumulada",          "$ 0")
+        self._proy_util     = self._info_chip("Utilidad real acumulada", "$ 0")
+        self._proy_dif_chip = self._proy_diferencia_chip()
 
-        lay.addWidget(lbl_titulo)
+        lay.addWidget(lbl_tit)
         lay.addWidget(self._sep_v())
         lay.addWidget(self._proy_dia)
         lay.addWidget(self._sep_v())
@@ -339,57 +424,56 @@ class DashboardPanel(QWidget):
         return self._proy_frame
 
     def _proy_diferencia_chip(self) -> QWidget:
-        """Widget especial para el superávit/déficit — cambia color y texto."""
         w = QWidget()
-        lay = QVBoxLayout(w)
-        lay.setContentsMargins(0, 0, 0, 0)
-        lay.setSpacing(2)
+        lay = QVBoxLayout(w); lay.setContentsMargins(0,0,0,0); lay.setSpacing(2)
         lbl_e = QLabel("SITUACIÓN")
         lbl_e.setStyleSheet("color:#6B7280; font-size:10px; font-weight:bold;")
         self._proy_dif_label = QLabel("—")
         self._proy_dif_label.setStyleSheet("font-size:14px; font-weight:bold; color:#374151;")
-        lay.addWidget(lbl_e)
-        lay.addWidget(self._proy_dif_label)
+        lay.addWidget(lbl_e); lay.addWidget(self._proy_dif_label)
         w._lbl_valor = self._proy_dif_label
         return w
 
     def _info_chip(self, etiqueta: str, valor: str) -> QWidget:
         w = QWidget()
-        lay = QVBoxLayout(w)
-        lay.setContentsMargins(0, 0, 0, 0)
-        lay.setSpacing(2)
+        lay = QVBoxLayout(w); lay.setContentsMargins(0,0,0,0); lay.setSpacing(2)
         lbl_e = QLabel(etiqueta)
         lbl_e.setStyleSheet("color:#6B7280; font-size:10px; font-weight:bold;")
         lbl_v = QLabel(valor)
         lbl_v.setStyleSheet("color:#374151; font-size:14px; font-weight:bold;")
-        lay.addWidget(lbl_e)
-        lay.addWidget(lbl_v)
-
-        # Guardamos referencia al label del valor para actualizar luego
+        lay.addWidget(lbl_e); lay.addWidget(lbl_v)
         w._lbl_valor = lbl_v
         return w
 
     def _sep_v(self) -> QFrame:
         s = QFrame(); s.setFrameShape(QFrame.VLine)
-        s.setFixedHeight(36)
-        s.setStyleSheet("color:#CBD5E1;")
+        s.setFixedHeight(36); s.setStyleSheet("color:#CBD5E1;")
         return s
+
+    # ------------------------------------------------------------------
+    # Navegación entre días
+    # ------------------------------------------------------------------
+
+    def _dia_anterior(self):
+        self.date_selector.setDate(self.date_selector.date().addDays(-1))
+
+    def _dia_siguiente(self):
+        self.date_selector.setDate(self.date_selector.date().addDays(1))
 
     # ------------------------------------------------------------------
     # Datos
     # ------------------------------------------------------------------
 
-    def refresh(self) -> None:
-        """Recarga los datos para la fecha seleccionada y actualiza las tarjetas."""
+    def refresh(self):
         qd = self.date_selector.date()
         fecha = date(qd.year(), qd.month(), qd.day())
-        resumen = self._ctrl.get_resumen_dia(fecha)
-        self._actualizar_cards(resumen)
-        proy = self._ctrl.get_proyeccion_mes(fecha)
-        self._actualizar_proyeccion(proy, fecha)
+        datos = self._ctrl.get_datos_dia(fecha)
+        self._actualizar_cards(datos["resumen"])
+        self._actualizar_desglose(datos["por_metodo"], datos["productos"])
+        self._actualizar_proyeccion(datos["proyeccion"])
+        self._actualizar_alertas(datos["alertas"])
 
-    def _actualizar_cards(self, r: ResumenDiario) -> None:
-        # Tarjetas pequeñas
+    def _actualizar_cards(self, r: ResumenDiario):
         self.card_ventas.actualizar(
             str(r.cantidad_ventas),
             subtitulo=f"Fecha: {fecha_corta(r.fecha)}",
@@ -402,7 +486,6 @@ class DashboardPanel(QWidget):
             color_valor="#B45309" if r.total_comisiones > 0 else "#374151",
         )
 
-        # Ganancia bruta y neta
         color_bruta = "#16A34A" if r.ganancia_bruta >= 0 else "#DC2626"
         self.card_g_bruta.actualizar(cop(r.ganancia_bruta), color_valor=color_bruta)
 
@@ -413,10 +496,9 @@ class DashboardPanel(QWidget):
             color_valor=color_neta,
         )
 
-        # Utilidad real (la tarjeta más importante)
-        self.card_utilidad.actualizar(r.utilidad_real, r.ganancia_neta, r.gasto_diario, r.gastos_operativos)
+        self.card_utilidad.actualizar(r.utilidad_real, r.ganancia_neta,
+                                      r.gasto_diario, r.gastos_operativos)
 
-        # Barra inferior de gastos
         from database.config_repo import obtener_configuracion
         cfg = obtener_configuracion()
         self._lbl_gasto_dia._lbl_valor.setText(cop(r.gasto_diario))
@@ -424,7 +506,6 @@ class DashboardPanel(QWidget):
         self._lbl_gasto_mes._lbl_valor.setText(cop(cfg.total_gastos_mes))
         self._lbl_margen._lbl_valor.setText(porcentaje(r.margen_porcentual, 1))
 
-        # Indicador de estado en la barra superior
         if r.cantidad_ventas == 0:
             self._lbl_estado.setText("Sin ventas registradas")
             self._lbl_estado.setStyleSheet(
@@ -444,25 +525,84 @@ class DashboardPanel(QWidget):
                 "background:#FEE2E2; color:#DC2626;"
             )
 
-    def _actualizar_proyeccion(self, p: dict, fecha: date) -> None:
-        """Actualiza la barra de proyección mensual."""
-        self._proy_dia._lbl_valor.setText(
-            f"Día {p['dia']} de {p['dias_mes']}"
-        )
+    def _actualizar_desglose(self, por_metodo: dict, productos: list):
+        # ── Chips de métodos ──────────────────────────────────────────
+        while self._lay_metodos.count():
+            item = self._lay_metodos.takeAt(0)
+            if item.widget():
+                item.widget().deleteLater()
+
+        if not por_metodo:
+            self._lay_metodos.addWidget(self._lbl_sin_ventas_met)
+        else:
+            for metodo, total in sorted(por_metodo.items()):
+                bg, fg = _COLORES_METODO.get(metodo, ("#F3F4F6", "#374151"))
+                lbl = QLabel(f"  {metodo}  {cop(total)}  ")
+                lbl.setStyleSheet(
+                    f"background:{bg}; color:{fg}; border-radius:5px;"
+                    f"font-size:12px; font-weight:bold; padding:4px 10px;"
+                )
+                self._lay_metodos.addWidget(lbl)
+            self._lay_metodos.addStretch()
+
+        # ── Filas de productos ────────────────────────────────────────
+        while self._lay_productos.count():
+            item = self._lay_productos.takeAt(0)
+            if item.widget():
+                item.widget().deleteLater()
+
+        if not productos:
+            self._lay_productos.addWidget(self._lbl_sin_ventas_prod)
+            return
+
+        for i, (nombre, cant, ingresos, ganancia) in enumerate(productos):
+            fila = QHBoxLayout()
+            fila.setContentsMargins(0, 2, 0, 2)
+
+            lbl_nombre = QLabel(nombre)
+            lbl_nombre.setStyleSheet("font-size:11px; color:#374151;")
+            lbl_nombre.setWordWrap(True)
+
+            lbl_cant = QLabel(str(cant))
+            lbl_cant.setAlignment(Qt.AlignCenter)
+            lbl_cant.setStyleSheet("font-size:11px; color:#6B7280;")
+
+            color_g = "#15803D" if ganancia >= 0 else "#DC2626"
+            lbl_ing = QLabel(cop(ingresos))
+            lbl_ing.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+            lbl_ing.setStyleSheet("font-size:11px; color:#374151;")
+
+            lbl_gan = QLabel(cop(ganancia))
+            lbl_gan.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+            lbl_gan.setStyleSheet(f"font-size:11px; font-weight:bold; color:{color_g};")
+
+            fila.addWidget(lbl_nombre, stretch=4)
+            fila.addWidget(lbl_cant,   stretch=1)
+            fila.addWidget(lbl_ing,    stretch=2)
+            fila.addWidget(lbl_gan,    stretch=2)
+
+            contenedor = QWidget()
+            contenedor.setLayout(fila)
+            fondo = "#F8FAFC" if i % 2 == 0 else "#FFFFFF"
+            contenedor.setStyleSheet(
+                f"background:{fondo}; border-radius:4px;"
+            )
+            self._lay_productos.addWidget(contenedor)
+
+        self._lay_productos.addStretch()
+
+    def _actualizar_proyeccion(self, p: dict):
+        self._proy_dia._lbl_valor.setText(f"Día {p['dia']} de {p['dias_mes']}")
         self._proy_meta._lbl_valor.setText(cop(p["meta"]))
         self._proy_util._lbl_valor.setText(cop(p["utilidad_acumulada"]))
 
         dif = p["diferencia"]
         if dif >= 0:
-            signo = "+"
-            color = "#15803D"
-            bg    = "#DCFCE7"
-            texto = f"{signo}{cop(dif)}  SUPERÁVIT"
+            texto = f"+{cop(dif)}  SUPERÁVIT"
+            color = "#15803D"; bg = "#DCFCE7"
         else:
-            signo = ""
-            color = "#DC2626"
-            bg    = "#FEE2E2"
-            texto = f"{signo}{cop(dif)}  DÉFICIT"
+            texto = f"{cop(dif)}  DÉFICIT"
+            color = "#DC2626"; bg = "#FEE2E2"
 
         self._proy_dif_label.setText(texto)
         self._proy_dif_label.setStyleSheet(
@@ -471,3 +611,18 @@ class DashboardPanel(QWidget):
         self._proy_frame.setStyleSheet(
             f"QFrame {{ background:{bg}; border:1px solid {color}40; border-radius:8px; }}"
         )
+
+    def _actualizar_alertas(self, alertas: dict):
+        partes = []
+        if alertas["prestamos"] > 0:
+            partes.append(f"⚠  {alertas['prestamos']} préstamo(s) pendiente(s)")
+        if alertas["facturas"] > 0:
+            partes.append(
+                f"🧾  {alertas['facturas']} factura(s) por pagar"
+                f"  ({cop(alertas['total_facturas'])})"
+            )
+        if partes:
+            self._lbl_alertas.setText("   |   ".join(partes))
+            self._banner.setVisible(True)
+        else:
+            self._banner.setVisible(False)

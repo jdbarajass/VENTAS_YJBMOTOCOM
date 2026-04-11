@@ -3,55 +3,99 @@ controllers/dashboard_controller.py
 Caso de uso: obtener el resumen contable de un día para el dashboard.
 """
 
+from collections import defaultdict
 from datetime import date
 
 from database.ventas_repo import obtener_ventas_por_fecha, obtener_ventas_por_mes
 from database.gastos_dia_repo import obtener_gastos_por_fecha, obtener_gastos_por_mes
 from database.config_repo import obtener_configuracion
+from database.prestamos_repo import obtener_prestamos_pendientes
+from database.facturas_repo import obtener_facturas_pendientes
 from services.reportes import calcular_resumen_diario, ResumenDiario
 
 
 class DashboardController:
 
-    def get_resumen_dia(self, fecha: date) -> ResumenDiario:
+    def get_datos_dia(self, fecha: date) -> dict:
         """
-        Carga ventas, gastos operativos y configuración, calcula y retorna
-        el ResumenDiario. Los gastos operativos del día se descuentan de la
-        utilidad real junto con el gasto fijo diario prorrateado.
+        Carga y calcula todo lo necesario para el dashboard de un día.
+        Retorna un dict con:
+          resumen    — ResumenDiario
+          proyeccion — dict de proyección mensual
+          por_metodo — {metodo: total_ingresos}
+          productos  — [(nombre, cant, ingresos, ganancia), ...] ordenado por ingreso desc
+          alertas    — {"prestamos": N, "facturas": N, "total_facturas": float}
         """
-        ventas = obtener_ventas_por_fecha(fecha)
-        gastos = obtener_gastos_por_fecha(fecha)
+        ventas  = obtener_ventas_por_fecha(fecha)
+        gastos  = obtener_gastos_por_fecha(fecha)
         gastos_total = round(sum(g.monto for g in gastos), 2)
-        cfg = obtener_configuracion()
-        return calcular_resumen_diario(ventas, cfg, fecha, gastos_total)
+        cfg     = obtener_configuracion()
 
-    def get_proyeccion_mes(self, fecha: date) -> dict:
-        """
-        Calcula la proyección acumulada del mes hasta la fecha dada.
-        Compara lo que se DEBERÍA tener vs lo que REALMENTE se tiene.
-        """
-        cfg = obtener_configuracion()
+        resumen = calcular_resumen_diario(ventas, cfg, fecha, gastos_total)
 
-        ventas_mes = obtener_ventas_por_mes(fecha.year, fecha.month)
-        ventas_hasta = [v for v in ventas_mes if v.fecha <= fecha]
+        # ── Desglose por método de pago ───────────────────────────────
+        por_metodo: dict[str, float] = defaultdict(float)
+        for v in ventas:
+            metodo = v.metodo_pago.split()[0]
+            por_metodo[metodo] += v.precio * v.cantidad
 
-        gastos_mes = obtener_gastos_por_mes(fecha.year, fecha.month)
-        gastos_extra_hasta = round(
-            sum(g.monto for g in gastos_mes if g.fecha <= fecha), 2
+        # ── Productos vendidos ────────────────────────────────────────
+        prods: dict[str, dict] = defaultdict(lambda: {"cant": 0, "ing": 0.0, "gan": 0.0})
+        for v in ventas:
+            prods[v.producto]["cant"] += v.cantidad
+            prods[v.producto]["ing"]  += v.precio * v.cantidad
+            prods[v.producto]["gan"]  += v.ganancia_neta
+        productos = sorted(
+            [(n, d["cant"], d["ing"], d["gan"]) for n, d in prods.items()],
+            key=lambda x: x[2], reverse=True,
         )
 
-        ganancia_acumulada = round(sum(v.ganancia_neta for v in ventas_hasta), 2)
-        utilidad_acumulada = round(ganancia_acumulada - gastos_extra_hasta, 2)
-        meta = round(cfg.gasto_diario * fecha.day, 2)
-        diferencia = round(utilidad_acumulada - meta, 2)
+        # ── Proyección mensual ────────────────────────────────────────
+        proyeccion = self._get_proyeccion_mes(fecha, cfg)
+
+        # ── Alertas rápidas ───────────────────────────────────────────
+        prest_pend  = obtener_prestamos_pendientes()
+        fact_pend   = obtener_facturas_pendientes()
+        alertas = {
+            "prestamos":      len(prest_pend),
+            "facturas":       len(fact_pend),
+            "total_facturas": sum(f.monto for f in fact_pend),
+        }
 
         return {
-            "dia": fecha.day,
-            "dias_mes": cfg.dias_mes,
-            "gasto_diario": cfg.gasto_diario,
-            "meta": meta,
-            "ganancia_acumulada": ganancia_acumulada,
-            "gastos_extra_acumulados": gastos_extra_hasta,
-            "utilidad_acumulada": utilidad_acumulada,
-            "diferencia": diferencia,
+            "resumen":    resumen,
+            "por_metodo": dict(por_metodo),
+            "productos":  productos,
+            "proyeccion": proyeccion,
+            "alertas":    alertas,
         }
+
+    def _get_proyeccion_mes(self, fecha: date, cfg=None) -> dict:
+        if cfg is None:
+            cfg = obtener_configuracion()
+
+        ventas_mes       = obtener_ventas_por_mes(fecha.year, fecha.month)
+        ventas_hasta     = [v for v in ventas_mes if v.fecha <= fecha]
+        gastos_mes       = obtener_gastos_por_mes(fecha.year, fecha.month)
+        gastos_extra     = round(sum(g.monto for g in gastos_mes if g.fecha <= fecha), 2)
+        ganancia_acum    = round(sum(v.ganancia_neta for v in ventas_hasta), 2)
+        utilidad_acum    = round(ganancia_acum - gastos_extra, 2)
+        meta             = round(cfg.gasto_diario * fecha.day, 2)
+
+        return {
+            "dia":                    fecha.day,
+            "dias_mes":               cfg.dias_mes,
+            "gasto_diario":           cfg.gasto_diario,
+            "meta":                   meta,
+            "ganancia_acumulada":     ganancia_acum,
+            "gastos_extra_acumulados": gastos_extra,
+            "utilidad_acumulada":     utilidad_acum,
+            "diferencia":             round(utilidad_acum - meta, 2),
+        }
+
+    # ── Método legado mantenido por compatibilidad ────────────────────
+    def get_resumen_dia(self, fecha: date) -> ResumenDiario:
+        return self.get_datos_dia(fecha)["resumen"]
+
+    def get_proyeccion_mes(self, fecha: date) -> dict:
+        return self._get_proyeccion_mes(fecha)

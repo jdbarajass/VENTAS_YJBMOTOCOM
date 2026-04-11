@@ -22,6 +22,7 @@ from ui.config_panel import ConfigPanel
 from ui.prestamos_panel import PrestamosPanel
 from ui.inventario_panel import InventarioPanel
 from ui.exportar_importar_panel import ExportarImportarPanel
+from ui.facturas_panel import FacturasPanel
 
 
 # Índices de página en el QStackedWidget
@@ -33,6 +34,7 @@ PAGE_CONFIG      = 4
 PAGE_PRESTAMOS   = 5
 PAGE_INVENTARIO  = 6
 PAGE_EXPORTAR    = 7
+PAGE_FACTURAS    = 8
 
 
 class MainWindow(QMainWindow):
@@ -128,6 +130,7 @@ class MainWindow(QMainWindow):
             (PAGE_HISTORIAL,  "📅  Historial Mensual"),
             (PAGE_INVENTARIO, "📦  Inventario"),
             (PAGE_PRESTAMOS,  "🤝  Préstamos"),
+            (PAGE_FACTURAS,   "🧾  Facturas"),
             (PAGE_EXPORTAR,   "⬇⬆  Exportar / Importar"),
             (PAGE_CONFIG,     "⚙  Configuración"),
         ]
@@ -225,6 +228,10 @@ class MainWindow(QMainWindow):
         self._exportar_importar = ExportarImportarPanel()
         self._stack.addWidget(self._exportar_importar)
 
+        # Página 8 — Facturas y Recibos
+        self._facturas = FacturasPanel()
+        self._stack.addWidget(self._facturas)
+
         # Señales
         self._form_venta.venta_guardada.connect(self._on_venta_guardada)
         self._config.configuracion_guardada.connect(self._on_config_guardada)
@@ -310,5 +317,6 @@ class MainWindow(QMainWindow):
         self._dashboard.refresh()
         self._historial.refresh()
         self._inventario.refresh()
+        self._facturas.refresh()
         self._form_venta.actualizar_inventario()
         self._status.showMessage("Importación completada  •  Todos los datos actualizados")

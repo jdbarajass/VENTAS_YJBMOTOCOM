@@ -7,7 +7,7 @@ from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
     QLineEdit, QTableWidget, QTableWidgetItem, QHeaderView,
     QAbstractItemView, QFrame, QMessageBox,
-    QSpinBox, QSizePolicy,
+    QSpinBox, QSizePolicy, QCheckBox,
 )
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QFont, QColor
@@ -30,6 +30,7 @@ class InventarioPanel(QWidget):
         super().__init__(parent)
         self._productos: list[Producto] = []
         self._editando_id: int | None = None  # id del producto en edición
+        self._solo_con_stock: bool = True     # filtro por defecto
         self._build_ui()
         self.refresh()
 
@@ -64,6 +65,11 @@ class InventarioPanel(QWidget):
         )
         self._campo_busqueda.textChanged.connect(self._filtrar)
 
+        self._chk_solo_stock = QCheckBox("Solo con stock")
+        self._chk_solo_stock.setChecked(True)
+        self._chk_solo_stock.setStyleSheet("font-size:12px; color:#374151;")
+        self._chk_solo_stock.toggled.connect(self._on_toggle_stock)
+
         btn_nuevo = QPushButton("+ Nuevo Producto")
         btn_nuevo.setFixedHeight(34)
         btn_nuevo.setStyleSheet(
@@ -76,6 +82,8 @@ class InventarioPanel(QWidget):
         lay.addWidget(titulo)
         lay.addSpacing(16)
         lay.addWidget(self._campo_busqueda)
+        lay.addSpacing(12)
+        lay.addWidget(self._chk_solo_stock)
         lay.addStretch()
         lay.addWidget(btn_nuevo)
         return lay
@@ -260,20 +268,31 @@ class InventarioPanel(QWidget):
     def refresh(self) -> None:
         self._productos = obtener_todos_productos()
         self._campo_busqueda.clear()
-        self._poblar_tabla(self._productos)
-        self._actualizar_resumen(self._productos)
+        self._aplicar_filtros()
+
+    def _on_toggle_stock(self, checked: bool) -> None:
+        self._solo_con_stock = checked
+        self._aplicar_filtros()
 
     def _filtrar(self, texto: str) -> None:
+        self._aplicar_filtros(texto)
+
+    def _aplicar_filtros(self, texto: str | None = None) -> None:
+        if texto is None:
+            texto = self._campo_busqueda.text()
+        filtrados = self._productos
+        if self._solo_con_stock:
+            filtrados = [p for p in filtrados if p.cantidad > 0]
         if texto.strip():
+            t = texto.lower()
             filtrados = [
-                p for p in self._productos
-                if texto.lower() in p.producto.lower()
-                or texto.lower() in p.serial.lower()
-                or texto.lower() in p.codigo_barras.lower()
+                p for p in filtrados
+                if t in p.producto.lower()
+                or t in p.serial.lower()
+                or t in p.codigo_barras.lower()
             ]
-        else:
-            filtrados = self._productos
         self._poblar_tabla(filtrados)
+        self._actualizar_resumen(filtrados)
 
     def _poblar_tabla(self, productos: list[Producto]) -> None:
         self.tabla.setRowCount(0)

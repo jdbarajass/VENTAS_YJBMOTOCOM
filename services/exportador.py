@@ -13,9 +13,14 @@ from openpyxl.styles import (
 )
 from openpyxl.utils import get_column_letter
 
+import json
+
 from models.venta import Venta
 from models.prestamo import Prestamo
 from models.producto import Producto
+from models.factura import Factura
+from models.configuracion import Configuracion
+from models.gasto_dia import GastoDia
 from utils.formatters import fecha_corta, nombre_mes
 
 
@@ -33,23 +38,24 @@ def _borde_fino() -> Border:
 
 
 # ── Encabezados comunes de ventas ──────────────────────────────────────────
+# Col 11 "Pagos JSON" es datos internos — no editar manualmente
 _HEADERS_VENTAS = [
     "#", "Fecha", "Producto", "Cant.", "Costo", "Precio venta",
-    "Método pago", "Comisión", "Ganancia neta", "Notas"
+    "Método pago", "Comisión", "Ganancia neta", "Notas", "Pagos JSON"
 ]
 
-_ANCHOS_VENTAS = [5, 12, 30, 7, 15, 16, 14, 14, 15, 28]
+_ANCHOS_VENTAS = [5, 12, 30, 7, 15, 16, 14, 14, 15, 28, 1]
 
 _EJEMPLOS_VENTAS = [
-    (1, "04/04/2026", "Casco X-Sport T.M",   1, 85000, 120000, "Efectivo",        0,     35000,  ""),
-    (2, "04/04/2026", "Aceite 10W-40 1L",    2, 18000,  28000, "Transferencia NEQUI", 0, 20000,  ""),
-    (3, "04/04/2026", "Guantes cuero talla L", 1, 25000, 40000, "Bold",          2000,   13000,  "Cliente frecuente"),
+    (1, "04/04/2026", "Casco X-Sport T.M",   1, 85000, 120000, "Efectivo",        0,     35000,  "", ""),
+    (2, "04/04/2026", "Aceite 10W-40 1L",    2, 18000,  28000, "Transferencia NEQUI", 0, 20000,  "", ""),
+    (3, "04/04/2026", "Guantes cuero talla L", 1, 25000, 40000, "Bold",          2000,   13000,  "Cliente frecuente", ""),
 ]
 
 
 def _escribir_encabezados_ventas(ws, titulo_celda: str, titulo_valor: str) -> None:
     """Escribe título (fila 1), fila vacía (2) y encabezados (3) en un worksheet."""
-    ws.merge_cells(f"{titulo_celda}:J1")
+    ws.merge_cells(f"{titulo_celda}:J1")   # solo hasta J — col K es interna
     t = ws[titulo_celda]
     t.value = titulo_valor
     t.font = Font(name="Calibri", bold=True, size=14, color="FFFFFF")
@@ -60,10 +66,15 @@ def _escribir_encabezados_ventas(ws, titulo_celda: str, titulo_valor: str) -> No
     ws.append([])  # fila 2 vacía
 
     ws.append(_HEADERS_VENTAS)  # fila 3
-    for col_idx in range(1, 11):
+    for col_idx in range(1, 12):
         cell = ws.cell(row=3, column=col_idx)
-        cell.font = Font(bold=True, color="FFFFFF", name="Calibri", size=10)
-        cell.fill = PatternFill("solid", fgColor="2563EB")
+        if col_idx == 11:
+            # Columna interna — gris apagada
+            cell.font = Font(bold=False, color="AAAAAA", name="Calibri", size=8)
+            cell.fill = PatternFill("solid", fgColor="F3F4F6")
+        else:
+            cell.font = Font(bold=True, color="FFFFFF", name="Calibri", size=10)
+            cell.fill = PatternFill("solid", fgColor="2563EB")
         cell.alignment = Alignment(horizontal="center", vertical="center")
         cell.border = _borde_fino()
     ws.row_dimensions[3].height = 20
@@ -273,19 +284,183 @@ def _escribir_hoja_inventario(ws, productos: list) -> None:
         ws.column_dimensions[get_column_letter(i)].width = ancho
 
 
+_HEADERS_FACTURAS = ["Descripción", "Proveedor", "Monto", "Fecha llegada", "Estado", "Notas"]
+_ANCHOS_FACTURAS  = [38, 24, 16, 14, 12, 34]
+_FACTURA_ESTADO_COLOR = {
+    "pendiente": "FEF3C7",
+    "pagada":    "DCFCE7",
+}
+
+
+def _escribir_hoja_facturas(ws, facturas: list) -> None:
+    """Escribe título, encabezados y datos de facturas en el worksheet dado."""
+    lado = Side(style="thin", color="CCCCCC")
+    borde = Border(left=lado, right=lado, top=lado, bottom=lado)
+
+    # Título
+    ws.merge_cells("A1:F1")
+    t = ws["A1"]
+    t.value = "YJBMOTOCOM — Facturas y Recibos"
+    t.font = Font(name="Calibri", bold=True, size=13, color="FFFFFF")
+    t.fill = PatternFill("solid", fgColor="92400E")
+    t.alignment = Alignment(horizontal="center", vertical="center")
+    ws.row_dimensions[1].height = 26
+
+    # Encabezados
+    ws.append(_HEADERS_FACTURAS)
+    for col_idx in range(1, 7):
+        cell = ws.cell(row=2, column=col_idx)
+        cell.font = Font(bold=True, color="FFFFFF", name="Calibri", size=10)
+        cell.fill = PatternFill("solid", fgColor="B45309")
+        cell.alignment = Alignment(horizontal="center", vertical="center")
+        cell.border = borde
+    ws.row_dimensions[2].height = 20
+
+    # Datos
+    for i, f in enumerate(facturas, start=1):
+        fecha_str = (
+            f.fecha_llegada.strftime("%d/%m/%Y")
+            if hasattr(f.fecha_llegada, "strftime")
+            else str(f.fecha_llegada)
+        )
+        ws.append([
+            f.descripcion,
+            f.proveedor,
+            f.monto,
+            fecha_str,
+            f.estado,
+            f.notas or "",
+        ])
+        row = ws.max_row
+        color = _FACTURA_ESTADO_COLOR.get(f.estado, "FFFFFF")
+        for col_idx in range(1, 7):
+            c = ws.cell(row=row, column=col_idx)
+            c.fill = PatternFill("solid", fgColor=color)
+            c.border = borde
+            c.font = Font(name="Calibri", size=10)
+            c.alignment = Alignment(vertical="center")
+        ws.row_dimensions[row].height = 18
+
+    # Anchos
+    for i, ancho in enumerate(_ANCHOS_FACTURAS, start=1):
+        ws.column_dimensions[get_column_letter(i)].width = ancho
+
+
+_HEADERS_GASTOS = ["Fecha", "Descripción", "Monto"]
+_ANCHOS_GASTOS  = [14, 40, 16]
+
+
+def _escribir_hoja_gastos(ws, gastos: list) -> None:
+    """Escribe título, encabezados y datos de gastos diarios."""
+    lado = Side(style="thin", color="CCCCCC")
+    borde = Border(left=lado, right=lado, top=lado, bottom=lado)
+
+    ws.merge_cells("A1:C1")
+    t = ws["A1"]
+    t.value = "YJBMOTOCOM — Gastos Operativos Diarios"
+    t.font = Font(name="Calibri", bold=True, size=13, color="FFFFFF")
+    t.fill = PatternFill("solid", fgColor="6D28D9")
+    t.alignment = Alignment(horizontal="center", vertical="center")
+    ws.row_dimensions[1].height = 26
+
+    ws.append(_HEADERS_GASTOS)
+    for col_idx in range(1, 4):
+        cell = ws.cell(row=2, column=col_idx)
+        cell.font = Font(bold=True, color="FFFFFF", name="Calibri", size=10)
+        cell.fill = PatternFill("solid", fgColor="7C3AED")
+        cell.alignment = Alignment(horizontal="center", vertical="center")
+        cell.border = borde
+    ws.row_dimensions[2].height = 20
+
+    for i, g in enumerate(gastos, start=1):
+        fecha_str = (
+            g.fecha.strftime("%d/%m/%Y")
+            if hasattr(g.fecha, "strftime")
+            else str(g.fecha)
+        )
+        ws.append([fecha_str, g.descripcion, g.monto])
+        row = ws.max_row
+        fondo = "F5F3FF" if i % 2 == 0 else "FFFFFF"
+        for col_idx in range(1, 4):
+            c = ws.cell(row=row, column=col_idx)
+            c.fill = PatternFill("solid", fgColor=fondo)
+            c.border = borde
+            c.font = Font(name="Calibri", size=10)
+            c.alignment = Alignment(vertical="center")
+        ws.row_dimensions[row].height = 18
+
+    for i, ancho in enumerate(_ANCHOS_GASTOS, start=1):
+        ws.column_dimensions[get_column_letter(i)].width = ancho
+
+
+_HEADERS_CONFIG = [
+    "Arriendo", "Sueldo", "Servicios", "Otros gastos",
+    "Días mes", "Comisión Bold (%)", "Comisión Addi (%)", "Comisión Transf. (%)"
+]
+_ANCHOS_CONFIG = [16, 16, 16, 16, 11, 18, 18, 20]
+
+
+def _escribir_hoja_configuracion(ws, cfg) -> None:
+    """Escribe título, encabezados y fila única de configuración."""
+    lado = Side(style="thin", color="CCCCCC")
+    borde = Border(left=lado, right=lado, top=lado, bottom=lado)
+    ncols = len(_HEADERS_CONFIG)
+
+    ws.merge_cells(f"A1:{get_column_letter(ncols)}1")
+    t = ws["A1"]
+    t.value = "YJBMOTOCOM — Configuración"
+    t.font = Font(name="Calibri", bold=True, size=13, color="FFFFFF")
+    t.fill = PatternFill("solid", fgColor="065F46")
+    t.alignment = Alignment(horizontal="center", vertical="center")
+    ws.row_dimensions[1].height = 26
+
+    ws.append(_HEADERS_CONFIG)
+    for col_idx in range(1, ncols + 1):
+        cell = ws.cell(row=2, column=col_idx)
+        cell.font = Font(bold=True, color="FFFFFF", name="Calibri", size=10)
+        cell.fill = PatternFill("solid", fgColor="047857")
+        cell.alignment = Alignment(horizontal="center", vertical="center")
+        cell.border = borde
+    ws.row_dimensions[2].height = 20
+
+    if cfg is None:
+        valores = [0, 0, 0, 0, 30, 0, 0, 0]
+    else:
+        valores = [
+            cfg.arriendo, cfg.sueldo, cfg.servicios, cfg.otros_gastos,
+            cfg.dias_mes, cfg.comision_bold, cfg.comision_addi, cfg.comision_transferencia,
+        ]
+    ws.append(valores)
+    row = ws.max_row
+    for col_idx in range(1, ncols + 1):
+        c = ws.cell(row=row, column=col_idx)
+        c.fill = PatternFill("solid", fgColor="ECFDF5")
+        c.border = borde
+        c.font = Font(name="Calibri", size=10, bold=True)
+        c.alignment = Alignment(horizontal="right", vertical="center")
+    ws.row_dimensions[row].height = 22
+
+    for i, ancho in enumerate(_ANCHOS_CONFIG, start=1):
+        ws.column_dimensions[get_column_letter(i)].width = ancho
+
+
 def exportar_todo(
     ruta: Path,
-    año: int,
-    mes: int,
     ventas: list[Venta],
     prestamos: list,
     productos: list[Producto],
+    facturas: list | None = None,
+    gastos: list | None = None,
+    configuracion=None,
 ) -> None:
     """
-    Genera un único .xlsx con tres hojas:
-      • Ventas   — ventas del mes indicado
-      • Préstamos — todos los préstamos
-      • Inventario — snapshot actual del inventario
+    Genera un único .xlsx con seis hojas:
+      • Ventas        — historial completo (col 11 = pagos_combinados JSON)
+      • Préstamos     — todos los préstamos
+      • Inventario    — snapshot actual del inventario
+      • Facturas      — facturas y recibos
+      • Gastos        — gastos operativos diarios
+      • Configuración — parámetros de gastos fijos y comisiones
     """
     wb = openpyxl.Workbook()
 
@@ -295,40 +470,45 @@ def exportar_todo(
 
     ws_v.merge_cells("A1:J1")
     titulo = ws_v["A1"]
-    titulo.value = f"YJBMOTOCOM — {nombre_mes(mes, año)}"
+    titulo.value = "YJBMOTOCOM — Historial de Ventas"
     titulo.font = Font(name="Calibri", bold=True, size=14, color="FFFFFF")
     titulo.fill = PatternFill("solid", fgColor=_AZUL_HEADER)
     titulo.alignment = Alignment(horizontal="center", vertical="center")
     ws_v.row_dimensions[1].height = 28
 
-    headers = [
-        "#", "Fecha", "Producto", "Cant.", "Costo", "Precio venta",
-        "Método pago", "Comisión", "Ganancia neta", "Notas"
-    ]
     ws_v.append([])
-    ws_v.append(headers)
-    for col_idx in range(1, 11):
+    ws_v.append(_HEADERS_VENTAS)
+    for col_idx in range(1, 12):
         cell = ws_v.cell(row=3, column=col_idx)
-        cell.font = Font(bold=True, color="FFFFFF", name="Calibri", size=10)
-        cell.fill = PatternFill("solid", fgColor="2563EB")
+        if col_idx == 11:
+            cell.font = Font(bold=False, color="AAAAAA", name="Calibri", size=8)
+            cell.fill = PatternFill("solid", fgColor="F3F4F6")
+        else:
+            cell.font = Font(bold=True, color="FFFFFF", name="Calibri", size=10)
+            cell.fill = PatternFill("solid", fgColor="2563EB")
         cell.alignment = Alignment(horizontal="center", vertical="center")
         cell.border = _borde_fino()
     ws_v.row_dimensions[3].height = 20
 
     total_neta = 0.0
     for i, v in enumerate(ventas, start=1):
+        pagos_json = json.dumps(v.pagos_combinados, ensure_ascii=False) if v.pagos_combinados else ""
         ws_v.append([
             i, fecha_corta(v.fecha), v.producto, v.cantidad,
             v.costo, v.precio, v.metodo_pago,
-            v.comision, v.ganancia_neta, v.notas,
+            v.comision, v.ganancia_neta, v.notas, pagos_json,
         ])
         row = ws_v.max_row
         fondo = _GRIS_FILA if i % 2 == 0 else "FFFFFF"
-        for col_idx in range(1, 11):
+        for col_idx in range(1, 12):
             c = ws_v.cell(row=row, column=col_idx)
-            c.fill = PatternFill("solid", fgColor=fondo)
+            if col_idx == 11:
+                c.fill = PatternFill("solid", fgColor="F9FAFB")
+                c.font = Font(name="Calibri", size=8, color="AAAAAA")
+            else:
+                c.fill = PatternFill("solid", fgColor=fondo)
+                c.font = Font(name="Calibri", size=10)
             c.border = _borde_fino()
-            c.font = Font(name="Calibri", size=10)
         cell_neta = ws_v.cell(row=row, column=9)
         cell_neta.fill = PatternFill(
             "solid", fgColor=_VERDE if v.ganancia_neta >= 0 else _ROJO
@@ -336,17 +516,19 @@ def exportar_todo(
         total_neta += v.ganancia_neta
 
     ws_v.append([
-        "", "TOTALES", f"{len(ventas)} venta(s)", "", "", "", "", "", total_neta, ""
+        "", "TOTALES", f"{len(ventas)} venta(s)", "", "", "", "", "", total_neta, "", ""
     ])
     total_row = ws_v.max_row
-    for col_idx in range(1, 11):
+    for col_idx in range(1, 12):
         c = ws_v.cell(row=total_row, column=col_idx)
         c.font = Font(bold=True, name="Calibri", size=10)
         c.fill = PatternFill("solid", fgColor=_AZUL_SUAVE)
         c.border = _borde_fino()
 
-    for i, ancho in enumerate([5, 12, 30, 7, 15, 16, 14, 14, 15, 28], start=1):
+    for i, ancho in enumerate(_ANCHOS_VENTAS, start=1):
         ws_v.column_dimensions[get_column_letter(i)].width = ancho
+    # Ocultar col K (pagos JSON) — ancho mínimo
+    ws_v.column_dimensions["K"].width = 1
 
     # ── Hoja Préstamos ────────────────────────────────────────────────────
     ws_p = wb.create_sheet("Préstamos")
@@ -356,10 +538,22 @@ def exportar_todo(
     ws_i = wb.create_sheet("Inventario")
     _escribir_hoja_inventario(ws_i, productos)
 
+    # ── Hoja Facturas ─────────────────────────────────────────────────────
+    ws_f = wb.create_sheet("Facturas")
+    _escribir_hoja_facturas(ws_f, facturas or [])
+
+    # ── Hoja Gastos ───────────────────────────────────────────────────────
+    ws_g = wb.create_sheet("Gastos")
+    _escribir_hoja_gastos(ws_g, gastos or [])
+
+    # ── Hoja Configuración ────────────────────────────────────────────────
+    ws_c = wb.create_sheet("Configuración")
+    _escribir_hoja_configuracion(ws_c, configuracion)
+
     wb.save(str(ruta))
 
 
-def generar_plantilla_todo(ruta: Path, año: int, mes: int) -> None:
+def generar_plantilla_todo(ruta: Path) -> None:
     """
     Genera un .xlsx vacío con las tres hojas (Ventas, Préstamos, Inventario)
     listo para ser rellenado por el usuario e importado desde el panel
@@ -371,7 +565,7 @@ def generar_plantilla_todo(ruta: Path, año: int, mes: int) -> None:
     # ── Hoja Ventas ───────────────────────────────────────────────────────
     ws_v = wb.active
     ws_v.title = "Ventas"
-    _escribir_encabezados_ventas(ws_v, "A1", f"YJBMOTOCOM — {nombre_mes(mes, año)}")
+    _escribir_encabezados_ventas(ws_v, "A1", "YJBMOTOCOM — Historial de Ventas")
 
     for ej in _EJEMPLOS_VENTAS:
         ws_v.append(list(ej))
@@ -388,7 +582,7 @@ def generar_plantilla_todo(ruta: Path, año: int, mes: int) -> None:
     nota_v = ws_v.cell(ws_v.max_row, 1)
     nota_v.value = (
         "↑ Borra las filas de ejemplo. Agrega tus ventas desde la fila 4. "
-        "Cada fila tiene su propia fecha dentro del mes."
+        "Puedes incluir ventas de cualquier mes y año — cada fila tiene su propia fecha."
     )
     nota_v.font = Font(name="Calibri", size=9, italic=True, color="6B7280")
     nota_v.fill = PatternFill("solid", fgColor="FFFBEB")
@@ -455,6 +649,91 @@ def generar_plantilla_todo(ruta: Path, año: int, mes: int) -> None:
     nota_i.fill = PatternFill("solid", fgColor="FFFBEB")
     nota_i.alignment = Alignment(horizontal="center", vertical="center")
     ws_i.row_dimensions[ws_i.max_row].height = 20
+
+    # ── Hoja Facturas ─────────────────────────────────────────────────────
+    ws_f = wb.create_sheet("Facturas")
+    _escribir_hoja_facturas(ws_f, [])   # vacía con encabezados y formato
+
+    _EJEMPLOS_FACT = [
+        ("Arriendo local",         "Propietario Norte", 1500000, "01/04/2026", "pendiente", ""),
+        ("Proveedor cascos Bogotá", "MotoPartes S.A.S", 850000,  "10/04/2026", "pendiente", "Factura #2341"),
+        ("Servicios públicos",      "EPM",               95000,   "05/04/2026", "pagada",    "Pagada el 08/04"),
+    ]
+    lado3 = Side(style="thin", color="CCCCCC")
+    borde3 = Border(left=lado3, right=lado3, top=lado3, bottom=lado3)
+    for ej in _EJEMPLOS_FACT:
+        ws_f.append(list(ej))
+        row = ws_f.max_row
+        for col_idx in range(1, 7):
+            c = ws_f.cell(row=row, column=col_idx)
+            c.fill = PatternFill("solid", fgColor="F1F5F9")
+            c.font = Font(name="Calibri", size=10, italic=True, color="94A3B8")
+            c.border = borde3
+            c.alignment = Alignment(vertical="center")
+        ws_f.row_dimensions[row].height = 18
+
+    ws_f.merge_cells(f"A{ws_f.max_row + 1}:F{ws_f.max_row + 1}")
+    nota_f = ws_f.cell(ws_f.max_row, 1)
+    nota_f.value = "↑ Borra los ejemplos. Estados válidos: pendiente | pagada"
+    nota_f.font = Font(name="Calibri", size=9, italic=True, color="6B7280")
+    nota_f.fill = PatternFill("solid", fgColor="FFFBEB")
+    nota_f.alignment = Alignment(horizontal="center", vertical="center")
+    ws_f.row_dimensions[ws_f.max_row].height = 20
+
+    # ── Hoja Gastos ───────────────────────────────────────────────────────
+    ws_g = wb.create_sheet("Gastos")
+    _escribir_hoja_gastos(ws_g, [])
+
+    lado4 = Side(style="thin", color="CCCCCC")
+    borde4 = Border(left=lado4, right=lado4, top=lado4, bottom=lado4)
+    _EJEMPLOS_GASTOS = [
+        ("01/04/2026", "Transporte moto",        25000),
+        ("01/04/2026", "Almuerzo",                15000),
+        ("02/04/2026", "Insumos limpieza local",  12000),
+    ]
+    for ej in _EJEMPLOS_GASTOS:
+        ws_g.append(list(ej))
+        row = ws_g.max_row
+        for col_idx in range(1, 4):
+            c = ws_g.cell(row=row, column=col_idx)
+            c.fill = PatternFill("solid", fgColor="F1F5F9")
+            c.font = Font(name="Calibri", size=10, italic=True, color="94A3B8")
+            c.border = borde4
+            c.alignment = Alignment(vertical="center")
+        ws_g.row_dimensions[row].height = 18
+
+    ws_g.merge_cells(f"A{ws_g.max_row + 1}:C{ws_g.max_row + 1}")
+    nota_g = ws_g.cell(ws_g.max_row, 1)
+    nota_g.value = "↑ Borra los ejemplos. Agrega tus gastos diarios desde la fila 3."
+    nota_g.font = Font(name="Calibri", size=9, italic=True, color="6B7280")
+    nota_g.fill = PatternFill("solid", fgColor="FFFBEB")
+    nota_g.alignment = Alignment(horizontal="center", vertical="center")
+    ws_g.row_dimensions[ws_g.max_row].height = 20
+
+    # ── Hoja Configuración (con valores por defecto del negocio) ─────��────
+    ws_c = wb.create_sheet("Configuración")
+    cfg_defecto = Configuracion(
+        arriendo=3_000_000,
+        sueldo=2_000_000,
+        servicios=300_000,
+        otros_gastos=0,
+        dias_mes=30,
+        comision_bold=0,
+        comision_addi=0,
+        comision_transferencia=0,
+    )
+    _escribir_hoja_configuracion(ws_c, cfg_defecto)
+
+    ws_c.merge_cells(f"A{ws_c.max_row + 1}:{get_column_letter(len(_HEADERS_CONFIG))}{ws_c.max_row + 1}")
+    nota_c = ws_c.cell(ws_c.max_row, 1)
+    nota_c.value = (
+        "Edita los valores de la fila 3. "
+        "Las comisiones son porcentajes (ej: 3.49 para 3.49%)."
+    )
+    nota_c.font = Font(name="Calibri", size=9, italic=True, color="6B7280")
+    nota_c.fill = PatternFill("solid", fgColor="FFFBEB")
+    nota_c.alignment = Alignment(horizontal="center", vertical="center")
+    ws_c.row_dimensions[ws_c.max_row].height = 20
 
     wb.save(str(ruta))
 

@@ -56,6 +56,14 @@ def obtener_gastos_por_mes(año: int, mes: int) -> list[GastoDia]:
     return [_row_to_gasto(r) for r in rows]
 
 
+def obtener_todos_gastos() -> list[GastoDia]:
+    conn = DatabaseConnection.get()
+    rows = conn.execute(
+        "SELECT * FROM gastos_dia ORDER BY fecha ASC, id ASC"
+    ).fetchall()
+    return [_row_to_gasto(r) for r in rows]
+
+
 # ------------------------------------------------------------------
 # DELETE
 # ------------------------------------------------------------------
@@ -65,3 +73,21 @@ def eliminar_gasto(gasto_id: int) -> bool:
     cursor = conn.execute("DELETE FROM gastos_dia WHERE id = ?", (gasto_id,))
     conn.commit()
     return cursor.rowcount > 0
+
+
+def eliminar_gastos_por_mes(año: int, mes: int) -> None:
+    prefix = f"{año:04d}-{mes:02d}-%"
+    conn = DatabaseConnection.get()
+    conn.execute("DELETE FROM gastos_dia WHERE fecha LIKE ?", (prefix,))
+    conn.commit()
+
+
+def insertar_gasto_directo(gasto: GastoDia) -> int:
+    """Inserta un gasto sin commit inmediato opcional — para importación masiva."""
+    conn = DatabaseConnection.get()
+    cursor = conn.execute(
+        "INSERT INTO gastos_dia (fecha, descripcion, monto) VALUES (?, ?, ?)",
+        (gasto.fecha.isoformat(), gasto.descripcion.strip(), gasto.monto),
+    )
+    conn.commit()
+    return cursor.lastrowid

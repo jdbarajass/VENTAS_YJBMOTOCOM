@@ -21,6 +21,7 @@ def initialize_schema() -> None:
     _create_prestamos(conn)
     _create_configuracion(conn)
     _create_inventario(conn)
+    _create_facturas(conn)
     _seed_configuracion(conn)
     _migrate_ventas(conn)
     conn.commit()
@@ -103,6 +104,20 @@ def _create_inventario(conn: sqlite3.Connection) -> None:
             costo_unitario  REAL    NOT NULL DEFAULT 0,
             cantidad        INTEGER NOT NULL DEFAULT 0,
             codigo_barras   TEXT             DEFAULT ''
+        )
+    """)
+
+
+def _create_facturas(conn: sqlite3.Connection) -> None:
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS facturas (
+            id            INTEGER PRIMARY KEY AUTOINCREMENT,
+            descripcion   TEXT    NOT NULL,
+            proveedor     TEXT    NOT NULL DEFAULT '',
+            monto         REAL    NOT NULL DEFAULT 0,
+            fecha_llegada TEXT    NOT NULL,        -- YYYY-MM-DD
+            estado        TEXT    NOT NULL DEFAULT 'pendiente',
+            notas         TEXT             DEFAULT ''
         )
     """)
 

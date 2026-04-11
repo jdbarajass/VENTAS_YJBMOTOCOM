@@ -11,9 +11,14 @@ from typing import Literal
 
 import openpyxl
 
+import json as _json
+
 from models.venta import Venta
 from models.prestamo import Prestamo
 from models.producto import Producto
+from models.factura import Factura
+from models.gasto_dia import GastoDia
+from models.configuracion import Configuracion
 from utils.formatters import MESES_ES, nombre_mes
 
 
@@ -88,11 +93,27 @@ def _leer_prestamos(ws) -> list[Prestamo]:
 @dataclass
 class ResultadoImportacionTotal:
     ventas: list[Venta] = field(default_factory=list)
-    año: int | None = None
-    mes: int | None = None
+    # Meses detectados desde las fechas de las ventas: {(año, mes), ...}
+    meses_afectados: set = field(default_factory=set)
     prestamos: list[Prestamo] = field(default_factory=list)
     productos: list[Producto] = field(default_factory=list)
+    facturas: list[Factura] = field(default_factory=list)
+    gastos: list[GastoDia] = field(default_factory=list)
+    meses_gastos_afectados: set = field(default_factory=set)
+    configuracion: Configuracion | None = None
     errores: list[str] = field(default_factory=list)
+
+    @property
+    def año(self) -> int | None:
+        if not self.meses_afectados:
+            return None
+        return sorted(self.meses_afectados)[0][0]
+
+    @property
+    def mes(self) -> int | None:
+        if not self.meses_afectados:
+            return None
+        return sorted(self.meses_afectados)[0][1]
 
 
 def _leer_inventario(ws) -> list[Producto]:
@@ -153,6 +174,133 @@ def _leer_inventario(ws) -> list[Producto]:
     return productos
 
 
+def _leer_facturas(ws) -> list[Factura]:
+    """
+    Lee la hoja «Facturas» generada por exportar_todo / generar_plantilla_todo.
+    Fila 1 = título, fila 2 = encabezados, fila 3+ = datos.
+    Columnas: Descripción | Proveedor | Monto | Fecha llegada | Estado | Notas
+    """
+    facturas: list[Factura] = []
+    for row_idx in range(3, ws.max_row + 1):
+        descripcion = str(ws.cell(row_idx, 1).value or "").strip()
+        if not descripcion:
+            continue
+
+        proveedor = str(ws.cell(row_idx, 2).value or "").strip()
+
+        try:
+            monto = float(ws.cell(row_idx, 3).value or 0)
+        except (ValueError, TypeError):
+            monto = 0.0
+
+        fecha_val = ws.cell(row_idx, 4).value
+        try:
+            if isinstance(fecha_val, datetime):
+                fecha_obj = fecha_val.date()
+            elif isinstance(fecha_val, date):
+                fecha_obj = fecha_val
+            else:
+                fecha_obj = datetime.strptime(str(fecha_val).strip(), "%d/%m/%Y").date()
+        except (ValueError, TypeError):
+            fecha_obj = date.today()
+
+        estado_raw = str(ws.cell(row_idx, 5).value or "pendiente").strip().lower()
+        if estado_raw not in ("pendiente", "pagada"):
+            estado_raw = "pendiente"
+
+        notas = str(ws.cell(row_idx, 6).value or "").strip()
+
+        try:
+            facturas.append(Factura(
+                descripcion=descripcion,
+                proveedor=proveedor,
+                monto=monto,
+                fecha_llegada=fecha_obj,
+                estado=estado_raw,
+                notas=notas,
+            ))
+        except ValueError:
+            pass
+    return facturas
+
+
+def _leer_gastos(ws) -> list[GastoDia]:
+    """
+    Lee la hoja «Gastos» generada por exportar_todo.
+    Fila 1 = título, fila 2 = encabezados, fila 3+ = datos.
+    Columnas: Fecha | Descripción | Monto
+    """
+    gastos: list[GastoDia] = []
+    for row_idx in range(3, ws.max_row + 1):
+        fecha_val = ws.cell(row_idx, 1).value
+        if fecha_val is None:
+            continue
+        try:
+            if isinstance(fecha_val, datetime):
+                fecha_obj = fecha_val.date()
+            elif isinstance(fecha_val, date):
+                fecha_obj = fecha_val
+            else:
+                fecha_obj = datetime.strptime(str(fecha_val).strip(), "%d/%m/%Y").date()
+        except (ValueError, TypeError):
+            continue
+
+        descripcion = str(ws.cell(row_idx, 2).value or "").strip()
+        if not descripcion:
+            continue
+        try:
+            monto = float(ws.cell(row_idx, 3).value or 0)
+        except (ValueError, TypeError):
+            monto = 0.0
+
+        try:
+            gastos.append(GastoDia(
+                descripcion=descripcion,
+                monto=monto,
+                fecha=fecha_obj,
+            ))
+        except ValueError:
+            pass
+    return gastos
+
+
+def _leer_configuracion(ws) -> Configuracion | None:
+    """
+    Lee la hoja «Configuración».
+    Fila 1 = título, fila 2 = encabezados, fila 3 = valores.
+    Columnas: Arriendo | Sueldo | Servicios | Otros gastos |
+              Días mes | Comisión Bold | Comisión Addi | Comisión Transf.
+    """
+    if ws.max_row < 3:
+        return None
+
+    def _num(val, default=0.0):
+        try:
+            return float(val or default)
+        except (ValueError, TypeError):
+            return default
+
+    def _int(val, default=30):
+        try:
+            return int(float(val or default))
+        except (ValueError, TypeError):
+            return default
+
+    try:
+        return Configuracion(
+            arriendo=_num(ws.cell(3, 1).value),
+            sueldo=_num(ws.cell(3, 2).value),
+            servicios=_num(ws.cell(3, 3).value),
+            otros_gastos=_num(ws.cell(3, 4).value),
+            dias_mes=_int(ws.cell(3, 5).value),
+            comision_bold=_num(ws.cell(3, 6).value),
+            comision_addi=_num(ws.cell(3, 7).value),
+            comision_transferencia=_num(ws.cell(3, 8).value),
+        )
+    except Exception:
+        return None
+
+
 def importar_todo(ruta: Path) -> ResultadoImportacionTotal:
     """
     Lee un .xlsx exportado por exportar_todo() y devuelve ventas, préstamos
@@ -175,20 +323,6 @@ def importar_todo(ruta: Path) -> ResultadoImportacionTotal:
     if ws_v is None:
         resultado.errores.append("No se encontró la hoja 'Ventas' en el archivo.")
     else:
-        titulo = str(ws_v.cell(1, 1).value or "")
-        parte = titulo.split("—")[-1].strip()  # "Abril 2026"
-        partes = parte.split()
-        if len(partes) >= 2:
-            resultado.mes = _MES_NUM.get(partes[0].lower())
-            try:
-                resultado.año = int(partes[1])
-            except ValueError:
-                pass
-        if not resultado.mes or not resultado.año:
-            resultado.errores.append(
-                f"No se pudo leer el mes del título: '{titulo}'"
-            )
-
         for row_idx in range(4, ws_v.max_row + 1):
             col2 = ws_v.cell(row_idx, 2).value
             if col2 is None:
@@ -233,13 +367,23 @@ def importar_todo(ruta: Path) -> ResultadoImportacionTotal:
             except (ValueError, TypeError):
                 ganancia = 0.0
             notas = str(ws_v.cell(row_idx, 10).value or "").strip()
+            # Col 11: pagos_combinados JSON (solo existe en archivos exportados)
+            pagos_raw = ws_v.cell(row_idx, 11).value
+            pagos_combinados = None
+            if pagos_raw:
+                try:
+                    pagos_combinados = _json.loads(str(pagos_raw))
+                except Exception:
+                    pass
             try:
                 resultado.ventas.append(Venta(
                     producto=producto, costo=costo, precio=precio,
                     metodo_pago=metodo, cantidad=cantidad,
                     comision=comision, ganancia_neta=ganancia,
                     notas=notas, fecha=venta_fecha,
+                    pagos_combinados=pagos_combinados,
                 ))
+                resultado.meses_afectados.add((venta_fecha.year, venta_fecha.month))
             except ValueError as exc:
                 resultado.errores.append(f"Fila {row_idx}: {exc} — omitida")
 
@@ -258,6 +402,33 @@ def importar_todo(ruta: Path) -> ResultadoImportacionTotal:
     )
     if ws_i:
         resultado.productos = _leer_inventario(ws_i)
+
+    # ── Hoja Facturas ──────────────────────────────────────────────────────
+    ws_f = next(
+        (wb[s] for s in wb.sheetnames if s.lower() == "facturas"),
+        None,
+    )
+    if ws_f:
+        resultado.facturas = _leer_facturas(ws_f)
+
+    # ── Hoja Gastos ────────────────────────────────────────────────────────
+    ws_g = next(
+        (wb[s] for s in wb.sheetnames if s.lower() == "gastos"),
+        None,
+    )
+    if ws_g:
+        resultado.gastos = _leer_gastos(ws_g)
+        for g in resultado.gastos:
+            resultado.meses_gastos_afectados.add((g.fecha.year, g.fecha.month))
+
+    # ── Hoja Configuración ─────────────────────────────────────────────────
+    ws_c = next(
+        (wb[s] for s in wb.sheetnames
+         if s.lower() in ("configuración", "configuracion")),
+        None,
+    )
+    if ws_c:
+        resultado.configuracion = _leer_configuracion(ws_c)
 
     return resultado
 

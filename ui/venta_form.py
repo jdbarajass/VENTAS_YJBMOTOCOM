@@ -186,7 +186,7 @@ class VentaForm(QWidget):
         self._completer = QCompleter(self)
         self._completer.setCaseSensitivity(Qt.CaseInsensitive)
         self._completer.setFilterMode(Qt.MatchContains)
-        self._completer.setMaxVisibleItems(12)
+        self._completer.setMaxVisibleItems(50)
         self.campo_producto.setCompleter(self._completer)
         self._completer_model = QStringListModel(self)
         self._completer.setModel(self._completer_model)

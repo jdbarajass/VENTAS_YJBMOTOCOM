@@ -52,8 +52,9 @@ def obtener_todos_productos() -> list[Producto]:
 def buscar_productos_por_nombre(texto: str) -> list[Producto]:
     """Búsqueda parcial por nombre — para el autocomplete del formulario de venta."""
     conn = DatabaseConnection.get()
+    # Sin LIMIT: devuelve todas las coincidencias para que el completer las muestre
     rows = conn.execute(
-        "SELECT * FROM inventario WHERE producto LIKE ? ORDER BY producto ASC LIMIT 20",
+        "SELECT * FROM inventario WHERE producto LIKE ? ORDER BY producto ASC",
         (f"%{texto}%",),
     ).fetchall()
     return [_row_to_producto(r) for r in rows]

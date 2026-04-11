@@ -318,5 +318,6 @@ class MainWindow(QMainWindow):
         self._historial.refresh()
         self._inventario.refresh()
         self._facturas.refresh()
+        self._config.reload()
         self._form_venta.actualizar_inventario()
         self._status.showMessage("Importación completada  •  Todos los datos actualizados")

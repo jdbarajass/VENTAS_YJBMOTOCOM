@@ -168,9 +168,8 @@ class DashboardPanel(QWidget):
         root.addWidget(self._banner_alertas())
         root.addLayout(self._fila_tarjetas_pequeñas())
         root.addLayout(self._fila_tarjetas_grandes())
-        root.addLayout(self._seccion_desglose())
-        root.addWidget(self._barra_gasto())
-        root.addWidget(self._barra_proyeccion())
+        root.addLayout(self._seccion_desglose())   # métodos | gastos+proyección
+        root.addWidget(self._panel_productos())    # productos vendidos hoy (ancho completo)
         root.addStretch()
 
     # ── Barra superior con navegación ─────────────────────────────────
@@ -272,12 +271,12 @@ class DashboardPanel(QWidget):
         lay.addWidget(self.card_utilidad, stretch=2)
         return lay
 
-    # ── Sección de desglose: métodos + productos ───────────────────────
+    # ── Sección de desglose: métodos | gastos + proyección ────────────
 
     def _seccion_desglose(self) -> QHBoxLayout:
         lay = QHBoxLayout(); lay.setSpacing(14)
-        lay.addWidget(self._panel_metodos(),  stretch=1)
-        lay.addWidget(self._panel_productos(), stretch=2)
+        lay.addWidget(self._panel_metodos(),       stretch=1)
+        lay.addWidget(self._panel_gastos_proy(),   stretch=2)
         return lay
 
     def _panel_metodos(self) -> QFrame:
@@ -307,8 +306,78 @@ class DashboardPanel(QWidget):
         lay.addStretch()
         return self._frame_metodos
 
+    def _panel_gastos_proy(self) -> QFrame:
+        """Panel derecho: gastos del día (arriba) + proyección mensual (abajo)."""
+        frame = QFrame()
+        frame.setFrameShape(QFrame.StyledPanel)
+        frame.setStyleSheet(
+            "QFrame { background:#FFFFFF; border:1px solid #E5E7EB; border-radius:10px; }"
+        )
+        aplicar_sombra(frame)
+        lay = QVBoxLayout(frame)
+        lay.setContentsMargins(16, 14, 16, 14)
+        lay.setSpacing(12)
+
+        # ── Gastos del día ──────────────────────────────────────────
+        lbl_g = QLabel("GASTOS DEL DÍA")
+        lbl_g.setStyleSheet("color:#6B7280; font-size:10px; font-weight:bold; letter-spacing:0.5px;")
+        lay.addWidget(lbl_g)
+
+        fila_gastos = QHBoxLayout(); fila_gastos.setSpacing(20)
+        self._lbl_gasto_dia   = self._info_chip("Gasto fijo diario",     "$ 0")
+        self._lbl_gasto_extra = self._info_chip("Gastos extra día",      "$ 0")
+        self._lbl_gasto_mes   = self._info_chip("Gastos fijos del mes",  "$ 0")
+        self._lbl_margen      = self._info_chip("Margen sobre ingresos", "0.0 %")
+        fila_gastos.addWidget(self._lbl_gasto_dia)
+        fila_gastos.addWidget(self._sep_v())
+        fila_gastos.addWidget(self._lbl_gasto_extra)
+        fila_gastos.addWidget(self._sep_v())
+        fila_gastos.addWidget(self._lbl_gasto_mes)
+        fila_gastos.addWidget(self._sep_v())
+        fila_gastos.addWidget(self._lbl_margen)
+        fila_gastos.addStretch()
+        lay.addLayout(fila_gastos)
+
+        # Separador
+        sep = QFrame(); sep.setFrameShape(QFrame.HLine)
+        sep.setStyleSheet("color:#E5E7EB;")
+        lay.addWidget(sep)
+
+        # ── Proyección mensual ──────────────────────────────────────
+        lbl_p = QLabel("PROYECCIÓN DEL MES")
+        lbl_p.setStyleSheet("color:#6B7280; font-size:10px; font-weight:bold; letter-spacing:0.5px;")
+        lay.addWidget(lbl_p)
+
+        self._proy_frame_inner = QFrame()
+        self._proy_frame_inner.setStyleSheet(
+            "QFrame { background:#F8FAFC; border:1px solid #E2E8F0; border-radius:7px; }"
+        )
+        fila_proy = QHBoxLayout(self._proy_frame_inner)
+        fila_proy.setContentsMargins(12, 8, 12, 8)
+        fila_proy.setSpacing(18)
+
+        self._proy_dia      = self._info_chip("Día del mes",             "—")
+        self._proy_meta     = self._info_chip("Meta acumulada",          "$ 0")
+        self._proy_util     = self._info_chip("Utilidad acumulada",      "$ 0")
+        self._proy_dif_chip = self._proy_diferencia_chip()
+
+        fila_proy.addWidget(self._proy_dia)
+        fila_proy.addWidget(self._sep_v())
+        fila_proy.addWidget(self._proy_meta)
+        fila_proy.addWidget(self._sep_v())
+        fila_proy.addWidget(self._proy_util)
+        fila_proy.addWidget(self._sep_v())
+        fila_proy.addWidget(self._proy_dif_chip)
+        fila_proy.addStretch()
+        lay.addWidget(self._proy_frame_inner)
+
+        lay.addStretch()
+        return frame
+
+    # ── Panel productos vendidos (ancho completo, abajo) ──────────────
+
     def _panel_productos(self) -> QFrame:
-        """Panel derecho: productos vendidos en el día."""
+        """Productos vendidos en el día — panel ancho completo."""
         self._frame_productos = QFrame()
         self._frame_productos.setFrameShape(QFrame.StyledPanel)
         self._frame_productos.setStyleSheet(
@@ -316,7 +385,7 @@ class DashboardPanel(QWidget):
         )
         aplicar_sombra(self._frame_productos)
         lay = QVBoxLayout(self._frame_productos)
-        lay.setContentsMargins(16, 14, 16, 14)
+        lay.setContentsMargins(20, 14, 20, 14)
         lay.setSpacing(8)
 
         lbl = QLabel("PRODUCTOS VENDIDOS HOY")
@@ -326,10 +395,10 @@ class DashboardPanel(QWidget):
         # Encabezado de columnas
         hdr = QHBoxLayout()
         for texto, stretch, alin in [
-            ("Producto", 4, Qt.AlignLeft),
+            ("Producto", 5, Qt.AlignLeft),
             ("Cant.", 1, Qt.AlignCenter),
             ("Ingresos", 2, Qt.AlignRight),
-            ("Ganancia", 2, Qt.AlignRight),
+            ("Ganancia neta", 2, Qt.AlignRight),
         ]:
             l = QLabel(texto)
             l.setStyleSheet("color:#6B7280; font-size:10px; font-weight:bold;")
@@ -341,12 +410,13 @@ class DashboardPanel(QWidget):
         sep.setStyleSheet("color:#E5E7EB;")
         lay.addWidget(sep)
 
-        # Área scrollable para las filas de productos
+        # Área scrollable para las filas
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
         scroll.setFrameShape(QFrame.NoFrame)
         scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
-        scroll.setMaximumHeight(160)
+        scroll.setMinimumHeight(120)
+        scroll.setMaximumHeight(240)
         scroll.setStyleSheet("QScrollArea { border:none; background:transparent; }")
 
         self._contenedor_prods = QWidget()
@@ -365,63 +435,6 @@ class DashboardPanel(QWidget):
         lay.addWidget(scroll)
 
         return self._frame_productos
-
-    # ── Barras informativas ────────────────────────────────────────────
-
-    def _barra_gasto(self) -> QFrame:
-        self._barra = QFrame()
-        self._barra.setFrameShape(QFrame.StyledPanel)
-        self._barra.setStyleSheet(
-            "QFrame { background:#F1F5F9; border:1px solid #E2E8F0; border-radius:8px; }"
-        )
-        lay = QHBoxLayout(self._barra)
-        lay.setContentsMargins(16, 10, 16, 10)
-        lay.setSpacing(24)
-
-        self._lbl_gasto_dia   = self._info_chip("Gasto fijo diario",     "$ 0")
-        self._lbl_gasto_extra = self._info_chip("Gastos extra día",      "$ 0")
-        self._lbl_gasto_mes   = self._info_chip("Gastos fijos del mes",  "$ 0")
-        self._lbl_margen      = self._info_chip("Margen sobre ingresos", "0.0 %")
-
-        lay.addWidget(self._lbl_gasto_dia)
-        lay.addWidget(self._sep_v())
-        lay.addWidget(self._lbl_gasto_extra)
-        lay.addWidget(self._sep_v())
-        lay.addWidget(self._lbl_gasto_mes)
-        lay.addWidget(self._sep_v())
-        lay.addWidget(self._lbl_margen)
-        lay.addStretch()
-        return self._barra
-
-    def _barra_proyeccion(self) -> QFrame:
-        self._proy_frame = QFrame()
-        self._proy_frame.setFrameShape(QFrame.StyledPanel)
-        self._proy_frame.setStyleSheet(
-            "QFrame { background:#F8FAFC; border:1px solid #E2E8F0; border-radius:8px; }"
-        )
-        lay = QHBoxLayout(self._proy_frame)
-        lay.setContentsMargins(16, 10, 16, 10)
-        lay.setSpacing(20)
-
-        lbl_tit = QLabel("Proyección del mes")
-        lbl_tit.setStyleSheet("color:#334155; font-size:11px; font-weight:bold;")
-
-        self._proy_dia      = self._info_chip("Día del mes",             "—")
-        self._proy_meta     = self._info_chip("Meta acumulada",          "$ 0")
-        self._proy_util     = self._info_chip("Utilidad real acumulada", "$ 0")
-        self._proy_dif_chip = self._proy_diferencia_chip()
-
-        lay.addWidget(lbl_tit)
-        lay.addWidget(self._sep_v())
-        lay.addWidget(self._proy_dia)
-        lay.addWidget(self._sep_v())
-        lay.addWidget(self._proy_meta)
-        lay.addWidget(self._sep_v())
-        lay.addWidget(self._proy_util)
-        lay.addWidget(self._sep_v())
-        lay.addWidget(self._proy_dif_chip)
-        lay.addStretch()
-        return self._proy_frame
 
     def _proy_diferencia_chip(self) -> QWidget:
         w = QWidget()
@@ -608,8 +621,8 @@ class DashboardPanel(QWidget):
         self._proy_dif_label.setStyleSheet(
             f"font-size:13px; font-weight:bold; color:{color};"
         )
-        self._proy_frame.setStyleSheet(
-            f"QFrame {{ background:{bg}; border:1px solid {color}40; border-radius:8px; }}"
+        self._proy_frame_inner.setStyleSheet(
+            f"QFrame {{ background:{bg}; border:1px solid {color}40; border-radius:7px; }}"
         )
 
     def _actualizar_alertas(self, alertas: dict):

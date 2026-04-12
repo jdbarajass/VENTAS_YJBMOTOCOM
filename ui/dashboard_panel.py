@@ -298,11 +298,6 @@ class DashboardPanel(QWidget):
         self._lay_metodos = QVBoxLayout()
         self._lay_metodos.setSpacing(6)
         lay.addLayout(self._lay_metodos)
-
-        self._lbl_sin_ventas_met = QLabel("Sin ventas hoy")
-        self._lbl_sin_ventas_met.setStyleSheet("color:#9CA3AF; font-size:12px; font-style:italic;")
-        self._lay_metodos.addWidget(self._lbl_sin_ventas_met)
-
         lay.addStretch()
         return self._frame_metodos
 
@@ -425,12 +420,6 @@ class DashboardPanel(QWidget):
         self._lay_productos.setContentsMargins(0, 0, 0, 0)
         self._lay_productos.setSpacing(2)
 
-        self._lbl_sin_ventas_prod = QLabel("Sin ventas registradas para esta fecha.")
-        self._lbl_sin_ventas_prod.setStyleSheet(
-            "color:#9CA3AF; font-size:12px; font-style:italic; padding:4px 0;"
-        )
-        self._lay_productos.addWidget(self._lbl_sin_ventas_prod)
-
         scroll.setWidget(self._contenedor_prods)
         lay.addWidget(scroll)
 
@@ -546,7 +535,9 @@ class DashboardPanel(QWidget):
                 item.widget().deleteLater()
 
         if not por_metodo:
-            self._lay_metodos.addWidget(self._lbl_sin_ventas_met)
+            lbl = QLabel("Sin ventas hoy")
+            lbl.setStyleSheet("color:#9CA3AF; font-size:12px; font-style:italic;")
+            self._lay_metodos.addWidget(lbl)
         else:
             for metodo, total in sorted(por_metodo.items()):
                 bg, fg = _COLORES_METODO.get(metodo, ("#F3F4F6", "#374151"))
@@ -565,7 +556,9 @@ class DashboardPanel(QWidget):
                 item.widget().deleteLater()
 
         if not productos:
-            self._lay_productos.addWidget(self._lbl_sin_ventas_prod)
+            lbl = QLabel("Sin ventas registradas para esta fecha.")
+            lbl.setStyleSheet("color:#9CA3AF; font-size:12px; font-style:italic; padding:4px 0;")
+            self._lay_productos.addWidget(lbl)
             return
 
         for i, (nombre, cant, ingresos, ganancia) in enumerate(productos):

@@ -226,15 +226,22 @@ class InventarioPanel(QWidget):
                 padding:6px; border:none;
             }
             QTableWidget::item:selected { background:#DBEAFE; color:#1E3A5F; }
+            QToolTip {
+                background:#1E293B; color:#FFFFFF;
+                border:1px solid #475569; padding:5px 8px;
+                font-size:12px; border-radius:4px;
+            }
         """)
 
         hh = self.tabla.horizontalHeader()
-        hh.setSectionResizeMode(1, QHeaderView.Fixed);  self.tabla.setColumnWidth(1, 90)
-        hh.setSectionResizeMode(2, QHeaderView.Stretch)
-        hh.setSectionResizeMode(3, QHeaderView.Fixed);  self.tabla.setColumnWidth(3, 130)
-        hh.setSectionResizeMode(4, QHeaderView.Fixed);  self.tabla.setColumnWidth(4, 90)
-        hh.setSectionResizeMode(5, QHeaderView.Fixed);  self.tabla.setColumnWidth(5, 140)
-        hh.setSectionResizeMode(6, QHeaderView.Fixed);  self.tabla.setColumnWidth(6, 145)
+        hh.setMinimumSectionSize(60)
+        hh.setSectionResizeMode(1, QHeaderView.Fixed);        self.tabla.setColumnWidth(1, 90)
+        hh.setSectionResizeMode(2, QHeaderView.Interactive);  self.tabla.setColumnWidth(2, 220)
+        hh.setSectionResizeMode(3, QHeaderView.Fixed);        self.tabla.setColumnWidth(3, 130)
+        hh.setSectionResizeMode(4, QHeaderView.Fixed);        self.tabla.setColumnWidth(4, 90)
+        hh.setSectionResizeMode(5, QHeaderView.Interactive);  self.tabla.setColumnWidth(5, 140)
+        hh.setSectionResizeMode(6, QHeaderView.Fixed);        self.tabla.setColumnWidth(6, 145)
+        self.tabla.setHorizontalScrollMode(QAbstractItemView.ScrollPerPixel)
 
         return self.tabla
 
@@ -324,6 +331,8 @@ class InventarioPanel(QWidget):
     def _celda(self, row, col, texto, alin=Qt.AlignLeft | Qt.AlignVCenter):
         item = QTableWidgetItem(texto)
         item.setTextAlignment(alin)
+        if texto:
+            item.setToolTip(texto)
         self.tabla.setItem(row, col, item)
 
     def _actualizar_resumen(self, productos: list[Producto]) -> None:

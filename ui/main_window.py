@@ -48,6 +48,7 @@ class MainWindow(QMainWindow):
         self._setup_window()
         self._build_ui()
         self._nav_buttons[PAGE_REGISTRAR].setChecked(True)
+        self._actualizar_badge_stock()
 
     # ------------------------------------------------------------------
     # Configuración de ventana
@@ -236,9 +237,8 @@ class MainWindow(QMainWindow):
         self._form_venta.venta_guardada.connect(self._on_venta_guardada)
         self._config.configuracion_guardada.connect(self._on_config_guardada)
         self._historial.venta_modificada.connect(self._on_venta_modificada_en_historial)
-        self._inventario.inventario_actualizado.connect(
-            self._form_venta.actualizar_inventario
-        )
+        self._inventario.inventario_actualizado.connect(self._form_venta.actualizar_inventario)
+        self._inventario.inventario_actualizado.connect(self._actualizar_badge_stock)
         self._exportar_importar.datos_importados.connect(self._on_datos_importados)
 
         layout.addWidget(self._stack)
@@ -288,12 +288,37 @@ class MainWindow(QMainWindow):
     def set_status(self, mensaje: str) -> None:
         self._status.showMessage(mensaje)
 
+    # ------------------------------------------------------------------
+    # Badge de stock bajo
+    # ------------------------------------------------------------------
+
+    def _actualizar_badge_stock(self) -> None:
+        """Actualiza el texto del botón Inventario con alerta si hay stock bajo (≤ 2 ud.)."""
+        from database.inventario_repo import obtener_todos_productos
+        prods = obtener_todos_productos()
+        bajo_stock = [p for p in prods if 0 < p.cantidad <= 2]
+        btn = self._nav_buttons[PAGE_INVENTARIO]
+        if bajo_stock:
+            btn.setText(f"📦  Inventario  ⚠{len(bajo_stock)}")
+            btn.setToolTip(
+                f"{len(bajo_stock)} producto(s) con stock bajo (≤ 2 unidades):\n"
+                + "\n".join(f"  • {p.producto}: {p.cantidad} ud." for p in bajo_stock[:10])
+            )
+        else:
+            btn.setText("📦  Inventario")
+            btn.setToolTip("")
+
+    # ------------------------------------------------------------------
+    # Callbacks de señales
+    # ------------------------------------------------------------------
+
     def _on_venta_guardada(self, venta) -> None:
         """Refresca todas las vistas al registrar una venta."""
         self._ventas_dia.refresh()
         self._dashboard.refresh()
         self._historial.refresh()
-        self._inventario.refresh()           # actualiza cantidades
+        self._inventario.refresh()
+        self._actualizar_badge_stock()
         self._status.showMessage(
             f"Venta registrada: {venta.producto}  •  Ganancia neta: {venta.ganancia_neta:,.0f}"
         )
@@ -310,6 +335,7 @@ class MainWindow(QMainWindow):
         """Al editar o eliminar desde historial, refresca ventas del día y dashboard."""
         self._ventas_dia.refresh()
         self._dashboard.refresh()
+        self._actualizar_badge_stock()
 
     def _on_datos_importados(self) -> None:
         """Al importar desde el panel unificado, refresca todas las vistas."""
@@ -320,4 +346,5 @@ class MainWindow(QMainWindow):
         self._facturas.refresh()
         self._config.reload()
         self._form_venta.actualizar_inventario()
+        self._actualizar_badge_stock()
         self._status.showMessage("Importación completada  •  Todos los datos actualizados")

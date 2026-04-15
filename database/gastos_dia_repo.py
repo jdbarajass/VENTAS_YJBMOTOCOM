@@ -10,11 +10,17 @@ from database.connection import DatabaseConnection
 
 
 def _row_to_gasto(row: sqlite3.Row) -> GastoDia:
+    # categoria puede no existir en filas antiguas antes de la migración
+    try:
+        cat = row["categoria"] or "Otro"
+    except (IndexError, KeyError):
+        cat = "Otro"
     return GastoDia(
         id=row["id"],
         fecha=date.fromisoformat(row["fecha"]),
         descripcion=row["descripcion"],
         monto=row["monto"],
+        categoria=cat,
     )
 
 
@@ -25,8 +31,8 @@ def _row_to_gasto(row: sqlite3.Row) -> GastoDia:
 def insertar_gasto(gasto: GastoDia) -> int:
     conn = DatabaseConnection.get()
     cursor = conn.execute(
-        "INSERT INTO gastos_dia (fecha, descripcion, monto) VALUES (?, ?, ?)",
-        (gasto.fecha.isoformat(), gasto.descripcion.strip(), gasto.monto),
+        "INSERT INTO gastos_dia (fecha, descripcion, monto, categoria) VALUES (?, ?, ?, ?)",
+        (gasto.fecha.isoformat(), gasto.descripcion.strip(), gasto.monto, gasto.categoria),
     )
     conn.commit()
     gasto.id = cursor.lastrowid
@@ -86,8 +92,8 @@ def insertar_gasto_directo(gasto: GastoDia) -> int:
     """Inserta un gasto sin commit inmediato opcional — para importación masiva."""
     conn = DatabaseConnection.get()
     cursor = conn.execute(
-        "INSERT INTO gastos_dia (fecha, descripcion, monto) VALUES (?, ?, ?)",
-        (gasto.fecha.isoformat(), gasto.descripcion.strip(), gasto.monto),
+        "INSERT INTO gastos_dia (fecha, descripcion, monto, categoria) VALUES (?, ?, ?, ?)",
+        (gasto.fecha.isoformat(), gasto.descripcion.strip(), gasto.monto, gasto.categoria),
     )
     conn.commit()
     return cursor.lastrowid

@@ -330,16 +330,23 @@ class PrestamosPanel(QWidget):
                 font-size:11px; padding:6px; border:none;
             }
             QTableWidget::item:selected { background:#DBEAFE; color:#1E3A5F; }
+            QToolTip {
+                background:#1E293B; color:#FFFFFF;
+                border:1px solid #475569; padding:5px 8px;
+                font-size:12px; border-radius:4px;
+            }
         """)
 
         hh = self.tabla.horizontalHeader()
-        hh.setSectionResizeMode(1, QHeaderView.Fixed);   self.tabla.setColumnWidth(1, 90)
-        hh.setSectionResizeMode(2, QHeaderView.Fixed);   self.tabla.setColumnWidth(2, 68)
-        hh.setSectionResizeMode(3, QHeaderView.Stretch)
-        hh.setSectionResizeMode(4, QHeaderView.Fixed);   self.tabla.setColumnWidth(4, 160)
-        hh.setSectionResizeMode(5, QHeaderView.Stretch)
-        hh.setSectionResizeMode(6, QHeaderView.Fixed);   self.tabla.setColumnWidth(6, 100)
-        hh.setSectionResizeMode(7, QHeaderView.Fixed);   self.tabla.setColumnWidth(7, 260)
+        hh.setMinimumSectionSize(60)
+        hh.setSectionResizeMode(1, QHeaderView.Fixed);        self.tabla.setColumnWidth(1, 90)
+        hh.setSectionResizeMode(2, QHeaderView.Fixed);        self.tabla.setColumnWidth(2, 68)
+        hh.setSectionResizeMode(3, QHeaderView.Interactive);  self.tabla.setColumnWidth(3, 200)
+        hh.setSectionResizeMode(4, QHeaderView.Interactive);  self.tabla.setColumnWidth(4, 160)
+        hh.setSectionResizeMode(5, QHeaderView.Interactive);  self.tabla.setColumnWidth(5, 220)
+        hh.setSectionResizeMode(6, QHeaderView.Fixed);        self.tabla.setColumnWidth(6, 100)
+        hh.setSectionResizeMode(7, QHeaderView.Fixed);        self.tabla.setColumnWidth(7, 260)
+        self.tabla.setHorizontalScrollMode(QAbstractItemView.ScrollPerPixel)
 
         lay.addWidget(self.tabla)
         return frame
@@ -500,6 +507,8 @@ class PrestamosPanel(QWidget):
                alin: Qt.AlignmentFlag = Qt.AlignLeft | Qt.AlignVCenter) -> None:
         item = QTableWidgetItem(texto)
         item.setTextAlignment(alin)
+        if texto:
+            item.setToolTip(texto)
         self.tabla.setItem(row, col, item)
 
     # ------------------------------------------------------------------

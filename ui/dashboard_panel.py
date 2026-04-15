@@ -366,6 +366,24 @@ class DashboardPanel(QWidget):
         fila_proy.addStretch()
         lay.addWidget(self._proy_frame_inner)
 
+        # ── Comisiones por plataforma ──────────────────────────────────
+        sep2 = QFrame(); sep2.setFrameShape(QFrame.HLine)
+        sep2.setStyleSheet("color:#E5E7EB;")
+        lay.addWidget(sep2)
+
+        lbl_com = QLabel("COMISIONES DEL MES")
+        lbl_com.setStyleSheet("color:#6B7280; font-size:10px; font-weight:bold; letter-spacing:0.5px;")
+        lay.addWidget(lbl_com)
+
+        self._frame_comisiones = QFrame()
+        self._frame_comisiones.setStyleSheet(
+            "QFrame { background:transparent; border:none; }"
+        )
+        self._lay_comisiones = QHBoxLayout(self._frame_comisiones)
+        self._lay_comisiones.setContentsMargins(0, 0, 0, 0)
+        self._lay_comisiones.setSpacing(8)
+        lay.addWidget(self._frame_comisiones)
+
         lay.addStretch()
         return frame
 
@@ -617,6 +635,36 @@ class DashboardPanel(QWidget):
         self._proy_frame_inner.setStyleSheet(
             f"QFrame {{ background:{bg}; border:1px solid {color}40; border-radius:7px; }}"
         )
+
+        # Comisiones por plataforma
+        while self._lay_comisiones.count():
+            item = self._lay_comisiones.takeAt(0)
+            if item.widget():
+                item.widget().deleteLater()
+
+        comisiones = p.get("comisiones_plataforma", {})
+        if not comisiones:
+            lbl = QLabel("Sin comisiones en el mes")
+            lbl.setStyleSheet("color:#9CA3AF; font-size:11px;")
+            self._lay_comisiones.addWidget(lbl)
+        else:
+            total_com = sum(comisiones.values())
+            for metodo, monto in sorted(comisiones.items(), key=lambda x: -x[1]):
+                bg_c, fg_c = _COLORES_METODO.get(metodo, ("#F3F4F6", "#374151"))
+                chip = QLabel(f"{metodo}: {cop(monto)}")
+                chip.setStyleSheet(
+                    f"background:{bg_c}; color:{fg_c}; border-radius:4px;"
+                    "font-size:11px; font-weight:bold; padding:3px 8px;"
+                )
+                self._lay_comisiones.addWidget(chip)
+            # Total
+            lbl_tot = QLabel(f"Total: {cop(total_com)}")
+            lbl_tot.setStyleSheet(
+                "color:#DC2626; font-size:11px; font-weight:bold; padding:3px 0;"
+            )
+            self._lay_comisiones.addWidget(self._sep_v())
+            self._lay_comisiones.addWidget(lbl_tot)
+        self._lay_comisiones.addStretch()
 
     def _actualizar_alertas(self, alertas: dict):
         partes = []

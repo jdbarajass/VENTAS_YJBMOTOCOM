@@ -13,7 +13,14 @@ from database.facturas_repo import (
     actualizar_estado_factura,
     eliminar_factura,
 )
+from database.abonos_factura_repo import (
+    insertar_abono,
+    obtener_abonos_por_factura,
+    obtener_total_abonado,
+    eliminar_abono,
+)
 from models.factura import Factura
+from models.abono_factura import AbonoFactura
 
 
 class FacturasController:
@@ -33,6 +40,7 @@ class FacturasController:
         monto: float,
         fecha_llegada: date,
         notas: str = "",
+        fecha_vencimiento: date | None = None,
     ) -> Factura:
         """Valida y persiste una nueva factura. Retorna la factura con id asignado."""
         if not descripcion.strip():
@@ -47,6 +55,7 @@ class FacturasController:
             fecha_llegada=fecha_llegada,
             notas=notas.strip(),
             estado="pendiente",
+            fecha_vencimiento=fecha_vencimiento,
         )
         f.id = insertar_factura(f)
         return f
@@ -66,3 +75,35 @@ class FacturasController:
     def eliminar(self, factura_id: int) -> bool:
         """Elimina una factura del historial."""
         return eliminar_factura(factura_id)
+
+    # ------------------------------------------------------------------
+    # Abonos
+    # ------------------------------------------------------------------
+
+    def registrar_abono(
+        self,
+        factura_id: int,
+        monto: float,
+        fecha: date,
+        notas: str = "",
+    ) -> AbonoFactura:
+        """Registra un abono parcial. Si el total pagado ≥ monto, marca como pagada."""
+        if monto <= 0:
+            raise ValueError("El monto del abono debe ser mayor a cero.")
+        a = AbonoFactura(factura_id=factura_id, monto=monto, fecha=fecha, notas=notas)
+        insertar_abono(a)
+        # Auto-cerrar si el total abonado cubre el monto completo
+        total = obtener_total_abonado(factura_id)
+        factura = next((f for f in obtener_todas_facturas() if f.id == factura_id), None)
+        if factura and total >= factura.monto:
+            actualizar_estado_factura(factura_id, "pagada")
+        return a
+
+    def cargar_abonos(self, factura_id: int) -> list[AbonoFactura]:
+        return obtener_abonos_por_factura(factura_id)
+
+    def total_abonado(self, factura_id: int) -> float:
+        return obtener_total_abonado(factura_id)
+
+    def eliminar_abono(self, abono_id: int) -> bool:
+        return eliminar_abono(abono_id)

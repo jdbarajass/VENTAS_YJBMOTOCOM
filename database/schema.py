@@ -22,8 +22,11 @@ def initialize_schema() -> None:
     _create_configuracion(conn)
     _create_inventario(conn)
     _create_facturas(conn)
+    _create_abonos_factura(conn)
     _seed_configuracion(conn)
     _migrate_ventas(conn)
+    _migrate_facturas(conn)
+    _migrate_gastos_dia(conn)
     conn.commit()
 
 
@@ -120,6 +123,38 @@ def _create_facturas(conn: sqlite3.Connection) -> None:
             notas         TEXT             DEFAULT ''
         )
     """)
+
+
+def _create_abonos_factura(conn: sqlite3.Connection) -> None:
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS abonos_factura (
+            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            factura_id  INTEGER NOT NULL REFERENCES facturas(id) ON DELETE CASCADE,
+            fecha       TEXT    NOT NULL,
+            monto       REAL    NOT NULL DEFAULT 0,
+            notas       TEXT             DEFAULT ''
+        )
+    """)
+
+
+def _migrate_facturas(conn: sqlite3.Connection) -> None:
+    """Agrega fecha_vencimiento a facturas si no existe."""
+    try:
+        conn.execute(
+            "ALTER TABLE facturas ADD COLUMN fecha_vencimiento TEXT DEFAULT NULL"
+        )
+    except sqlite3.OperationalError:
+        pass  # La columna ya existe
+
+
+def _migrate_gastos_dia(conn: sqlite3.Connection) -> None:
+    """Agrega columna categoria a gastos_dia si no existe."""
+    try:
+        conn.execute(
+            "ALTER TABLE gastos_dia ADD COLUMN categoria TEXT NOT NULL DEFAULT 'Otro'"
+        )
+    except sqlite3.OperationalError:
+        pass  # La columna ya existe
 
 
 def _seed_configuracion(conn: sqlite3.Connection) -> None:

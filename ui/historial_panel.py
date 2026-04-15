@@ -9,7 +9,7 @@ from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
     QComboBox, QSpinBox, QTableWidget, QTableWidgetItem,
     QHeaderView, QAbstractItemView, QFrame, QSizePolicy,
-    QMessageBox,
+    QMessageBox, QLineEdit,
 )
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QFont, QColor
@@ -220,6 +220,18 @@ class HistorialPanel(QWidget):
         f = QFont(); f.setPointSize(11); f.setBold(True)
         self._lbl_detalle_titulo.setFont(f)
 
+        # Campo de búsqueda global por producto (filtra todo el mes)
+        self._campo_busqueda_hist = QLineEdit()
+        self._campo_busqueda_hist.setPlaceholderText("Buscar producto en el mes…")
+        self._campo_busqueda_hist.setFixedHeight(28)
+        self._campo_busqueda_hist.setFixedWidth(230)
+        self._campo_busqueda_hist.setStyleSheet(
+            "QLineEdit { border:1px solid #D1D5DB; border-radius:5px;"
+            "padding:0 8px; background:white; font-size:11px; }"
+            "QLineEdit:focus { border:2px solid #2563EB; }"
+        )
+        self._campo_busqueda_hist.textChanged.connect(self._on_busqueda_hist)
+
         self._btn_cerrar_detalle = QPushButton("✕ Cerrar")
         self._btn_cerrar_detalle.setFixedHeight(26)
         self._btn_cerrar_detalle.setStyleSheet(
@@ -232,6 +244,8 @@ class HistorialPanel(QWidget):
 
         hb_lay.addWidget(self._lbl_detalle_titulo)
         hb_lay.addStretch()
+        hb_lay.addWidget(self._campo_busqueda_hist)
+        hb_lay.addSpacing(8)
         hb_lay.addWidget(self._btn_cerrar_detalle)
         lay.addWidget(header_bar)
 
@@ -429,8 +443,66 @@ class HistorialPanel(QWidget):
             self.tabla_detalle.setCellWidget(row, 7, self._btn_editar(v.id))
             self.tabla_detalle.setCellWidget(row, 8, self._btn_eliminar(v.id))
 
+    def _on_busqueda_hist(self, texto: str) -> None:
+        """Filtra la tabla de detalle por nombre de producto en todo el mes."""
+        texto = texto.strip().lower()
+        if not texto:
+            # Sin texto: revertir a vista del día seleccionado (o placeholder)
+            if self._fecha_seleccionada is not None:
+                ventas_dia = [v for v in self._ventas if v.fecha == self._fecha_seleccionada]
+                self._poblar_detalle(ventas_dia, self._fecha_seleccionada)
+            else:
+                self.tabla_detalle.setVisible(False)
+                self._lbl_placeholder.setVisible(True)
+                self._btn_cerrar_detalle.setVisible(False)
+                self._lbl_detalle_titulo.setText("  Detalle del Día")
+            return
+
+        # Con texto: buscar en todo el mes
+        coincidencias = [v for v in self._ventas if texto in v.producto.lower()]
+        mes = self.combo_mes.currentData()
+        año = self.spin_año.value()
+        from utils.formatters import MESES_ES
+        lbl_mes = MESES_ES.get(mes, "")
+        self._lbl_placeholder.setVisible(False)
+        self.tabla_detalle.setVisible(True)
+        self._btn_cerrar_detalle.setVisible(True)
+        self._lbl_detalle_titulo.setText(
+            f"  Búsqueda en {lbl_mes} {año}  —  {len(coincidencias)} resultado(s)"
+        )
+        self.tabla_detalle.setRowCount(len(coincidencias))
+        for row, v in enumerate(coincidencias):
+            self.tabla_detalle.setRowHeight(row, 32)
+            item_prod = QTableWidgetItem(v.producto)
+            item_prod.setToolTip(v.producto)
+            self.tabla_detalle.setItem(row, 0, item_prod)
+            self._celda_det(row, 1, str(v.cantidad), Qt.AlignCenter)
+            self._celda_det(row, 2, cop(v.costo), Qt.AlignRight | Qt.AlignVCenter)
+            self._celda_det(row, 3, cop(v.precio), Qt.AlignRight | Qt.AlignVCenter)
+            item_met = QTableWidgetItem(v.metodo_pago)
+            item_met.setTextAlignment(Qt.AlignCenter)
+            if v.pagos_combinados:
+                detalle = "  |  ".join(
+                    f"{p['metodo']}: {cop(p['monto'])}" for p in v.pagos_combinados
+                )
+                item_met.setToolTip(detalle)
+            self.tabla_detalle.setItem(row, 4, item_met)
+            item_gn = QTableWidgetItem(cop(v.ganancia_neta))
+            item_gn.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
+            item_gn.setForeground(
+                QColor("#16A34A") if v.ganancia_neta >= 0 else QColor("#DC2626")
+            )
+            self.tabla_detalle.setItem(row, 5, item_gn)
+            # Fecha en columna notas para dar contexto al buscar todo el mes
+            self._celda_det(row, 6, fecha_corta(v.fecha))
+            self.tabla_detalle.setCellWidget(row, 7, self._btn_editar(v.id))
+            self.tabla_detalle.setCellWidget(row, 8, self._btn_eliminar(v.id))
+
     def _cerrar_detalle(self) -> None:
         self._fecha_seleccionada = None
+        self._campo_busqueda_hist.blockSignals(True)
+        self._campo_busqueda_hist.clear()
+        self._campo_busqueda_hist.blockSignals(False)
         self.tabla_detalle.setVisible(False)
         self._lbl_placeholder.setVisible(True)
         self._btn_cerrar_detalle.setVisible(False)

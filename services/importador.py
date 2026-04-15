@@ -15,7 +15,7 @@ from models.venta import Venta
 from models.prestamo import Prestamo
 from models.producto import Producto
 from models.factura import Factura
-from models.gasto_dia import GastoDia
+from models.gasto_dia import GastoDia, CATEGORIAS_GASTO
 from models.configuracion import Configuracion
 from utils.formatters import MESES_ES, nombre_mes
 
@@ -157,8 +157,13 @@ def _leer_facturas(ws) -> list[Factura]:
     """
     Lee la hoja «Facturas» generada por exportar_todo / generar_plantilla_todo.
     Fila 1 = título, fila 2 = encabezados, fila 3+ = datos.
-    Columnas: Descripción | Proveedor | Monto | Fecha llegada | Estado | Notas
+    Columnas: Descripción | Proveedor | Monto | Fecha llegada | Fecha vencimiento | Estado | Notas
+    (Versión anterior sin col 5 también soportada — detecta por encabezado)
     """
+    # Detectar si la hoja tiene encabezado de "Fecha vencimiento" en col 5
+    header_col5 = str(ws.cell(2, 5).value or "").strip().lower()
+    tiene_vencimiento = "venc" in header_col5
+
     facturas: list[Factura] = []
     for row_idx in range(3, ws.max_row + 1):
         descripcion = str(ws.cell(row_idx, 1).value or "").strip()
@@ -183,11 +188,29 @@ def _leer_facturas(ws) -> list[Factura]:
         except (ValueError, TypeError):
             fecha_obj = date.today()
 
-        estado_raw = str(ws.cell(row_idx, 5).value or "pendiente").strip().lower()
+        # Columnas desplazadas según versión del archivo
+        if tiene_vencimiento:
+            fv_val = ws.cell(row_idx, 5).value
+            try:
+                if isinstance(fv_val, datetime):
+                    fecha_venc = fv_val.date()
+                elif isinstance(fv_val, date):
+                    fecha_venc = fv_val
+                elif fv_val and str(fv_val).strip():
+                    fecha_venc = datetime.strptime(str(fv_val).strip(), "%d/%m/%Y").date()
+                else:
+                    fecha_venc = None
+            except (ValueError, TypeError):
+                fecha_venc = None
+            estado_raw = str(ws.cell(row_idx, 6).value or "pendiente").strip().lower()
+            notas = str(ws.cell(row_idx, 7).value or "").strip()
+        else:
+            fecha_venc = None
+            estado_raw = str(ws.cell(row_idx, 5).value or "pendiente").strip().lower()
+            notas = str(ws.cell(row_idx, 6).value or "").strip()
+
         if estado_raw not in ("pendiente", "pagada"):
             estado_raw = "pendiente"
-
-        notas = str(ws.cell(row_idx, 6).value or "").strip()
 
         try:
             facturas.append(Factura(
@@ -197,6 +220,7 @@ def _leer_facturas(ws) -> list[Factura]:
                 fecha_llegada=fecha_obj,
                 estado=estado_raw,
                 notas=notas,
+                fecha_vencimiento=fecha_venc,
             ))
         except ValueError:
             pass
@@ -207,7 +231,7 @@ def _leer_gastos(ws) -> list[GastoDia]:
     """
     Lee la hoja «Gastos» generada por exportar_todo.
     Fila 1 = título, fila 2 = encabezados, fila 3+ = datos.
-    Columnas: Fecha | Descripción | Monto
+    Columnas: Fecha | Descripción | Monto | Categoría (col 4, opcional)
     """
     gastos: list[GastoDia] = []
     for row_idx in range(3, ws.max_row + 1):
@@ -232,11 +256,15 @@ def _leer_gastos(ws) -> list[GastoDia]:
         except (ValueError, TypeError):
             monto = 0.0
 
+        cat_raw = str(ws.cell(row_idx, 4).value or "Otro").strip()
+        categoria = cat_raw if cat_raw in CATEGORIAS_GASTO else "Otro"
+
         try:
             gastos.append(GastoDia(
                 descripcion=descripcion,
                 monto=monto,
                 fecha=fecha_obj,
+                categoria=categoria,
             ))
         except ValueError:
             pass

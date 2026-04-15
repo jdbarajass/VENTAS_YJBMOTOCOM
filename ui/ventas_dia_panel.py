@@ -10,7 +10,7 @@ from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel,
     QPushButton, QDateEdit, QTableWidget, QTableWidgetItem,
     QHeaderView, QAbstractItemView, QMessageBox,
-    QFrame, QSizePolicy, QLineEdit, QScrollArea,
+    QFrame, QSizePolicy, QLineEdit, QScrollArea, QComboBox,
 )
 from PySide6.QtCore import Qt, QDate
 from PySide6.QtGui import QFont, QColor
@@ -20,6 +20,7 @@ from database.config_repo import obtener_configuracion
 from ui.edit_venta_dialog import EditVentaDialog
 from ui.venta_form import MoneyLineEdit
 from utils.formatters import cop, fecha_corta
+from models.gasto_dia import CATEGORIAS_GASTO
 
 # Columnas de la tabla (índices)
 COL_ID       = 0   # oculto
@@ -194,6 +195,16 @@ class VentasDiaPanel(QWidget):
             "QLineEdit:focus { border: 2px solid #F59E0B; }"
         )
 
+        self.combo_gasto_cat = QComboBox()
+        self.combo_gasto_cat.addItems(CATEGORIAS_GASTO)
+        self.combo_gasto_cat.setFixedHeight(32)
+        self.combo_gasto_cat.setFixedWidth(130)
+        self.combo_gasto_cat.setStyleSheet(
+            "QComboBox { border: 1px solid #D1D5DB; border-radius: 5px;"
+            "padding: 0 8px; background: white; }"
+            "QComboBox:focus { border: 2px solid #F59E0B; }"
+        )
+
         self.campo_gasto_monto = MoneyLineEdit()
         self.campo_gasto_monto.setPlaceholderText("0")
         self.campo_gasto_monto.setFixedHeight(32)
@@ -214,6 +225,7 @@ class VentasDiaPanel(QWidget):
         btn_agregar.clicked.connect(self._on_agregar_gasto)
 
         fila.addWidget(self.campo_gasto_desc, stretch=3)
+        fila.addWidget(self.combo_gasto_cat)
         fila.addWidget(self.campo_gasto_monto)
         fila.addWidget(btn_agregar)
         layout.addLayout(fila)
@@ -375,6 +387,15 @@ class VentasDiaPanel(QWidget):
             self._gastos_lista_layout.addWidget(lbl)
             return
 
+        # Colores por categoría
+        _CAT_COLOR = {
+            "Transporte":   ("#DBEAFE", "#1D4ED8"),
+            "Alimentación": ("#DCFCE7", "#15803D"),
+            "Insumos":      ("#FEF3C7", "#92400E"),
+            "Banco":        ("#EDE9FE", "#6D28D9"),
+            "Otro":         ("#F3F4F6", "#374151"),
+        }
+
         for g in self._gastos:
             fila = QWidget()
             fila.setStyleSheet(
@@ -383,6 +404,16 @@ class VentasDiaPanel(QWidget):
             lay = QHBoxLayout(fila)
             lay.setContentsMargins(8, 3, 8, 3)
             lay.setSpacing(8)
+
+            # Chip de categoría
+            cat_bg, cat_fg = _CAT_COLOR.get(g.categoria, ("#F3F4F6", "#374151"))
+            lbl_cat = QLabel(g.categoria)
+            lbl_cat.setStyleSheet(
+                f"background: {cat_bg}; color: {cat_fg}; border-radius: 4px;"
+                "font-size: 10px; font-weight: bold; padding: 1px 6px; border: none;"
+            )
+            lbl_cat.setFixedWidth(90)
+            lbl_cat.setAlignment(Qt.AlignCenter)
 
             lbl_desc = QLabel(g.descripcion)
             lbl_desc.setStyleSheet("background: transparent; border: none; color: #374151;")
@@ -402,6 +433,7 @@ class VentasDiaPanel(QWidget):
             )
             btn_del.clicked.connect(lambda _, gid=g.id: self._on_eliminar_gasto(gid))
 
+            lay.addWidget(lbl_cat)
             lay.addWidget(lbl_desc, stretch=3)
             lay.addWidget(lbl_monto, stretch=1)
             lay.addWidget(btn_del)
@@ -412,6 +444,8 @@ class VentasDiaPanel(QWidget):
                alineacion: Qt.AlignmentFlag = Qt.AlignLeft | Qt.AlignVCenter) -> None:
         item = QTableWidgetItem(texto)
         item.setTextAlignment(alineacion)
+        if texto:
+            item.setToolTip(texto)
         self.tabla.setItem(row, col, item)
 
     def _widget_acciones(self, venta_id: int) -> QWidget:
@@ -548,6 +582,7 @@ class VentasDiaPanel(QWidget):
     def _on_agregar_gasto(self) -> None:
         descripcion = self.campo_gasto_desc.text().strip()
         monto = self.campo_gasto_monto.valor_int()
+        categoria = self.combo_gasto_cat.currentText()
 
         if not descripcion:
             QMessageBox.warning(self, "Dato requerido",
@@ -564,7 +599,7 @@ class VentasDiaPanel(QWidget):
         fecha = date(qd.year(), qd.month(), qd.day())
 
         try:
-            self._ctrl.agregar_gasto(descripcion, float(monto), fecha)
+            self._ctrl.agregar_gasto(descripcion, float(monto), fecha, categoria)
             self.campo_gasto_desc.clear()
             self.campo_gasto_monto.clear()
             self._gastos = self._ctrl.cargar_gastos(fecha)

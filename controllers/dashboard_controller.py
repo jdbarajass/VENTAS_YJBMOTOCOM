@@ -82,15 +82,25 @@ class DashboardController:
         utilidad_acum    = round(ganancia_acum - gastos_extra, 2)
         meta             = round(cfg.gasto_diario * fecha.day, 2)
 
+        # ── Comisiones por plataforma acumuladas en el mes ────────────
+        comisiones_plataforma: dict[str, float] = {}
+        for v in ventas_hasta:
+            if v.comision > 0:
+                metodo = v.metodo_pago.split()[0]
+                comisiones_plataforma[metodo] = round(
+                    comisiones_plataforma.get(metodo, 0.0) + v.comision, 2
+                )
+
         return {
-            "dia":                    fecha.day,
-            "dias_mes":               cfg.dias_mes,
-            "gasto_diario":           cfg.gasto_diario,
-            "meta":                   meta,
-            "ganancia_acumulada":     ganancia_acum,
-            "gastos_extra_acumulados": gastos_extra,
-            "utilidad_acumulada":     utilidad_acum,
-            "diferencia":             round(utilidad_acum - meta, 2),
+            "dia":                       fecha.day,
+            "dias_mes":                  cfg.dias_mes,
+            "gasto_diario":              cfg.gasto_diario,
+            "meta":                      meta,
+            "ganancia_acumulada":        ganancia_acum,
+            "gastos_extra_acumulados":   gastos_extra,
+            "utilidad_acumulada":        utilidad_acum,
+            "diferencia":                round(utilidad_acum - meta, 2),
+            "comisiones_plataforma":     comisiones_plataforma,
         }
 
     # ── Método legado mantenido por compatibilidad ────────────────────

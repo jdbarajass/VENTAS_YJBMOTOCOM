@@ -15,6 +15,7 @@ from database.schema import initialize_schema
 from database.connection import DatabaseConnection
 from ui.main_window import MainWindow
 from ui.styles import GLOBAL_STYLESHEET
+from utils.backup import hacer_backup
 
 
 def main() -> None:
@@ -32,6 +33,9 @@ def main() -> None:
 
     # Inicializar base de datos antes de mostrar la ventana
     initialize_schema()
+
+    # Backup automático al arrancar (guarda hasta 7 copias en backups/)
+    hacer_backup()
 
     window = MainWindow()
     window.show()

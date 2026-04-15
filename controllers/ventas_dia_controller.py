@@ -43,9 +43,10 @@ class VentasDiaController:
         """Retorna los gastos operativos del día dado."""
         return obtener_gastos_por_fecha(fecha)
 
-    def agregar_gasto(self, descripcion: str, monto: float, fecha: date) -> GastoDia:
+    def agregar_gasto(self, descripcion: str, monto: float, fecha: date,
+                      categoria: str = "Otro") -> GastoDia:
         """Valida y persiste un nuevo gasto operativo. Lanza ValueError si inválido."""
-        gasto = GastoDia(descripcion=descripcion, monto=monto, fecha=fecha)
+        gasto = GastoDia(descripcion=descripcion, monto=monto, fecha=fecha, categoria=categoria)
         insertar_gasto(gasto)
         return gasto
 

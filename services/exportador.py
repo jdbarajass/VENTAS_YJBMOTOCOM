@@ -9,18 +9,16 @@ from pathlib import Path
 
 import openpyxl
 from openpyxl.styles import (
-    Font, PatternFill, Alignment, Border, Side, numbers
+    Font, PatternFill, Alignment, Border, Side,
 )
 from openpyxl.utils import get_column_letter
 
 import json
 
 from models.venta import Venta
-from models.prestamo import Prestamo
 from models.producto import Producto
 from models.factura import Factura
 from models.configuracion import Configuracion
-from models.gasto_dia import GastoDia
 from utils.formatters import fecha_corta, nombre_mes
 
 

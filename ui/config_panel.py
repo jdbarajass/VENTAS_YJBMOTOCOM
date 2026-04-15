@@ -8,7 +8,7 @@ from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QFormLayout,
     QLabel, QDoubleSpinBox, QSpinBox,
     QPushButton, QFrame, QMessageBox, QScrollArea,
-    QGroupBox, QSizePolicy,
+    QGroupBox,
 )
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QFont

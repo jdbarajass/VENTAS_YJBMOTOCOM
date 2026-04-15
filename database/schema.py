@@ -166,3 +166,33 @@ def _seed_configuracion(conn: sqlite3.Connection) -> None:
         conn.execute(
             "INSERT INTO configuracion (id) VALUES (1)"
         )
+
+
+def resetear_base_datos() -> None:
+    """
+    Borra TODOS los datos de usuario de la base de datos y restablece los
+    contadores de autoincremento.
+
+    Conserva la estructura de tablas (no hace DROP). Vuelve a insertar la
+    fila de configuración con valores en cero.
+
+    Esta operación es IRREVERSIBLE — llamar solo tras confirmación explícita
+    del usuario.
+    """
+    conn = DatabaseConnection.get()
+    # Desactivar FK temporalmente para borrar en cualquier orden
+    conn.execute("PRAGMA foreign_keys=OFF;")
+    for tabla in ("abonos_factura", "facturas", "ventas",
+                  "gastos_dia", "prestamos", "inventario", "configuracion"):
+        conn.execute(f"DELETE FROM {tabla}")
+    # Resetear contadores AUTOINCREMENT
+    conn.execute(
+        "DELETE FROM sqlite_sequence WHERE name IN "
+        "('abonos_factura','facturas','ventas',"
+        "'gastos_dia','prestamos','inventario')"
+    )
+    conn.execute("PRAGMA foreign_keys=ON;")
+    conn.commit()
+    # Re-seed configuración con defaults
+    _seed_configuracion(conn)
+    conn.commit()

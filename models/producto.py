@@ -3,7 +3,7 @@ models/producto.py
 Modelo de dominio puro para un producto del inventario.
 """
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 
 @dataclass

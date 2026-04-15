@@ -4,13 +4,12 @@ Panel de ventas del día: tabla CRUD + gastos operativos + barra resumen + expor
 """
 
 from datetime import date
-from pathlib import Path
 
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel,
     QPushButton, QDateEdit, QTableWidget, QTableWidgetItem,
     QHeaderView, QAbstractItemView, QMessageBox,
-    QFrame, QSizePolicy, QLineEdit, QScrollArea, QComboBox,
+    QFrame, QLineEdit, QScrollArea, QComboBox,
 )
 from PySide6.QtCore import Qt, QDate
 from PySide6.QtGui import QFont, QColor

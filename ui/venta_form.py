@@ -10,7 +10,7 @@ from PySide6.QtWidgets import (
     QWidget, QHBoxLayout, QVBoxLayout, QFormLayout,
     QLabel, QLineEdit, QComboBox, QTextEdit,
     QPushButton, QDateEdit, QFrame, QMessageBox,
-    QSizePolicy, QSpinBox, QCompleter,
+    QSpinBox, QCompleter,
 )
 from PySide6.QtCore import Qt, QDate, QTimer, Signal, QStringListModel
 from PySide6.QtGui import QFont

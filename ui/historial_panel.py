@@ -16,7 +16,7 @@ from PySide6.QtGui import QFont, QColor
 
 from controllers.historial_controller import HistorialController
 from controllers.venta_controller import VentaController
-from services.reportes import ResumenDiario, ResumenMensual
+from services.reportes import ResumenMensual
 from utils.formatters import cop, fecha_corta, MESES_ES
 from models.venta import Venta
 

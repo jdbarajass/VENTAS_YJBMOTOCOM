@@ -17,7 +17,6 @@ from database.gastos_dia_repo import (
     obtener_gastos_por_fecha,
     eliminar_gasto,
 )
-from database.config_repo import obtener_configuracion
 from services.exportador import exportar_ventas_dia
 
 

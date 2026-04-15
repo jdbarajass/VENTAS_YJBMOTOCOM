@@ -65,6 +65,9 @@ class ExportarImportarPanel(QWidget):
         cols.addWidget(self._bloque_importar(), stretch=2)
         root.addLayout(cols)
 
+        root.addWidget(self._sep())
+        root.addWidget(self._bloque_peligro())
+
         root.addStretch()
 
     # ---- Bloque exportar ----
@@ -349,7 +352,7 @@ class ExportarImportarPanel(QWidget):
             from database.prestamos_repo import obtener_todos_prestamos
             from database.inventario_repo import obtener_todos_productos
             from database.facturas_repo import obtener_todas_facturas
-            from database.gastos_dia_repo import obtener_todos_gastos, obtener_gastos_por_mes
+            from database.gastos_dia_repo import obtener_todos_gastos
             from database.config_repo import obtener_configuracion
 
             # --- Ventas ---
@@ -518,3 +521,94 @@ class ExportarImportarPanel(QWidget):
         # Configuración (si viene en el archivo)
         if res.configuracion:
             guardar_configuracion(res.configuracion)
+
+    # ---- Zona de peligro ----
+
+    def _bloque_peligro(self) -> QFrame:
+        frame = QFrame()
+        frame.setObjectName("bloquePeligro")
+        frame.setStyleSheet(
+            "QFrame#bloquePeligro { background:#FFF5F5; border:1px solid #FECACA;"
+            "border-radius:10px; }"
+        )
+        lay = QHBoxLayout(frame)
+        lay.setContentsMargins(20, 14, 20, 14)
+        lay.setSpacing(20)
+
+        # Texto explicativo
+        col_txt = QVBoxLayout(); col_txt.setSpacing(4)
+        titulo_peligro = QLabel("⚠  Zona de peligro")
+        ft = QFont(); ft.setPointSize(12); ft.setBold(True)
+        titulo_peligro.setFont(ft)
+        titulo_peligro.setStyleSheet(
+            "color:#B91C1C; background:transparent; border:none;"
+        )
+        desc_peligro = QLabel(
+            "Borra TODA la información de la base de datos: ventas, préstamos, "
+            "inventario, facturas, gastos y configuración.\n"
+            "Esta acción es permanente e irreversible. Exporta un respaldo antes de continuar."
+        )
+        desc_peligro.setWordWrap(True)
+        desc_peligro.setStyleSheet(
+            "color:#374151; font-size:11px; background:transparent; border:none;"
+        )
+        col_txt.addWidget(titulo_peligro)
+        col_txt.addWidget(desc_peligro)
+        lay.addLayout(col_txt, stretch=1)
+
+        btn_borrar_bd = QPushButton("🗑  Borrar base de datos")
+        btn_borrar_bd.setFixedHeight(42)
+        btn_borrar_bd.setFixedWidth(220)
+        btn_borrar_bd.setStyleSheet(
+            "QPushButton { background:#DC2626; color:white; border-radius:7px;"
+            "font-size:13px; font-weight:bold; border:none; }"
+            "QPushButton:hover { background:#B91C1C; }"
+        )
+        btn_borrar_bd.clicked.connect(self._on_borrar_bd)
+        lay.addWidget(btn_borrar_bd)
+        return frame
+
+    def _on_borrar_bd(self) -> None:
+        """Doble confirmación antes de borrar toda la base de datos."""
+        resp1 = QMessageBox.warning(
+            self,
+            "Borrar base de datos",
+            "⚠  ¿Estás seguro de que deseas borrar TODA la información?\n\n"
+            "Se eliminarán permanentemente:\n"
+            "  • Todas las ventas\n"
+            "  • Todos los préstamos\n"
+            "  • Todo el inventario\n"
+            "  • Todas las facturas y abonos\n"
+            "  • Todos los gastos operativos\n"
+            "  • La configuración (arriendo, sueldo, etc.)\n\n"
+            "Esta acción NO se puede deshacer.",
+            QMessageBox.Yes | QMessageBox.No,
+            QMessageBox.No,
+        )
+        if resp1 != QMessageBox.Yes:
+            return
+
+        resp2 = QMessageBox.critical(
+            self,
+            "Confirmación final",
+            "ÚLTIMA ADVERTENCIA\n\n"
+            "Se borrarán TODOS los datos de forma permanente.\n"
+            "¿Confirmas el borrado total?",
+            QMessageBox.Yes | QMessageBox.No,
+            QMessageBox.No,
+        )
+        if resp2 != QMessageBox.Yes:
+            return
+
+        try:
+            from database.schema import resetear_base_datos
+            resetear_base_datos()
+            QMessageBox.information(
+                self,
+                "Base de datos borrada",
+                "La base de datos ha sido borrada exitosamente.\n"
+                "Todos los datos han sido eliminados.",
+            )
+            self.datos_importados.emit()
+        except Exception as exc:
+            QMessageBox.critical(self, "Error al borrar", str(exc))

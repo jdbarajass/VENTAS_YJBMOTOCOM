@@ -9,11 +9,11 @@ from datetime import date
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
     QTableWidget, QTableWidgetItem, QHeaderView, QAbstractItemView,
-    QFrame, QLineEdit, QDateEdit, QMessageBox, QCheckBox, QSizePolicy,
+    QFrame, QLineEdit, QDateEdit, QMessageBox, QCheckBox,
     QDialog, QComboBox, QDialogButtonBox,
 )
 from PySide6.QtCore import Qt, QDate, Signal
-from PySide6.QtGui import QFont, QColor
+from PySide6.QtGui import QFont
 
 from controllers.prestamos_controller import PrestamosController
 from models.prestamo import Prestamo

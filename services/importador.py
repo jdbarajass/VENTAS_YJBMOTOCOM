@@ -17,7 +17,7 @@ from models.producto import Producto
 from models.factura import Factura
 from models.gasto_dia import GastoDia, CATEGORIAS_GASTO
 from models.configuracion import Configuracion
-from utils.formatters import MESES_ES, nombre_mes
+from utils.formatters import MESES_ES
 
 
 # Lookup inverso: "enero" -> 1

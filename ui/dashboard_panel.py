@@ -2,12 +2,22 @@
 ui/dashboard_panel.py
 Dashboard diario: métricas, desglose por método de pago, productos del día,
 proyección mensual y alertas de facturas/préstamos pendientes.
+
+Layout (vertical, scrollable):
+  ─ Barra superior (navegación + fecha + estado)
+  ─ Banner alertas (condicional)
+  ─ Fila 1: 4 tarjetas pequeñas (ventas / ingresos / costos / comisiones)
+  ─ Fila 2: 3 tarjetas grandes (g. bruta / g. neta / utilidad real)
+  ─ Fila 3: 2 columnas — Ingresos por método  |  Gastos del día (grid 2×2)
+  ─ Fila 4: Proyección del mes (4 tarjetas full-width)
+  ─ Fila 5: Comisiones del mes (chips, oculta si no hay)
+  ─ Fila 6: Productos vendidos hoy (tabla scrollable)
 """
 
-from datetime import date, timedelta
+from datetime import date
 
 from PySide6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout,
+    QWidget, QVBoxLayout, QHBoxLayout, QGridLayout,
     QLabel, QPushButton, QDateEdit, QFrame, QSizePolicy, QScrollArea,
 )
 from PySide6.QtCore import Qt, QDate
@@ -29,15 +39,17 @@ _COLORES_METODO = {
     "Otro":          ("#F3F4F6", "#374151"),
 }
 
+# ──────────────────────────────────────────────────────────────────────────────
+# Componentes reutilizables
+# ──────────────────────────────────────────────────────────────────────────────
 
 class MetricCard(QFrame):
-    """Tarjeta de métrica reutilizable: título + valor grande + subtítulo."""
+    """Tarjeta de métrica: título + valor grande + subtítulo."""
 
     def __init__(self, titulo, valor="—", subtitulo="",
                  color_valor="#111827", fondo="#FFFFFF", parent=None):
         super().__init__(parent)
         self.setFrameShape(QFrame.StyledPanel)
-        self._fondo_base = fondo
         self._aplicar_fondo(fondo)
         self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
 
@@ -146,6 +158,55 @@ class UtilityCard(QFrame):
         self._lbl_formula.setStyleSheet(f"font-size:11px; color:{ct};")
 
 
+class _MiniCard(QFrame):
+    """Mini tarjeta de información: etiqueta + valor prominente."""
+
+    def __init__(self, etiqueta: str, valor: str = "—",
+                 color_valor: str = "#111827", parent=None):
+        super().__init__(parent)
+        self.setFrameShape(QFrame.StyledPanel)
+        self._base_style = (
+            "background:#FFFFFF; border:1px solid #E5E7EB; border-radius:8px;"
+        )
+        self.setStyleSheet(f"_MiniCard {{ {self._base_style} }}")
+        self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
+
+        lay = QVBoxLayout(self)
+        lay.setContentsMargins(14, 10, 14, 10)
+        lay.setSpacing(4)
+
+        self._lbl_e = QLabel(etiqueta.upper())
+        self._lbl_e.setStyleSheet(
+            "color:#6B7280; font-size:9px; font-weight:bold; letter-spacing:0.5px;"
+        )
+        self._lbl_e.setWordWrap(True)
+        lay.addWidget(self._lbl_e)
+
+        self._lbl_v = QLabel(valor)
+        fv = QFont(); fv.setPointSize(14); fv.setBold(True)
+        self._lbl_v.setFont(fv)
+        self._lbl_v.setStyleSheet(f"color:{color_valor};")
+        lay.addWidget(self._lbl_v)
+
+    def set_valor(self, valor: str, color: str = "#111827"):
+        self._lbl_v.setText(valor)
+        self._lbl_v.setStyleSheet(f"color:{color};")
+
+    def set_fondo(self, bg: str, border: str):
+        self.setStyleSheet(
+            f"_MiniCard {{ background:{bg}; border:1px solid {border}; border-radius:8px; }}"
+        )
+
+    def reset_fondo(self):
+        self.setStyleSheet(
+            f"_MiniCard {{ {self._base_style} }}"
+        )
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Panel principal
+# ──────────────────────────────────────────────────────────────────────────────
+
 class DashboardPanel(QWidget):
     """Vista de dashboard con métricas del día, desglose y proyección mensual."""
 
@@ -155,24 +216,42 @@ class DashboardPanel(QWidget):
         self._build_ui()
         self.refresh()
 
-    # ------------------------------------------------------------------
+    # ──────────────────────────────────────────────────────────────────────────
     # Construcción de UI
-    # ------------------------------------------------------------------
+    # ──────────────────────────────────────────────────────────────────────────
 
     def _build_ui(self):
-        root = QVBoxLayout(self)
-        root.setContentsMargins(28, 22, 28, 22)
-        root.setSpacing(14)
+        root_lay = QVBoxLayout(self)
+        root_lay.setContentsMargins(0, 0, 0, 0)
+        root_lay.setSpacing(0)
 
-        root.addLayout(self._barra_superior())
-        root.addWidget(self._banner_alertas())
-        root.addLayout(self._fila_tarjetas_pequeñas())
-        root.addLayout(self._fila_tarjetas_grandes())
-        root.addLayout(self._seccion_desglose())   # métodos | gastos+proyección
-        root.addWidget(self._panel_productos())    # productos vendidos hoy (ancho completo)
-        root.addStretch()
+        # Scroll área que envuelve todo el contenido
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QFrame.NoFrame)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        scroll.setStyleSheet("QScrollArea { background:#F1F5F9; border:none; }")
 
-    # ── Barra superior con navegación ─────────────────────────────────
+        contenido = QWidget()
+        contenido.setStyleSheet("background:#F1F5F9;")
+        lay = QVBoxLayout(contenido)
+        lay.setContentsMargins(28, 22, 28, 22)
+        lay.setSpacing(16)
+
+        lay.addLayout(self._barra_superior())          # navegación
+        lay.addWidget(self._banner_alertas())          # alertas (condicional)
+        lay.addLayout(self._fila_tarjetas_pequeñas())  # ventas|ingresos|costos|comisiones
+        lay.addLayout(self._fila_tarjetas_grandes())   # g.bruta|g.neta|utilidad
+        lay.addLayout(self._fila_metodos_gastos())     # métodos|gastos 2×2
+        lay.addWidget(self._panel_proyeccion())        # proyección full-width
+        lay.addWidget(self._panel_comisiones_mes())    # comisiones full-width
+        lay.addWidget(self._panel_productos())         # productos vendidos
+        lay.addStretch()
+
+        scroll.setWidget(contenido)
+        root_lay.addWidget(scroll)
+
+    # ── Barra superior ────────────────────────────────────────────────────────
 
     def _barra_superior(self) -> QHBoxLayout:
         lay = QHBoxLayout()
@@ -181,14 +260,13 @@ class DashboardPanel(QWidget):
         ft = QFont(); ft.setPointSize(16); ft.setBold(True)
         titulo.setFont(ft)
 
-        # Navegación ← / →
         btn_ant = QPushButton("← Anterior")
         btn_sig = QPushButton("Siguiente →")
         for b in (btn_ant, btn_sig):
             b.setFixedHeight(34)
             b.setStyleSheet(
                 "QPushButton { border:1px solid #D1D5DB; border-radius:5px;"
-                "padding:0 12px; font-size:12px; }"
+                "padding:0 12px; font-size:12px; background:white; }"
                 "QPushButton:hover { background:#F3F4F6; }"
             )
         btn_ant.clicked.connect(self._dia_anterior)
@@ -200,13 +278,17 @@ class DashboardPanel(QWidget):
         self.date_selector.setDisplayFormat("dd/MM/yyyy")
         self.date_selector.setFixedHeight(34)
         self.date_selector.setFixedWidth(130)
+        self.date_selector.setStyleSheet(
+            "QDateEdit { border:1px solid #D1D5DB; border-radius:5px;"
+            "padding:0 8px; background:white; }"
+        )
         self.date_selector.dateChanged.connect(lambda _: self.refresh())
 
         btn_hoy = QPushButton("Hoy")
         btn_hoy.setFixedHeight(34)
         btn_hoy.setFixedWidth(55)
         btn_hoy.setStyleSheet(
-            "QPushButton { border:1px solid #D1D5DB; border-radius:5px; }"
+            "QPushButton { border:1px solid #D1D5DB; border-radius:5px; background:white; }"
             "QPushButton:hover { background:#F3F4F6; }"
         )
         btn_hoy.clicked.connect(lambda: self.date_selector.setDate(QDate.currentDate()))
@@ -229,14 +311,13 @@ class DashboardPanel(QWidget):
         lay.addStretch()
         return lay
 
-    # ── Banner de alertas ──────────────────────────────────────────────
+    # ── Banner de alertas ─────────────────────────────────────────────────────
 
     def _banner_alertas(self) -> QFrame:
         self._banner = QFrame()
         self._banner.setVisible(False)
         self._banner.setStyleSheet(
-            "QFrame { background:#FFFBEB; border:1px solid #FDE68A;"
-            "border-radius:7px; }"
+            "QFrame { background:#FFFBEB; border:1px solid #FDE68A; border-radius:7px; }"
         )
         lay = QHBoxLayout(self._banner)
         lay.setContentsMargins(14, 8, 14, 8)
@@ -246,7 +327,7 @@ class DashboardPanel(QWidget):
         lay.addStretch()
         return self._banner
 
-    # ── Tarjetas métricas ──────────────────────────────────────────────
+    # ── Fila 1: 4 tarjetas pequeñas ──────────────────────────────────────────
 
     def _fila_tarjetas_pequeñas(self) -> QHBoxLayout:
         lay = QHBoxLayout(); lay.setSpacing(14)
@@ -255,13 +336,16 @@ class DashboardPanel(QWidget):
         self.card_costos     = MetricCard("Costos totales",     "$ 0")
         self.card_comisiones = MetricCard("Comisiones pagadas", "$ 0", color_valor="#92400E")
         for c in (self.card_ventas, self.card_ingresos, self.card_costos, self.card_comisiones):
-            aplicar_sombra(c); lay.addWidget(c)
+            aplicar_sombra(c)
+            lay.addWidget(c)
         return lay
+
+    # ── Fila 2: 3 tarjetas grandes ───────────────────────────────────────────
 
     def _fila_tarjetas_grandes(self) -> QHBoxLayout:
         lay = QHBoxLayout(); lay.setSpacing(14)
-        self.card_g_bruta  = MetricCard("Ganancia bruta",            "$ 0", subtitulo="Precio − Costo")
-        self.card_g_neta   = MetricCard("Ganancia neta de ventas",   "$ 0", subtitulo="Bruta − Comisiones")
+        self.card_g_bruta  = MetricCard("Ganancia bruta",          "$ 0", subtitulo="Precio − Costo")
+        self.card_g_neta   = MetricCard("Ganancia neta de ventas", "$ 0", subtitulo="Bruta − Comisiones")
         self.card_utilidad = UtilityCard()
         aplicar_sombra(self.card_g_bruta)
         aplicar_sombra(self.card_g_neta)
@@ -271,12 +355,12 @@ class DashboardPanel(QWidget):
         lay.addWidget(self.card_utilidad, stretch=2)
         return lay
 
-    # ── Sección de desglose: métodos | gastos + proyección ────────────
+    # ── Fila 3: ingresos por método | gastos del día ──────────────────────────
 
-    def _seccion_desglose(self) -> QHBoxLayout:
+    def _fila_metodos_gastos(self) -> QHBoxLayout:
         lay = QHBoxLayout(); lay.setSpacing(14)
-        lay.addWidget(self._panel_metodos(),       stretch=1)
-        lay.addWidget(self._panel_gastos_proy(),   stretch=2)
+        lay.addWidget(self._panel_metodos(),    stretch=1)
+        lay.addWidget(self._panel_gastos_dia(), stretch=2)
         return lay
 
     def _panel_metodos(self) -> QFrame:
@@ -292,7 +376,9 @@ class DashboardPanel(QWidget):
         lay.setSpacing(10)
 
         lbl = QLabel("INGRESOS POR MÉTODO")
-        lbl.setStyleSheet("color:#6B7280; font-size:10px; font-weight:bold; letter-spacing:0.5px;")
+        lbl.setStyleSheet(
+            "color:#6B7280; font-size:10px; font-weight:bold; letter-spacing:0.5px;"
+        )
         lay.addWidget(lbl)
 
         self._lay_metodos = QVBoxLayout()
@@ -301,8 +387,8 @@ class DashboardPanel(QWidget):
         lay.addStretch()
         return self._frame_metodos
 
-    def _panel_gastos_proy(self) -> QFrame:
-        """Panel derecho: gastos del día (arriba) + proyección mensual (abajo)."""
+    def _panel_gastos_dia(self) -> QFrame:
+        """Panel derecho: 4 mini-tarjetas en grid 2×2 con los gastos del día."""
         frame = QFrame()
         frame.setFrameShape(QFrame.StyledPanel)
         frame.setStyleSheet(
@@ -311,69 +397,88 @@ class DashboardPanel(QWidget):
         aplicar_sombra(frame)
         lay = QVBoxLayout(frame)
         lay.setContentsMargins(16, 14, 16, 14)
-        lay.setSpacing(12)
+        lay.setSpacing(10)
 
-        # ── Gastos del día ──────────────────────────────────────────
-        lbl_g = QLabel("GASTOS DEL DÍA")
-        lbl_g.setStyleSheet("color:#6B7280; font-size:10px; font-weight:bold; letter-spacing:0.5px;")
-        lay.addWidget(lbl_g)
-
-        fila_gastos = QHBoxLayout(); fila_gastos.setSpacing(20)
-        self._lbl_gasto_dia   = self._info_chip("Gasto fijo diario",     "$ 0")
-        self._lbl_gasto_extra = self._info_chip("Gastos extra día",      "$ 0")
-        self._lbl_gasto_mes   = self._info_chip("Gastos fijos del mes",  "$ 0")
-        self._lbl_margen      = self._info_chip("Margen sobre ingresos", "0.0 %")
-        fila_gastos.addWidget(self._lbl_gasto_dia)
-        fila_gastos.addWidget(self._sep_v())
-        fila_gastos.addWidget(self._lbl_gasto_extra)
-        fila_gastos.addWidget(self._sep_v())
-        fila_gastos.addWidget(self._lbl_gasto_mes)
-        fila_gastos.addWidget(self._sep_v())
-        fila_gastos.addWidget(self._lbl_margen)
-        fila_gastos.addStretch()
-        lay.addLayout(fila_gastos)
-
-        # Separador
-        sep = QFrame(); sep.setFrameShape(QFrame.HLine)
-        sep.setStyleSheet("color:#E5E7EB;")
-        lay.addWidget(sep)
-
-        # ── Proyección mensual ──────────────────────────────────────
-        lbl_p = QLabel("PROYECCIÓN DEL MES")
-        lbl_p.setStyleSheet("color:#6B7280; font-size:10px; font-weight:bold; letter-spacing:0.5px;")
-        lay.addWidget(lbl_p)
-
-        self._proy_frame_inner = QFrame()
-        self._proy_frame_inner.setStyleSheet(
-            "QFrame { background:#F8FAFC; border:1px solid #E2E8F0; border-radius:7px; }"
+        lbl = QLabel("GASTOS DEL DÍA")
+        lbl.setStyleSheet(
+            "color:#6B7280; font-size:10px; font-weight:bold; letter-spacing:0.5px;"
         )
-        fila_proy = QHBoxLayout(self._proy_frame_inner)
-        fila_proy.setContentsMargins(12, 8, 12, 8)
-        fila_proy.setSpacing(18)
+        lay.addWidget(lbl)
 
-        self._proy_dia      = self._info_chip("Día del mes",             "—")
-        self._proy_meta     = self._info_chip("Meta acumulada",          "$ 0")
-        self._proy_util     = self._info_chip("Utilidad acumulada",      "$ 0")
-        self._proy_dif_chip = self._proy_diferencia_chip()
+        grid = QGridLayout(); grid.setSpacing(8)
 
-        fila_proy.addWidget(self._proy_dia)
-        fila_proy.addWidget(self._sep_v())
-        fila_proy.addWidget(self._proy_meta)
-        fila_proy.addWidget(self._sep_v())
-        fila_proy.addWidget(self._proy_util)
-        fila_proy.addWidget(self._sep_v())
-        fila_proy.addWidget(self._proy_dif_chip)
-        fila_proy.addStretch()
-        lay.addWidget(self._proy_frame_inner)
+        self._card_gasto_dia   = _MiniCard("Gasto fijo diario",     "$ 0")
+        self._card_gasto_extra = _MiniCard("Gastos extra hoy",      "$ 0")
+        self._card_gasto_mes   = _MiniCard("Gastos fijos del mes",  "$ 0")
+        self._card_margen      = _MiniCard("Margen sobre ingresos", "0.0 %")
 
-        # ── Comisiones por plataforma ──────────────────────────────────
-        sep2 = QFrame(); sep2.setFrameShape(QFrame.HLine)
-        sep2.setStyleSheet("color:#E5E7EB;")
-        lay.addWidget(sep2)
+        for c in (self._card_gasto_dia, self._card_gasto_extra,
+                  self._card_gasto_mes, self._card_margen):
+            aplicar_sombra(c, radio=6, opacidad=10)
 
-        lbl_com = QLabel("COMISIONES DEL MES")
-        lbl_com.setStyleSheet("color:#6B7280; font-size:10px; font-weight:bold; letter-spacing:0.5px;")
-        lay.addWidget(lbl_com)
+        grid.addWidget(self._card_gasto_dia,   0, 0)
+        grid.addWidget(self._card_gasto_extra, 0, 1)
+        grid.addWidget(self._card_gasto_mes,   1, 0)
+        grid.addWidget(self._card_margen,      1, 1)
+        lay.addLayout(grid)
+        lay.addStretch()
+        return frame
+
+    # ── Fila 4: proyección mensual (full-width) ───────────────────────────────
+
+    def _panel_proyeccion(self) -> QFrame:
+        """4 tarjetas de proyección del mes a ancho completo."""
+        self._frame_proy = QFrame()
+        self._frame_proy.setFrameShape(QFrame.StyledPanel)
+        self._frame_proy.setStyleSheet(
+            "QFrame { background:#FFFFFF; border:1px solid #E5E7EB; border-radius:10px; }"
+        )
+        aplicar_sombra(self._frame_proy)
+        lay = QVBoxLayout(self._frame_proy)
+        lay.setContentsMargins(20, 14, 20, 14)
+        lay.setSpacing(10)
+
+        lbl = QLabel("PROYECCIÓN DEL MES")
+        lbl.setStyleSheet(
+            "color:#6B7280; font-size:10px; font-weight:bold; letter-spacing:0.5px;"
+        )
+        lay.addWidget(lbl)
+
+        cards_lay = QHBoxLayout(); cards_lay.setSpacing(12)
+
+        self._card_proy_dia  = _MiniCard("Día del mes",        "—")
+        self._card_proy_meta = _MiniCard("Meta acumulada",     "$ 0")
+        self._card_proy_util = _MiniCard("Utilidad acumulada", "$ 0")
+        self._card_proy_dif  = _MiniCard("Situación",          "—",  color_valor="#374151")
+
+        for c in (self._card_proy_dia, self._card_proy_meta,
+                  self._card_proy_util, self._card_proy_dif):
+            aplicar_sombra(c, radio=6, opacidad=10)
+            cards_lay.addWidget(c)
+
+        lay.addLayout(cards_lay)
+        return self._frame_proy
+
+    # ── Fila 5: comisiones del mes (full-width, oculto si no hay) ─────────────
+
+    def _panel_comisiones_mes(self) -> QFrame:
+        self._frame_comisiones_panel = QFrame()
+        self._frame_comisiones_panel.setFrameShape(QFrame.StyledPanel)
+        self._frame_comisiones_panel.setStyleSheet(
+            "QFrame { background:#FFFFFF; border:1px solid #E5E7EB; border-radius:10px; }"
+        )
+        aplicar_sombra(self._frame_comisiones_panel)
+        self._frame_comisiones_panel.setVisible(False)
+
+        lay = QVBoxLayout(self._frame_comisiones_panel)
+        lay.setContentsMargins(20, 14, 20, 14)
+        lay.setSpacing(8)
+
+        lbl = QLabel("COMISIONES DEL MES")
+        lbl.setStyleSheet(
+            "color:#6B7280; font-size:10px; font-weight:bold; letter-spacing:0.5px;"
+        )
+        lay.addWidget(lbl)
 
         self._frame_comisiones = QFrame()
         self._frame_comisiones.setStyleSheet(
@@ -383,34 +488,34 @@ class DashboardPanel(QWidget):
         self._lay_comisiones.setContentsMargins(0, 0, 0, 0)
         self._lay_comisiones.setSpacing(8)
         lay.addWidget(self._frame_comisiones)
+        return self._frame_comisiones_panel
 
-        lay.addStretch()
-        return frame
-
-    # ── Panel productos vendidos (ancho completo, abajo) ──────────────
+    # ── Fila 6: productos vendidos (full-width) ───────────────────────────────
 
     def _panel_productos(self) -> QFrame:
-        """Productos vendidos en el día — panel ancho completo."""
         self._frame_productos = QFrame()
         self._frame_productos.setFrameShape(QFrame.StyledPanel)
         self._frame_productos.setStyleSheet(
             "QFrame { background:#FFFFFF; border:1px solid #E5E7EB; border-radius:10px; }"
         )
         aplicar_sombra(self._frame_productos)
+
         lay = QVBoxLayout(self._frame_productos)
         lay.setContentsMargins(20, 14, 20, 14)
         lay.setSpacing(8)
 
         lbl = QLabel("PRODUCTOS VENDIDOS HOY")
-        lbl.setStyleSheet("color:#6B7280; font-size:10px; font-weight:bold; letter-spacing:0.5px;")
+        lbl.setStyleSheet(
+            "color:#6B7280; font-size:10px; font-weight:bold; letter-spacing:0.5px;"
+        )
         lay.addWidget(lbl)
 
         # Encabezado de columnas
         hdr = QHBoxLayout()
         for texto, stretch, alin in [
-            ("Producto", 5, Qt.AlignLeft),
-            ("Cant.", 1, Qt.AlignCenter),
-            ("Ingresos", 2, Qt.AlignRight),
+            ("Producto",      5, Qt.AlignLeft),
+            ("Cant.",         1, Qt.AlignCenter),
+            ("Ingresos",      2, Qt.AlignRight),
             ("Ganancia neta", 2, Qt.AlignRight),
         ]:
             l = QLabel(texto)
@@ -423,7 +528,6 @@ class DashboardPanel(QWidget):
         sep.setStyleSheet("color:#E5E7EB;")
         lay.addWidget(sep)
 
-        # Área scrollable para las filas
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
         scroll.setFrameShape(QFrame.NoFrame)
@@ -440,39 +544,11 @@ class DashboardPanel(QWidget):
 
         scroll.setWidget(self._contenedor_prods)
         lay.addWidget(scroll)
-
         return self._frame_productos
 
-    def _proy_diferencia_chip(self) -> QWidget:
-        w = QWidget()
-        lay = QVBoxLayout(w); lay.setContentsMargins(0,0,0,0); lay.setSpacing(2)
-        lbl_e = QLabel("SITUACIÓN")
-        lbl_e.setStyleSheet("color:#6B7280; font-size:10px; font-weight:bold;")
-        self._proy_dif_label = QLabel("—")
-        self._proy_dif_label.setStyleSheet("font-size:14px; font-weight:bold; color:#374151;")
-        lay.addWidget(lbl_e); lay.addWidget(self._proy_dif_label)
-        w._lbl_valor = self._proy_dif_label
-        return w
-
-    def _info_chip(self, etiqueta: str, valor: str) -> QWidget:
-        w = QWidget()
-        lay = QVBoxLayout(w); lay.setContentsMargins(0,0,0,0); lay.setSpacing(2)
-        lbl_e = QLabel(etiqueta)
-        lbl_e.setStyleSheet("color:#6B7280; font-size:10px; font-weight:bold;")
-        lbl_v = QLabel(valor)
-        lbl_v.setStyleSheet("color:#374151; font-size:14px; font-weight:bold;")
-        lay.addWidget(lbl_e); lay.addWidget(lbl_v)
-        w._lbl_valor = lbl_v
-        return w
-
-    def _sep_v(self) -> QFrame:
-        s = QFrame(); s.setFrameShape(QFrame.VLine)
-        s.setFixedHeight(36); s.setStyleSheet("color:#CBD5E1;")
-        return s
-
-    # ------------------------------------------------------------------
-    # Navegación entre días
-    # ------------------------------------------------------------------
+    # ──────────────────────────────────────────────────────────────────────────
+    # Navegación
+    # ──────────────────────────────────────────────────────────────────────────
 
     def _dia_anterior(self):
         self.date_selector.setDate(self.date_selector.date().addDays(-1))
@@ -480,9 +556,9 @@ class DashboardPanel(QWidget):
     def _dia_siguiente(self):
         self.date_selector.setDate(self.date_selector.date().addDays(1))
 
-    # ------------------------------------------------------------------
+    # ──────────────────────────────────────────────────────────────────────────
     # Datos
-    # ------------------------------------------------------------------
+    # ──────────────────────────────────────────────────────────────────────────
 
     def refresh(self):
         qd = self.date_selector.date()
@@ -516,16 +592,26 @@ class DashboardPanel(QWidget):
             color_valor=color_neta,
         )
 
-        self.card_utilidad.actualizar(r.utilidad_real, r.ganancia_neta,
-                                      r.gasto_diario, r.gastos_operativos)
+        self.card_utilidad.actualizar(
+            r.utilidad_real, r.ganancia_neta, r.gasto_diario, r.gastos_operativos
+        )
 
+        # Gastos del día — mini-cards grid
         from database.config_repo import obtener_configuracion
         cfg = obtener_configuracion()
-        self._lbl_gasto_dia._lbl_valor.setText(cop(r.gasto_diario))
-        self._lbl_gasto_extra._lbl_valor.setText(cop(r.gastos_operativos))
-        self._lbl_gasto_mes._lbl_valor.setText(cop(cfg.total_gastos_mes))
-        self._lbl_margen._lbl_valor.setText(porcentaje(r.margen_porcentual, 1))
+        self._card_gasto_dia.set_valor(cop(r.gasto_diario), "#374151")
+        self._card_gasto_extra.set_valor(
+            cop(r.gastos_operativos),
+            "#DC2626" if r.gastos_operativos > 0 else "#6B7280",
+        )
+        self._card_gasto_mes.set_valor(cop(cfg.total_gastos_mes), "#374151")
+        margen_val = porcentaje(r.margen_porcentual, 1)
+        margen_color = "#15803D" if r.margen_porcentual >= 20 else (
+            "#D97706" if r.margen_porcentual >= 10 else "#DC2626"
+        )
+        self._card_margen.set_valor(margen_val, margen_color)
 
+        # Badge de estado
         if r.cantidad_ventas == 0:
             self._lbl_estado.setText("Sin ventas registradas")
             self._lbl_estado.setStyleSheet(
@@ -546,7 +632,7 @@ class DashboardPanel(QWidget):
             )
 
     def _actualizar_desglose(self, por_metodo: dict, productos: list):
-        # ── Chips de métodos ──────────────────────────────────────────
+        # ── Chips de métodos de pago ──────────────────────────────────────────
         while self._lay_metodos.count():
             item = self._lay_metodos.takeAt(0)
             if item.widget():
@@ -559,15 +645,30 @@ class DashboardPanel(QWidget):
         else:
             for metodo, total in sorted(por_metodo.items()):
                 bg, fg = _COLORES_METODO.get(metodo, ("#F3F4F6", "#374151"))
-                lbl = QLabel(f"  {metodo}  {cop(total)}  ")
-                lbl.setStyleSheet(
-                    f"background:{bg}; color:{fg}; border-radius:5px;"
-                    f"font-size:12px; font-weight:bold; padding:4px 10px;"
+                chip = QWidget()
+                chip.setStyleSheet(
+                    f"background:{bg}; border-radius:6px;"
                 )
-                self._lay_metodos.addWidget(lbl)
+                ch_lay = QHBoxLayout(chip)
+                ch_lay.setContentsMargins(10, 6, 10, 6)
+                lbl_m = QLabel(metodo)
+                lbl_m.setStyleSheet(
+                    f"color:{fg}; font-size:12px; font-weight:bold;"
+                    "background:transparent;"
+                )
+                lbl_v = QLabel(cop(total))
+                lbl_v.setStyleSheet(
+                    f"color:{fg}; font-size:13px; font-weight:bold;"
+                    "background:transparent;"
+                )
+                lbl_v.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+                ch_lay.addWidget(lbl_m)
+                ch_lay.addStretch()
+                ch_lay.addWidget(lbl_v)
+                self._lay_metodos.addWidget(chip)
             self._lay_metodos.addStretch()
 
-        # ── Filas de productos ────────────────────────────────────────
+        # ── Filas de productos ────────────────────────────────────────────────
         while self._lay_productos.count():
             item = self._lay_productos.takeAt(0)
             if item.widget():
@@ -575,7 +676,9 @@ class DashboardPanel(QWidget):
 
         if not productos:
             lbl = QLabel("Sin ventas registradas para esta fecha.")
-            lbl.setStyleSheet("color:#9CA3AF; font-size:12px; font-style:italic; padding:4px 0;")
+            lbl.setStyleSheet(
+                "color:#9CA3AF; font-size:12px; font-style:italic; padding:4px 0;"
+            )
             self._lay_productos.addWidget(lbl)
             return
 
@@ -591,11 +694,11 @@ class DashboardPanel(QWidget):
             lbl_cant.setAlignment(Qt.AlignCenter)
             lbl_cant.setStyleSheet("font-size:11px; color:#6B7280;")
 
-            color_g = "#15803D" if ganancia >= 0 else "#DC2626"
             lbl_ing = QLabel(cop(ingresos))
             lbl_ing.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
             lbl_ing.setStyleSheet("font-size:11px; color:#374151;")
 
+            color_g = "#15803D" if ganancia >= 0 else "#DC2626"
             lbl_gan = QLabel(cop(ganancia))
             lbl_gan.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
             lbl_gan.setStyleSheet(f"font-size:11px; font-weight:bold; color:{color_g};")
@@ -608,35 +711,35 @@ class DashboardPanel(QWidget):
             contenedor = QWidget()
             contenedor.setLayout(fila)
             fondo = "#F8FAFC" if i % 2 == 0 else "#FFFFFF"
-            contenedor.setStyleSheet(
-                f"background:{fondo}; border-radius:4px;"
-            )
+            contenedor.setStyleSheet(f"background:{fondo}; border-radius:4px;")
             self._lay_productos.addWidget(contenedor)
 
         self._lay_productos.addStretch()
 
     def _actualizar_proyeccion(self, p: dict):
-        self._proy_dia._lbl_valor.setText(f"Día {p['dia']} de {p['dias_mes']}")
-        self._proy_meta._lbl_valor.setText(cop(p["meta"]))
-        self._proy_util._lbl_valor.setText(cop(p["utilidad_acumulada"]))
+        self._card_proy_dia.set_valor(f"Día {p['dia']} de {p['dias_mes']}", "#374151")
+        self._card_proy_meta.set_valor(cop(p["meta"]), "#374151")
+        self._card_proy_util.set_valor(cop(p["utilidad_acumulada"]), "#374151")
 
         dif = p["diferencia"]
         if dif >= 0:
-            texto = f"+{cop(dif)}  SUPERÁVIT"
-            color = "#15803D"; bg = "#DCFCE7"
+            texto = f"+{cop(dif)}"
+            color = "#15803D"; bg = "#DCFCE7"; border = "#86EFAC"
         else:
-            texto = f"{cop(dif)}  DÉFICIT"
-            color = "#DC2626"; bg = "#FEE2E2"
+            texto = cop(dif)
+            color = "#DC2626"; bg = "#FEE2E2"; border = "#FECACA"
 
-        self._proy_dif_label.setText(texto)
-        self._proy_dif_label.setStyleSheet(
-            f"font-size:13px; font-weight:bold; color:{color};"
+        self._card_proy_dif.set_valor(texto, color)
+        # Resaltar la tarjeta de situación con color semántico
+        self._card_proy_dif.setStyleSheet(
+            f"_MiniCard {{ background:{bg}; border:1px solid {border}; border-radius:8px; }}"
         )
-        self._proy_frame_inner.setStyleSheet(
-            f"QFrame {{ background:{bg}; border:1px solid {color}40; border-radius:7px; }}"
+        # Borde sutil en el panel de proyección
+        self._frame_proy.setStyleSheet(
+            f"QFrame {{ background:#FFFFFF; border:1px solid {border}; border-radius:10px; }}"
         )
 
-        # Comisiones por plataforma
+        # ── Comisiones por plataforma ─────────────────────────────────────────
         while self._lay_comisiones.count():
             item = self._lay_comisiones.takeAt(0)
             if item.widget():
@@ -644,27 +747,27 @@ class DashboardPanel(QWidget):
 
         comisiones = p.get("comisiones_plataforma", {})
         if not comisiones:
-            lbl = QLabel("Sin comisiones en el mes")
-            lbl.setStyleSheet("color:#9CA3AF; font-size:11px;")
-            self._lay_comisiones.addWidget(lbl)
+            self._frame_comisiones_panel.setVisible(False)
         else:
+            self._frame_comisiones_panel.setVisible(True)
             total_com = sum(comisiones.values())
             for metodo, monto in sorted(comisiones.items(), key=lambda x: -x[1]):
                 bg_c, fg_c = _COLORES_METODO.get(metodo, ("#F3F4F6", "#374151"))
                 chip = QLabel(f"{metodo}: {cop(monto)}")
                 chip.setStyleSheet(
                     f"background:{bg_c}; color:{fg_c}; border-radius:4px;"
-                    "font-size:11px; font-weight:bold; padding:3px 8px;"
+                    "font-size:11px; font-weight:bold; padding:4px 10px;"
                 )
                 self._lay_comisiones.addWidget(chip)
-            # Total
-            lbl_tot = QLabel(f"Total: {cop(total_com)}")
+            sep = QFrame(); sep.setFrameShape(QFrame.VLine)
+            sep.setFixedHeight(24); sep.setStyleSheet("color:#CBD5E1;")
+            lbl_tot = QLabel(f"Total cobrado: {cop(total_com)}")
             lbl_tot.setStyleSheet(
-                "color:#DC2626; font-size:11px; font-weight:bold; padding:3px 0;"
+                "color:#DC2626; font-size:11px; font-weight:bold; padding:4px 0;"
             )
-            self._lay_comisiones.addWidget(self._sep_v())
+            self._lay_comisiones.addWidget(sep)
             self._lay_comisiones.addWidget(lbl_tot)
-        self._lay_comisiones.addStretch()
+            self._lay_comisiones.addStretch()
 
     def _actualizar_alertas(self, alertas: dict):
         partes = []

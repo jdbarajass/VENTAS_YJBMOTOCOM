@@ -62,6 +62,22 @@ def obtener_gastos_por_mes(año: int, mes: int) -> list[GastoDia]:
     return [_row_to_gasto(r) for r in rows]
 
 
+def obtener_totales_por_categoria(anio: int, mes: int) -> dict[str, float]:
+    """Suma el total de gastos por categoría en el mes dado. {categoria: total}"""
+    prefix = f"{anio:04d}-{mes:02d}-%"
+    conn = DatabaseConnection.get()
+    rows = conn.execute(
+        """
+        SELECT categoria, SUM(monto) as total
+        FROM gastos_dia
+        WHERE fecha LIKE ?
+        GROUP BY categoria
+        """,
+        (prefix,),
+    ).fetchall()
+    return {r["categoria"]: r["total"] for r in rows}
+
+
 def obtener_todos_gastos() -> list[GastoDia]:
     conn = DatabaseConnection.get()
     rows = conn.execute(

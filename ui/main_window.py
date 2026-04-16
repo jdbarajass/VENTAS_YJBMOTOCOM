@@ -23,18 +23,20 @@ from ui.prestamos_panel import PrestamosPanel
 from ui.inventario_panel import InventarioPanel
 from ui.exportar_importar_panel import ExportarImportarPanel
 from ui.facturas_panel import FacturasPanel
+from ui.presupuesto_panel import PresupuestoPanel
 
 
 # Índices de página en el QStackedWidget
-PAGE_REGISTRAR   = 0
-PAGE_VENTAS_DIA  = 1
-PAGE_DASHBOARD   = 2
-PAGE_HISTORIAL   = 3
-PAGE_CONFIG      = 4
-PAGE_PRESTAMOS   = 5
-PAGE_INVENTARIO  = 6
-PAGE_EXPORTAR    = 7
-PAGE_FACTURAS    = 8
+PAGE_REGISTRAR    = 0
+PAGE_VENTAS_DIA   = 1
+PAGE_DASHBOARD    = 2
+PAGE_HISTORIAL    = 3
+PAGE_CONFIG       = 4
+PAGE_PRESTAMOS    = 5
+PAGE_INVENTARIO   = 6
+PAGE_EXPORTAR     = 7
+PAGE_FACTURAS     = 8
+PAGE_PRESUPUESTO  = 9
 
 
 class MainWindow(QMainWindow):
@@ -131,7 +133,8 @@ class MainWindow(QMainWindow):
             (PAGE_HISTORIAL,  "📅  Historial Mensual"),
             (PAGE_INVENTARIO, "📦  Inventario"),
             (PAGE_PRESTAMOS,  "🤝  Préstamos"),
-            (PAGE_FACTURAS,   "🧾  Facturas"),
+            (PAGE_FACTURAS,    "🧾  Facturas"),
+            (PAGE_PRESUPUESTO, "💰  Presupuesto"),
             (PAGE_EXPORTAR,   "⬇⬆  Exportar / Importar"),
             (PAGE_CONFIG,     "⚙  Configuración"),
         ]
@@ -233,6 +236,10 @@ class MainWindow(QMainWindow):
         self._facturas = FacturasPanel()
         self._stack.addWidget(self._facturas)
 
+        # Página 9 — Presupuesto Mensual
+        self._presupuesto = PresupuestoPanel()
+        self._stack.addWidget(self._presupuesto)
+
         # Señales
         self._form_venta.venta_guardada.connect(self._on_venta_guardada)
         self._config.configuracion_guardada.connect(self._on_config_guardada)
@@ -327,6 +334,7 @@ class MainWindow(QMainWindow):
         """Al guardar config, recalcula dashboards e historial con los nuevos gastos."""
         self._dashboard.refresh()
         self._historial.refresh()
+        self._presupuesto.refresh()
         self._status.showMessage(
             "Configuración guardada  •  Cálculos actualizados automáticamente"
         )

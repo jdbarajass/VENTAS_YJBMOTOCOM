@@ -23,6 +23,7 @@ def initialize_schema() -> None:
     _create_inventario(conn)
     _create_facturas(conn)
     _create_abonos_factura(conn)
+    _create_presupuesto_mensual(conn)
     _seed_configuracion(conn)
     _migrate_ventas(conn)
     _migrate_facturas(conn)
@@ -125,6 +126,19 @@ def _create_facturas(conn: sqlite3.Connection) -> None:
     """)
 
 
+def _create_presupuesto_mensual(conn: sqlite3.Connection) -> None:
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS presupuesto_mensual (
+            id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+            anio                INTEGER NOT NULL,
+            mes                 INTEGER NOT NULL,
+            categoria           TEXT    NOT NULL,
+            monto_presupuestado REAL    NOT NULL DEFAULT 0,
+            UNIQUE(anio, mes, categoria)
+        )
+    """)
+
+
 def _create_abonos_factura(conn: sqlite3.Connection) -> None:
     conn.execute("""
         CREATE TABLE IF NOT EXISTS abonos_factura (
@@ -183,7 +197,8 @@ def resetear_base_datos() -> None:
     # Desactivar FK temporalmente para borrar en cualquier orden
     conn.execute("PRAGMA foreign_keys=OFF;")
     for tabla in ("abonos_factura", "facturas", "ventas",
-                  "gastos_dia", "prestamos", "inventario", "configuracion"):
+                  "gastos_dia", "prestamos", "inventario",
+                  "presupuesto_mensual", "configuracion"):
         conn.execute(f"DELETE FROM {tabla}")
     # Resetear contadores AUTOINCREMENT
     conn.execute(

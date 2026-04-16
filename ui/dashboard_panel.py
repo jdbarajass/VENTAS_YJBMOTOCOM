@@ -239,7 +239,8 @@ class DashboardPanel(QWidget):
         lay.setSpacing(16)
 
         lay.addLayout(self._barra_superior())          # navegación
-        lay.addWidget(self._banner_alertas())          # alertas (condicional)
+        lay.addWidget(self._banner_alertas())          # alertas amarillo (condicional)
+        lay.addWidget(self._banner_urgente())          # alertas rojo — facturas vencidas/urgentes
         lay.addLayout(self._fila_tarjetas_pequeñas())  # ventas|ingresos|costos|comisiones
         lay.addLayout(self._fila_tarjetas_grandes())   # g.bruta|g.neta|utilidad
         lay.addLayout(self._fila_metodos_gastos())     # métodos|gastos 2×2
@@ -326,6 +327,22 @@ class DashboardPanel(QWidget):
         lay.addWidget(self._lbl_alertas)
         lay.addStretch()
         return self._banner
+
+    # ── Banner de urgencias (rojo) ────────────────────────────────────────────
+
+    def _banner_urgente(self) -> QFrame:
+        self._banner_urgente_frame = QFrame()
+        self._banner_urgente_frame.setVisible(False)
+        self._banner_urgente_frame.setStyleSheet(
+            "QFrame { background:#FEE2E2; border:1px solid #FECACA; border-radius:7px; }"
+        )
+        lay = QHBoxLayout(self._banner_urgente_frame)
+        lay.setContentsMargins(14, 8, 14, 8)
+        self._lbl_urgente = QLabel("")
+        self._lbl_urgente.setStyleSheet("color:#991B1B; font-size:12px; font-weight:bold;")
+        lay.addWidget(self._lbl_urgente)
+        lay.addStretch()
+        return self._banner_urgente_frame
 
     # ── Fila 1: 4 tarjetas pequeñas ──────────────────────────────────────────
 
@@ -666,6 +683,38 @@ class DashboardPanel(QWidget):
                 ch_lay.addStretch()
                 ch_lay.addWidget(lbl_v)
                 self._lay_metodos.addWidget(chip)
+
+            # Cuadre de caja: Efectivo vs Digital
+            sep = QFrame(); sep.setFrameShape(QFrame.HLine)
+            sep.setStyleSheet("color:#E5E7EB; margin:2px 0;")
+            self._lay_metodos.addWidget(sep)
+
+            efectivo = por_metodo.get("Efectivo", 0.0)
+            digital  = sum(v for k, v in por_metodo.items() if k != "Efectivo")
+
+            def _resumen_chip(texto, valor, bg, fg):
+                w = QWidget()
+                w.setStyleSheet(f"background:{bg}; border-radius:5px;")
+                wl = QHBoxLayout(w)
+                wl.setContentsMargins(8, 4, 8, 4)
+                l1 = QLabel(texto)
+                l1.setStyleSheet(
+                    f"color:{fg}; font-size:10px; font-weight:bold; background:transparent;"
+                )
+                l2 = QLabel(cop(valor))
+                l2.setStyleSheet(
+                    f"color:{fg}; font-size:11px; font-weight:bold; background:transparent;"
+                )
+                l2.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+                wl.addWidget(l1); wl.addStretch(); wl.addWidget(l2)
+                return w
+
+            self._lay_metodos.addWidget(
+                _resumen_chip("Efectivo", efectivo, "#DCFCE7", "#15803D")
+            )
+            self._lay_metodos.addWidget(
+                _resumen_chip("Digital", digital, "#DBEAFE", "#1D4ED8")
+            )
             self._lay_metodos.addStretch()
 
         # ── Filas de productos ────────────────────────────────────────────────
@@ -770,16 +819,33 @@ class DashboardPanel(QWidget):
             self._lay_comisiones.addStretch()
 
     def _actualizar_alertas(self, alertas: dict):
+        # Banner amarillo: alertas generales
         partes = []
         if alertas["prestamos"] > 0:
-            partes.append(f"⚠  {alertas['prestamos']} préstamo(s) pendiente(s)")
-        if alertas["facturas"] > 0:
+            n = alertas["prestamos"]
+            texto = f"⚠  {n} préstamo(s) pendiente(s)"
+            if alertas.get("prestamos_urgentes", 0) > 0:
+                texto += f"  ({alertas['prestamos_urgentes']} urgentes)"
+            partes.append(texto)
+        fact_no_vencidas = alertas["facturas"] - alertas.get("facturas_vencidas", 0)
+        if fact_no_vencidas > 0:
             partes.append(
-                f"🧾  {alertas['facturas']} factura(s) por pagar"
-                f"  ({cop(alertas['total_facturas'])})"
+                f"🧾  {fact_no_vencidas} factura(s) por pagar"
+                f"  ({cop(alertas['total_facturas'] - alertas.get('total_vencidas', 0))})"
             )
         if partes:
             self._lbl_alertas.setText("   |   ".join(partes))
             self._banner.setVisible(True)
         else:
             self._banner.setVisible(False)
+
+        # Banner rojo: facturas ya vencidas
+        vencidas = alertas.get("facturas_vencidas", 0)
+        if vencidas > 0:
+            self._lbl_urgente.setText(
+                f"🚨  {vencidas} factura{'s' if vencidas != 1 else ''} VENCIDA{'S' if vencidas != 1 else ''}"
+                f"  —  {cop(alertas.get('total_vencidas', 0))} sin pagar"
+            )
+            self._banner_urgente_frame.setVisible(True)
+        else:
+            self._banner_urgente_frame.setVisible(False)

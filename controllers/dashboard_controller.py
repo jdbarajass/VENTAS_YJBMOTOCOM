@@ -54,12 +54,18 @@ class DashboardController:
         proyeccion = self._get_proyeccion_mes(fecha, cfg)
 
         # ── Alertas rápidas ───────────────────────────────────────────
-        prest_pend  = obtener_prestamos_pendientes()
-        fact_pend   = obtener_facturas_pendientes()
+        prest_pend     = obtener_prestamos_pendientes()
+        fact_pend      = obtener_facturas_pendientes()
+        fact_vencidas  = [f for f in fact_pend if f.dias_para_vencer is not None
+                          and f.dias_para_vencer < 0]
+        prest_urgentes = [p for p in prest_pend if (fecha - p.fecha).days > 30]
         alertas = {
-            "prestamos":      len(prest_pend),
-            "facturas":       len(fact_pend),
-            "total_facturas": sum(f.monto for f in fact_pend),
+            "prestamos":           len(prest_pend),
+            "facturas":            len(fact_pend),
+            "total_facturas":      sum(f.monto for f in fact_pend),
+            "facturas_vencidas":   len(fact_vencidas),
+            "total_vencidas":      sum(f.monto for f in fact_vencidas),
+            "prestamos_urgentes":  len(prest_urgentes),
         }
 
         return {

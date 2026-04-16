@@ -259,9 +259,9 @@ class HistorialPanel(QWidget):
 
         # ---- Tabla detalle (oculta inicialmente) ----
         self.tabla_detalle = QTableWidget()
-        self.tabla_detalle.setColumnCount(9)
+        self.tabla_detalle.setColumnCount(10)
         self.tabla_detalle.setHorizontalHeaderLabels([
-            "Producto", "Cant.", "Costo", "Precio de Venta", "Método", "G. Neta", "Notas", "✎", "🗑"
+            "Producto", "Cant.", "Costo", "Precio de Venta", "Método", "G. Neta", "Margen %", "Notas", "✎", "🗑"
         ])
         self.tabla_detalle.setEditTriggers(QAbstractItemView.NoEditTriggers)
         self.tabla_detalle.setSelectionBehavior(QAbstractItemView.SelectRows)
@@ -285,16 +285,17 @@ class HistorialPanel(QWidget):
         """)
 
         hh = self.tabla_detalle.horizontalHeader()
-        hh.setSectionResizeMode(0, QHeaderView.Interactive); self.tabla_detalle.setColumnWidth(0, 190)
+        hh.setSectionResizeMode(0, QHeaderView.Interactive); self.tabla_detalle.setColumnWidth(0, 180)
         hh.setSectionResizeMode(1, QHeaderView.Interactive); self.tabla_detalle.setColumnWidth(1, 50)
-        hh.setSectionResizeMode(2, QHeaderView.Interactive); self.tabla_detalle.setColumnWidth(2, 95)
-        hh.setSectionResizeMode(3, QHeaderView.Interactive); self.tabla_detalle.setColumnWidth(3, 115)
-        hh.setSectionResizeMode(4, QHeaderView.Interactive); self.tabla_detalle.setColumnWidth(4, 130)
-        hh.setSectionResizeMode(5, QHeaderView.Interactive); self.tabla_detalle.setColumnWidth(5, 105)
+        hh.setSectionResizeMode(2, QHeaderView.Interactive); self.tabla_detalle.setColumnWidth(2, 90)
+        hh.setSectionResizeMode(3, QHeaderView.Interactive); self.tabla_detalle.setColumnWidth(3, 110)
+        hh.setSectionResizeMode(4, QHeaderView.Interactive); self.tabla_detalle.setColumnWidth(4, 120)
+        hh.setSectionResizeMode(5, QHeaderView.Interactive); self.tabla_detalle.setColumnWidth(5, 100)
+        hh.setSectionResizeMode(6, QHeaderView.Fixed);       self.tabla_detalle.setColumnWidth(6, 80)
         # Notas: ocupa el espacio restante
-        hh.setSectionResizeMode(6, QHeaderView.Stretch)
-        hh.setSectionResizeMode(7, QHeaderView.Fixed);       self.tabla_detalle.setColumnWidth(7, 68)
+        hh.setSectionResizeMode(7, QHeaderView.Stretch)
         hh.setSectionResizeMode(8, QHeaderView.Fixed);       self.tabla_detalle.setColumnWidth(8, 68)
+        hh.setSectionResizeMode(9, QHeaderView.Fixed);       self.tabla_detalle.setColumnWidth(9, 68)
 
         self.tabla_detalle.setVisible(False)
         lay.addWidget(self.tabla_detalle, stretch=1)
@@ -439,9 +440,27 @@ class HistorialPanel(QWidget):
             )
             self.tabla_detalle.setItem(row, 5, item_gn)
 
-            self._celda_det(row, 6, v.notas or "")
-            self.tabla_detalle.setCellWidget(row, 7, self._btn_editar(v.id))
-            self.tabla_detalle.setCellWidget(row, 8, self._btn_eliminar(v.id))
+            # Margen %
+            ingresos = v.precio * v.cantidad
+            if ingresos > 0:
+                margen = round(v.ganancia_neta / ingresos * 100, 1)
+                margen_txt = f"{margen:+.1f}%"
+                margen_color = (
+                    QColor("#15803D") if margen >= 20 else
+                    QColor("#D97706") if margen >= 10 else
+                    QColor("#DC2626")
+                )
+            else:
+                margen_txt = "—"
+                margen_color = QColor("#9CA3AF")
+            item_margen = QTableWidgetItem(margen_txt)
+            item_margen.setTextAlignment(Qt.AlignCenter)
+            item_margen.setForeground(margen_color)
+            self.tabla_detalle.setItem(row, 6, item_margen)
+
+            self._celda_det(row, 7, v.notas or "")
+            self.tabla_detalle.setCellWidget(row, 8, self._btn_editar(v.id))
+            self.tabla_detalle.setCellWidget(row, 9, self._btn_eliminar(v.id))
 
     def _on_busqueda_hist(self, texto: str) -> None:
         """Filtra la tabla de detalle por nombre de producto en todo el mes."""
@@ -493,10 +512,27 @@ class HistorialPanel(QWidget):
                 QColor("#16A34A") if v.ganancia_neta >= 0 else QColor("#DC2626")
             )
             self.tabla_detalle.setItem(row, 5, item_gn)
+            # Margen %
+            ingresos = v.precio * v.cantidad
+            if ingresos > 0:
+                margen = round(v.ganancia_neta / ingresos * 100, 1)
+                margen_txt = f"{margen:+.1f}%"
+                margen_color = (
+                    QColor("#15803D") if margen >= 20 else
+                    QColor("#D97706") if margen >= 10 else
+                    QColor("#DC2626")
+                )
+            else:
+                margen_txt = "—"
+                margen_color = QColor("#9CA3AF")
+            item_margen = QTableWidgetItem(margen_txt)
+            item_margen.setTextAlignment(Qt.AlignCenter)
+            item_margen.setForeground(margen_color)
+            self.tabla_detalle.setItem(row, 6, item_margen)
             # Fecha en columna notas para dar contexto al buscar todo el mes
-            self._celda_det(row, 6, fecha_corta(v.fecha))
-            self.tabla_detalle.setCellWidget(row, 7, self._btn_editar(v.id))
-            self.tabla_detalle.setCellWidget(row, 8, self._btn_eliminar(v.id))
+            self._celda_det(row, 7, fecha_corta(v.fecha))
+            self.tabla_detalle.setCellWidget(row, 8, self._btn_editar(v.id))
+            self.tabla_detalle.setCellWidget(row, 9, self._btn_eliminar(v.id))
 
     def _cerrar_detalle(self) -> None:
         self._fecha_seleccionada = None

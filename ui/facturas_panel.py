@@ -499,15 +499,43 @@ class FacturasPanel(QWidget):
         )
         lay = QHBoxLayout(frame)
         lay.setContentsMargins(14, 6, 14, 6)
-        lay.setSpacing(20)
+        lay.setSpacing(16)
 
-        self._lbl_total_facturas = QLabel("0 facturas")
+        self._lbl_total_facturas  = QLabel("0 facturas")
         self._lbl_total_pendiente = QLabel("Por pagar: $ 0")
-        self._lbl_total_pagado = QLabel("Pagado: $ 0")
+        self._lbl_total_pagado    = QLabel("Pagado: $ 0")
 
         for lbl in (self._lbl_total_facturas, self._lbl_total_pendiente, self._lbl_total_pagado):
             lbl.setStyleSheet(
                 "font-size:12px; font-weight:bold; color:#374151;"
+                "background:transparent; border:none;"
+            )
+            lay.addWidget(lbl)
+
+        # Separador
+        sep = QFrame(); sep.setFrameShape(QFrame.VLine)
+        sep.setStyleSheet("color:#CBD5E1;")
+        sep.setFixedHeight(18)
+        lay.addWidget(sep)
+
+        # Flujo de caja: vencidas | próx. 7d | próx. 30d
+        lbl_flujo = QLabel("Flujo:")
+        lbl_flujo.setStyleSheet(
+            "font-size:11px; color:#6B7280; background:transparent; border:none;"
+        )
+        lay.addWidget(lbl_flujo)
+
+        self._lbl_vencidas  = QLabel("Vencidas: $ 0")
+        self._lbl_prox7     = QLabel("7 días: $ 0")
+        self._lbl_prox30    = QLabel("30 días: $ 0")
+
+        for lbl, color in (
+            (self._lbl_vencidas, "#DC2626"),
+            (self._lbl_prox7,    "#D97706"),
+            (self._lbl_prox30,   "#1D4ED8"),
+        ):
+            lbl.setStyleSheet(
+                f"font-size:11px; font-weight:bold; color:{color};"
                 "background:transparent; border:none;"
             )
             lay.addWidget(lbl)
@@ -598,13 +626,30 @@ class FacturasPanel(QWidget):
     def _actualizar_resumen(self) -> None:
         todas = self._ctrl.cargar_todos()
         n = len(self._facturas)
-        por_pagar = sum(f.monto for f in todas if f.estado == "pendiente")
-        pagado    = sum(f.monto for f in todas if f.estado == "pagada")
-        self._lbl_total_facturas.setText(
-            f"{n} factura{'s' if n != 1 else ''}"
-        )
+        pendientes = [f for f in todas if f.estado == "pendiente"]
+        por_pagar  = sum(f.monto for f in pendientes)
+        pagado     = sum(f.monto for f in todas if f.estado == "pagada")
+
+        self._lbl_total_facturas.setText(f"{n} factura{'s' if n != 1 else ''}")
         self._lbl_total_pendiente.setText(f"Por pagar: {cop(por_pagar)}")
         self._lbl_total_pagado.setText(f"Pagado: {cop(pagado)}")
+
+        # Flujo de caja por rango de vencimiento
+        vencidas = sum(
+            f.monto for f in pendientes
+            if f.dias_para_vencer is not None and f.dias_para_vencer < 0
+        )
+        prox7 = sum(
+            f.monto for f in pendientes
+            if f.dias_para_vencer is not None and 0 <= f.dias_para_vencer <= 7
+        )
+        prox30 = sum(
+            f.monto for f in pendientes
+            if f.dias_para_vencer is not None and 0 <= f.dias_para_vencer <= 30
+        )
+        self._lbl_vencidas.setText(f"Vencidas: {cop(vencidas)}")
+        self._lbl_prox7.setText(f"7 días: {cop(prox7)}")
+        self._lbl_prox30.setText(f"30 días: {cop(prox30)}")
 
     # ---- Widgets de celda ----
 

@@ -748,6 +748,24 @@ class VentaForm(QWidget):
                         f"al precio total ({_cop(total_esperado)})."
                     )
 
+            # Verificar stock antes de guardar
+            try:
+                from database.inventario_repo import obtener_producto_por_nombre_exacto
+                prod_inv = obtener_producto_por_nombre_exacto(producto)
+                if prod_inv is not None and prod_inv.cantidad < self.campo_cantidad.value():
+                    resp = QMessageBox.warning(
+                        self, "Stock insuficiente",
+                        f"Stock disponible: <b>{prod_inv.cantidad} uds.</b><br>"
+                        f"Vas a registrar: <b>{self.campo_cantidad.value()} uds.</b><br><br>"
+                        "¿Continuar de todas formas?",
+                        QMessageBox.Yes | QMessageBox.No,
+                        QMessageBox.No,
+                    )
+                    if resp != QMessageBox.Yes:
+                        return
+            except Exception:
+                pass
+
             venta = self._ctrl.guardar_nueva_venta(
                 fecha=fecha,
                 producto=producto,

@@ -396,16 +396,16 @@ class PrestamosPanel(QWidget):
             pendientes = self._ctrl.cargar_pendientes()
 
         n = len(pendientes)
+        urgentes = [p for p in pendientes if (date.today() - p.fecha).days >= 30]
+        u = len(urgentes)
+
         if n == 0:
             self.lbl_alerta.setText("Sin préstamos pendientes. Todo en orden.")
-        elif n == 1:
-            self.lbl_alerta.setText(
-                "1 préstamo pendiente por cobrar o recuperar — no olvides ir a buscarlo."
-            )
         else:
-            self.lbl_alerta.setText(
-                f"{n} préstamos pendientes por cobrar o recuperar — no olvides ir a buscarlos."
-            )
+            base = f"{n} préstamo{'s' if n != 1 else ''} pendiente{'s' if n != 1 else ''}"
+            if u > 0:
+                base += f"  —  {u} con más de 30 días sin resolver"
+            self.lbl_alerta.setText(base)
 
     # ------------------------------------------------------------------
     # Widgets de celda
@@ -415,9 +415,9 @@ class PrestamosPanel(QWidget):
         """Badge con días transcurridos; color según urgencia (solo aplica a pendientes)."""
         if estado != "pendiente":
             bg, fg = "#F1F5F9", "#64748B"
-        elif dias <= 7:
+        elif dias < 30:
             bg, fg = "#DCFCE7", "#15803D"
-        elif dias <= 30:
+        elif dias < 60:
             bg, fg = "#FEF3C7", "#92400E"
         else:
             bg, fg = "#FEE2E2", "#DC2626"

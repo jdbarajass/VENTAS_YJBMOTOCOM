@@ -41,8 +41,15 @@ class ResumenDiario:
         return self.utilidad_real >= 0
 
     @property
+    def margen_ganancia(self) -> float:
+        """Ganancia neta como % sobre ingresos (despues de comisiones)."""
+        if self.total_ingresos == 0:
+            return 0.0
+        return round(self.ganancia_neta / self.total_ingresos * 100, 1)
+
+    @property
     def margen_porcentual(self) -> float:
-        """Margen de utilidad real sobre ingresos (%)."""
+        """Utilidad real como % sobre ingresos (despues de gastos fijos)."""
         if self.total_ingresos == 0:
             return 0.0
         return round(self.utilidad_real / self.total_ingresos * 100, 1)
@@ -68,6 +75,20 @@ class ResumenMensual:
     @property
     def dias_con_ventas(self) -> int:
         return len(self.resumen_por_dia)
+
+    @property
+    def margen_ganancia(self) -> float:
+        """Ganancia neta como % sobre ingresos (despues de comisiones)."""
+        if self.total_ingresos == 0:
+            return 0.0
+        return round(self.ganancia_neta / self.total_ingresos * 100, 1)
+
+    @property
+    def margen_utilidad(self) -> float:
+        """Utilidad real como % sobre ingresos (despues de gastos fijos)."""
+        if self.total_ingresos == 0:
+            return 0.0
+        return round(self.utilidad_real / self.total_ingresos * 100, 1)
 
     @property
     def es_positivo(self) -> bool:

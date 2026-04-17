@@ -19,7 +19,7 @@ def _row_to_venta(row: sqlite3.Row) -> Venta:
     keys = row.keys()
     pagos_raw = row["pagos_combinados"] if "pagos_combinados" in keys else None
     pagos = json.loads(pagos_raw) if pagos_raw else None
-    return Venta(
+    v = Venta(
         id=row["id"],
         fecha=date.fromisoformat(row["fecha"]),
         producto=row["producto"],
@@ -32,11 +32,22 @@ def _row_to_venta(row: sqlite3.Row) -> Venta:
         notas=row["notas"] or "",
         pagos_combinados=pagos,
     )
+    v.grupo_venta_id = row["grupo_venta_id"] if "grupo_venta_id" in keys else None
+    return v
 
 
 # ------------------------------------------------------------------
 # CREATE
 # ------------------------------------------------------------------
+
+def siguiente_grupo_venta_id() -> int:
+    """Retorna el proximo grupo_venta_id disponible (max existente + 1)."""
+    conn = DatabaseConnection.get()
+    row = conn.execute(
+        "SELECT COALESCE(MAX(grupo_venta_id), 0) + 1 FROM ventas"
+    ).fetchone()
+    return row[0]
+
 
 def insertar_venta(venta: Venta) -> int:
     """
@@ -45,12 +56,13 @@ def insertar_venta(venta: Venta) -> int:
     """
     conn = DatabaseConnection.get()
     pagos_json = json.dumps(venta.pagos_combinados) if venta.pagos_combinados else None
+    grupo_id = getattr(venta, "grupo_venta_id", None)
     cursor = conn.execute(
         """
         INSERT INTO ventas
             (fecha, producto, costo, precio, metodo_pago, cantidad,
-             comision, ganancia_neta, notas, pagos_combinados)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+             comision, ganancia_neta, notas, pagos_combinados, grupo_venta_id)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         (
             venta.fecha.isoformat(),
@@ -63,6 +75,7 @@ def insertar_venta(venta: Venta) -> int:
             venta.ganancia_neta,
             venta.notas,
             pagos_json,
+            grupo_id,
         ),
     )
     conn.commit()

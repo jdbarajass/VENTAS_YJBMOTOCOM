@@ -120,7 +120,88 @@ class VentaController:
         return venta
 
     # ------------------------------------------------------------------
-    # Actualizar venta existente (CRUD — edición)
+    # Guardar carrito multi-producto
+    # ------------------------------------------------------------------
+
+    def guardar_carrito(
+        self,
+        fecha: date,
+        lineas: list[dict],  # [{producto, costo, precio, cantidad}]
+        metodo_pago: str,
+        notas: str,
+        pagos_combinados: list | None = None,
+    ) -> list:
+        """
+        Guarda un carrito con N productos. Crea N ventas independientes.
+        Si N > 1, todas comparten el mismo grupo_venta_id.
+        Para pagos combinados, distribuye los montos proporcional al valor de cada producto.
+        Retorna la lista de Venta creadas.
+        """
+        if not lineas:
+            raise ValueError("El carrito no tiene productos.")
+        for ln in lineas:
+            self._validar(ln["producto"], ln["costo"], ln["precio"])
+
+        cfg = self.get_configuracion()
+        metodo_final = "Combinado" if pagos_combinados else metodo_pago
+        total_carrito = sum(ln["precio"] * ln["cantidad"] for ln in lineas)
+
+        from database.ventas_repo import siguiente_grupo_venta_id
+        grupo_id = siguiente_grupo_venta_id() if len(lineas) > 1 else None
+
+        ventas = []
+        for i, ln in enumerate(lineas):
+            # Distribuir pagos_combinados proporcionalmente
+            pagos_linea = None
+            if pagos_combinados and total_carrito > 0:
+                valor_linea = ln["precio"] * ln["cantidad"]
+                proporcion = valor_linea / total_carrito
+                if i < len(lineas) - 1:
+                    pagos_linea = [
+                        {"metodo": p["metodo"],
+                         "monto": round(p["monto"] * proporcion)}
+                        for p in pagos_combinados
+                    ]
+                else:
+                    # Ultimo producto: usar el saldo restante para evitar redondeos
+                    asignados: dict = {}
+                    for v in ventas:
+                        for pc in (v.pagos_combinados or []):
+                            asignados[pc["metodo"]] = (
+                                asignados.get(pc["metodo"], 0) + pc["monto"]
+                            )
+                    pagos_linea = [
+                        {"metodo": p["metodo"],
+                         "monto": p["monto"] - asignados.get(p["metodo"], 0)}
+                        for p in pagos_combinados
+                    ]
+
+            venta = Venta(
+                producto=ln["producto"].strip(),
+                costo=ln["costo"],
+                precio=ln["precio"],
+                metodo_pago=metodo_final,
+                fecha=fecha,
+                cantidad=ln["cantidad"],
+                notas=notas.strip() if i == 0 else "",
+                pagos_combinados=pagos_linea,
+                grupo_venta_id=grupo_id,
+            )
+            completar_venta(venta, cfg)
+            insertar_venta(venta)
+
+            try:
+                from database.inventario_repo import decrementar_cantidad
+                decrementar_cantidad(venta.producto, venta.cantidad)
+            except Exception:
+                pass
+
+            ventas.append(venta)
+
+        return ventas
+
+    # ------------------------------------------------------------------
+    # Actualizar venta existente (CRUD — edicion)
     # ------------------------------------------------------------------
 
     def actualizar_venta_existente(

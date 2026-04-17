@@ -33,7 +33,7 @@ class EditVentaDialog(QDialog):
         super().__init__(parent)
         self._venta_original = venta
         self._ctrl = VentaController()
-        self._filas_pago: list[tuple] = []   # (QComboBox, MoneyLineEdit, QWidget)
+        self._filas_pago: list[tuple] = []   # (QComboBox_metodo, MoneyLineEdit, QWidget_row, QComboBox_sub)
         self.setWindowTitle(f"Editar venta — {venta.producto}")
         self.setMinimumWidth(700)
         self.setModal(True)
@@ -219,17 +219,7 @@ class EditVentaDialog(QDialog):
         return w
 
     def _agregar_fila_pago(self, metodo: str = "Efectivo", monto: int = 0) -> None:
-        row_w = QWidget()
-        row_w.setStyleSheet("background:transparent;")
-        lay = QHBoxLayout(row_w)
-        lay.setContentsMargins(0, 0, 0, 0)
-        lay.setSpacing(4)
-
-        combo = QComboBox()
-        combo.addItems(METODOS_PAGO)
-        combo.setCurrentText(metodo)
-        combo.setFixedHeight(28)
-        combo.setStyleSheet("""
+        _combo_style = """
             QComboBox {
                 background: white; color: #1E293B;
                 border: 1px solid #D1D5DB; border-radius: 4px; padding: 0 8px;
@@ -240,7 +230,29 @@ class EditVentaDialog(QDialog):
                 selection-background-color: #DBEAFE; selection-color: #1E3A5F;
                 border: 1px solid #BFDBFE;
             }
-        """)
+        """
+        row_w = QWidget()
+        row_w.setStyleSheet("background:transparent;")
+        lay = QHBoxLayout(row_w)
+        lay.setContentsMargins(0, 0, 0, 0)
+        lay.setSpacing(4)
+
+        metodo_base = metodo.split()[0] if metodo else "Efectivo"
+        subtipo = metodo.split()[1] if metodo.startswith("Transferencia ") else TRANSFERENCIA_SUBTIPOS[0]
+
+        combo = QComboBox()
+        combo.addItems(METODOS_PAGO)
+        combo.setCurrentText(metodo_base)
+        combo.setFixedHeight(28)
+        combo.setStyleSheet(_combo_style)
+
+        combo_sub = QComboBox()
+        combo_sub.addItems(TRANSFERENCIA_SUBTIPOS)
+        combo_sub.setCurrentText(subtipo)
+        combo_sub.setFixedHeight(28)
+        combo_sub.setFixedWidth(80)
+        combo_sub.setStyleSheet(_combo_style)
+        combo_sub.setVisible(metodo_base == "Transferencia")
 
         monto_edit = MoneyLineEdit()
         monto_edit.setPlaceholderText("0")
@@ -257,36 +269,42 @@ class EditVentaDialog(QDialog):
         )
 
         lay.addWidget(combo, stretch=2)
+        lay.addWidget(combo_sub)
         lay.addWidget(monto_edit, stretch=2)
         lay.addWidget(btn_del)
 
-        combo.currentTextChanged.connect(self._actualizar_preview)
+        def _on_metodo_fila(texto: str) -> None:
+            combo_sub.setVisible(texto == "Transferencia")
+            self._actualizar_preview()
+
+        combo.currentTextChanged.connect(_on_metodo_fila)
+        combo_sub.currentTextChanged.connect(self._actualizar_preview)
         monto_edit.textChanged.connect(self._actualizar_status_combinado)
         monto_edit.textChanged.connect(self._actualizar_preview)
         btn_del.clicked.connect(lambda _=False, w=row_w: self._eliminar_fila_pago(w))
 
         self._pagos_layout.addWidget(row_w)
-        self._filas_pago.append((combo, monto_edit, row_w))
+        self._filas_pago.append((combo, monto_edit, row_w, combo_sub))
         self._actualizar_status_combinado()
 
     def _eliminar_fila_pago(self, row_w: QWidget) -> None:
-        self._filas_pago = [(c, m, w) for c, m, w in self._filas_pago if w is not row_w]
+        self._filas_pago = [t for t in self._filas_pago if t[2] is not row_w]
         row_w.setParent(None)
         row_w.deleteLater()
         self._actualizar_status_combinado()
         self._actualizar_preview()
 
     def _limpiar_filas_pago(self) -> None:
-        for _, _, w in self._filas_pago:
-            w.setParent(None)
-            w.deleteLater()
+        for t in self._filas_pago:
+            t[2].setParent(None)
+            t[2].deleteLater()
         self._filas_pago = []
 
     def _on_agregar_pago(self) -> None:
         self._agregar_fila_pago()
 
     def _actualizar_status_combinado(self) -> None:
-        asignado = sum(m.valor_int() for _, m, _ in self._filas_pago)
+        asignado = sum(t[1].valor_int() for t in self._filas_pago)
         precio = self._int(self.campo_precio.text())
         total = precio * self.campo_cantidad.value()
         color = "#15803D" if asignado == total and total > 0 else (
@@ -303,10 +321,15 @@ class EditVentaDialog(QDialog):
         if not self._btn_combinado.isChecked():
             return None
         pagos = []
-        for combo, monto_edit, _ in self._filas_pago:
+        for t in self._filas_pago:
+            combo, monto_edit = t[0], t[1]
+            combo_sub = t[3] if len(t) > 3 else None
             monto = monto_edit.valor_int()
             if monto > 0:
-                pagos.append({"metodo": combo.currentText(), "monto": float(monto)})
+                metodo = combo.currentText()
+                if metodo == "Transferencia" and combo_sub is not None:
+                    metodo = f"Transferencia {combo_sub.currentText()}"
+                pagos.append({"metodo": metodo, "monto": float(monto)})
         return pagos if pagos else None
 
     def _on_toggle_combinado(self, activo: bool) -> None:

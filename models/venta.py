@@ -25,6 +25,8 @@ class Venta:
     # Pagos combinados: lista de {"metodo": str, "monto": float} cuando el cliente
     # paga con más de un método. Si está presente, metodo_pago = "Combinado".
     pagos_combinados: list | None = None
+    # Agrupa varias ventas de un mismo carrito (multi-producto). None = venta simple.
+    grupo_venta_id: int | None = None
 
     # ------------------------------------------------------------------
     # Propiedades derivadas (sin acceso a BD)

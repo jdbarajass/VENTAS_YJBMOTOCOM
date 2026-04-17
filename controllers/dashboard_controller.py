@@ -14,6 +14,23 @@ from database.facturas_repo import obtener_facturas_pendientes
 from services.reportes import calcular_resumen_diario, ResumenDiario
 
 
+def _expandir_metodos(ventas: list) -> dict:
+    """
+    Devuelve {metodo: total_ingresos} expandiendo pagos combinados.
+    - Venta simple: acumula por v.metodo_pago (ej. "Transferencia NEQUI")
+    - Venta combinada: acumula por cada entrada de pagos_combinados
+    Nunca aparece "Combinado" como clave — siempre se expande a los metodos reales.
+    """
+    totales: dict[str, float] = defaultdict(float)
+    for v in ventas:
+        if v.pagos_combinados:
+            for pago in v.pagos_combinados:
+                totales[pago["metodo"]] += pago["monto"]
+        else:
+            totales[v.metodo_pago] += v.precio * v.cantidad
+    return dict(totales)
+
+
 class DashboardController:
 
     def get_datos_dia(self, fecha: date) -> dict:
@@ -33,11 +50,8 @@ class DashboardController:
 
         resumen = calcular_resumen_diario(ventas, cfg, fecha, gastos_total)
 
-        # ── Desglose por método de pago ───────────────────────────────
-        por_metodo: dict[str, float] = defaultdict(float)
-        for v in ventas:
-            metodo = v.metodo_pago.split()[0]
-            por_metodo[metodo] += v.precio * v.cantidad
+        # ── Desglose por método de pago (expandiendo pagos combinados) ──
+        por_metodo = _expandir_metodos(ventas)
 
         # ── Productos vendidos ────────────────────────────────────────
         prods: dict[str, dict] = defaultdict(lambda: {"cant": 0, "ing": 0.0, "gan": 0.0})
@@ -92,7 +106,9 @@ class DashboardController:
         comisiones_plataforma: dict[str, float] = {}
         for v in ventas_hasta:
             if v.comision > 0:
-                metodo = v.metodo_pago.split()[0]
+                # Para pagos simples usar metodo_pago directo; para combinados
+                # distribuir proporcionalmente (la comision ya esta calculada en total)
+                metodo = v.metodo_pago if v.metodo_pago != "Combinado" else "Combinado"
                 comisiones_plataforma[metodo] = round(
                     comisiones_plataforma.get(metodo, 0.0) + v.comision, 2
                 )

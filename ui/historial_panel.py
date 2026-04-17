@@ -135,10 +135,14 @@ class HistorialPanel(QWidget):
         f = QFont(); f.setPointSize(16); f.setBold(True)
         lbl_v.setFont(f)
         lbl_v.setStyleSheet(f"color: {color};")
+        lbl_s = QLabel("")
+        lbl_s.setStyleSheet("color:#9CA3AF; font-size:10px;")
         lay.addWidget(lbl_t)
         lay.addWidget(lbl_v)
+        lay.addWidget(lbl_s)
 
         w._lbl_valor = lbl_v
+        w._lbl_sub   = lbl_s
         w._color_base = color
         return w
 
@@ -326,11 +330,25 @@ class HistorialPanel(QWidget):
         self.card_g_neta._lbl_valor.setStyleSheet(
             f"color:{color_neta}; font-size:16px; font-weight:bold;"
         )
+        pct_neta_color = "#15803D" if r.margen_ganancia >= 20 else (
+            "#D97706" if r.margen_ganancia >= 10 else "#DC2626"
+        )
+        self.card_g_neta._lbl_sub.setText(f"{r.margen_ganancia:+.1f}% sobre ingresos")
+        self.card_g_neta._lbl_sub.setStyleSheet(
+            f"color:{pct_neta_color}; font-size:10px; font-weight:bold;"
+        )
 
         color_util = "#16A34A" if r.utilidad_real >= 0 else "#DC2626"
         self.card_utilidad._lbl_valor.setText(cop(r.utilidad_real))
         self.card_utilidad._lbl_valor.setStyleSheet(
             f"color:{color_util}; font-size:16px; font-weight:bold;"
+        )
+        pct_util_color = "#15803D" if r.margen_utilidad >= 10 else (
+            "#D97706" if r.margen_utilidad >= 0 else "#DC2626"
+        )
+        self.card_utilidad._lbl_sub.setText(f"{r.margen_utilidad:+.1f}% sobre ingresos")
+        self.card_utilidad._lbl_sub.setStyleSheet(
+            f"color:{pct_util_color}; font-size:10px; font-weight:bold;"
         )
 
         self.card_positivos._lbl_valor.setText(str(r.dias_positivos))

@@ -427,7 +427,7 @@ class DashboardPanel(QWidget):
         self._card_gasto_dia   = _MiniCard("Gasto fijo diario",     "$ 0")
         self._card_gasto_extra = _MiniCard("Gastos extra hoy",      "$ 0")
         self._card_gasto_mes   = _MiniCard("Gastos fijos del mes",  "$ 0")
-        self._card_margen      = _MiniCard("Margen sobre ingresos", "0.0 %")
+        self._card_margen      = _MiniCard("Util % sobre ingresos", "0.0 %")
 
         for c in (self._card_gasto_dia, self._card_gasto_extra,
                   self._card_gasto_mes, self._card_margen):
@@ -605,7 +605,7 @@ class DashboardPanel(QWidget):
         color_neta = "#16A34A" if r.ganancia_neta >= 0 else "#DC2626"
         self.card_g_neta.actualizar(
             cop(r.ganancia_neta),
-            subtitulo=f"Margen bruto: {porcentaje(r.margen_porcentual, 1)}",
+            subtitulo=f"G.Neta %: {porcentaje(r.margen_ganancia, 1)} sobre ingresos",
             color_valor=color_neta,
         )
 

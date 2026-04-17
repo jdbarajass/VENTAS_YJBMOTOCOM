@@ -148,7 +148,7 @@ class VentasDiaPanel(QWidget):
 
         # Anchos de columna — todas interactivas (el usuario puede deslizar cualquier columna)
         hh = self.tabla.horizontalHeader()
-        hh.setSectionResizeMode(COL_NUM,      QHeaderView.Interactive); self.tabla.setColumnWidth(COL_NUM, 40)
+        hh.setSectionResizeMode(COL_NUM,      QHeaderView.Interactive); self.tabla.setColumnWidth(COL_NUM, 64)
         hh.setSectionResizeMode(COL_FECHA,    QHeaderView.Interactive); self.tabla.setColumnWidth(COL_FECHA, 100)
         hh.setSectionResizeMode(COL_PRODUCTO, QHeaderView.Interactive); self.tabla.setColumnWidth(COL_PRODUCTO, 210)
         hh.setSectionResizeMode(COL_CANT,     QHeaderView.Interactive); self.tabla.setColumnWidth(COL_CANT, 52)
@@ -158,7 +158,7 @@ class VentasDiaPanel(QWidget):
         hh.setSectionResizeMode(COL_COMISION, QHeaderView.Interactive); self.tabla.setColumnWidth(COL_COMISION, 105)
         hh.setSectionResizeMode(COL_NETA,     QHeaderView.Interactive); self.tabla.setColumnWidth(COL_NETA, 120)
         hh.setSectionResizeMode(COL_NOTAS,    QHeaderView.Stretch)
-        hh.setSectionResizeMode(COL_ACCIONES, QHeaderView.Fixed);       self.tabla.setColumnWidth(COL_ACCIONES, 140)
+        hh.setSectionResizeMode(COL_ACCIONES, QHeaderView.Fixed);       self.tabla.setColumnWidth(COL_ACCIONES, 200)
 
         return self.tabla
 
@@ -256,12 +256,14 @@ class VentasDiaPanel(QWidget):
         self.lbl_costos     = self._chip("Costos: $ 0",      "#6B7280")
         self.lbl_comisiones = self._chip("Comisiones: $ 0",  "#92400E")
         self.lbl_neta_total = self._chip("G. neta: $ 0",     "#15803D")
+        self.lbl_pct_neta   = self._chip("G.Neta: —",        "#15803D")
         self.lbl_gastos_op  = self._chip("Gastos op.: $ 0",  "#B45309")
         self.lbl_utilidad   = self._chip("Utilidad: $ 0",    "#15803D")
+        self.lbl_pct_util   = self._chip("Util: —",          "#374151")
 
         for lbl in (self.lbl_cantidad, self.lbl_ingresos, self.lbl_costos,
-                    self.lbl_comisiones, self.lbl_neta_total,
-                    self.lbl_gastos_op, self.lbl_utilidad):
+                    self.lbl_comisiones, self.lbl_neta_total, self.lbl_pct_neta,
+                    self.lbl_gastos_op, self.lbl_utilidad, self.lbl_pct_util):
             lay.addWidget(lbl)
 
         lay.addStretch()
@@ -333,13 +335,51 @@ class VentasDiaPanel(QWidget):
         self.tabla.setRowCount(0)
         self.tabla.setRowCount(len(self._ventas))
 
+        # --- Indicador visual de carrito (grupo_venta_id) ---
+        # Paleta de fondos suaves para distinguir grupos distintos
+        _GRUPO_COLORES = [
+            QColor("#DBEAFE"),  # azul
+            QColor("#FCE7F3"),  # rosa
+            QColor("#D1FAE5"),  # verde
+            QColor("#EDE9FE"),  # violeta
+            QColor("#FEF3C7"),  # ámbar
+        ]
+        # Lista ordenada de grupo_ids únicos presentes hoy
+        grupo_ids: list[int] = []
+        for v in self._ventas:
+            gid = getattr(v, "grupo_venta_id", None)
+            if gid is not None and gid not in grupo_ids:
+                grupo_ids.append(gid)
+        # Cuenta de items por grupo (para badge "1/2", "2/2", etc.)
+        grupo_counts: dict[int, int] = {}
+        for v in self._ventas:
+            gid = getattr(v, "grupo_venta_id", None)
+            if gid is not None:
+                grupo_counts[gid] = grupo_counts.get(gid, 0) + 1
+        grupo_cursor: dict[int, int] = {}  # posición actual dentro del grupo
+
         for row, v in enumerate(self._ventas):
             self.tabla.setRowHeight(row, 36)
 
-            self._celda(row, COL_ID,       str(v.id),            Qt.AlignCenter)
-            self._celda(row, COL_NUM,      str(row + 1),         Qt.AlignCenter)
+            gid = getattr(v, "grupo_venta_id", None)
+            color_grupo: QColor | None = None
+            if gid is not None:
+                color_grupo = _GRUPO_COLORES[grupo_ids.index(gid) % len(_GRUPO_COLORES)]
+                grupo_cursor[gid] = grupo_cursor.get(gid, 0) + 1
+
+            self._celda(row, COL_ID, str(v.id), Qt.AlignCenter)
+
+            # Columna # — agrega badge "pos/total" si la venta pertenece a un carrito
+            if gid is not None:
+                pos   = grupo_cursor[gid]
+                total = grupo_counts[gid]
+                num_text = f"{row + 1}  [{pos}/{total}]"
+            else:
+                num_text = str(row + 1)
+            self._celda(row, COL_NUM, num_text, Qt.AlignCenter)
+
             self._celda(row, COL_FECHA,    fecha_corta(v.fecha), Qt.AlignCenter)
-            # Producto con tooltip para ver nombre completo al posar el mouse
+            # Producto con tooltip
             item_prod = QTableWidgetItem(v.producto)
             item_prod.setToolTip(v.producto)
             self.tabla.setItem(row, COL_PRODUCTO, item_prod)
@@ -367,6 +407,13 @@ class VentasDiaPanel(QWidget):
             self.tabla.setItem(row, COL_NETA, item_neta)
 
             self._celda(row, COL_NOTAS, v.notas or "")
+
+            # Aplicar fondo de grupo a todas las celdas (excluye la celda de botones)
+            if color_grupo is not None:
+                for col in range(COL_ACCIONES):
+                    item = self.tabla.item(row, col)
+                    if item:
+                        item.setBackground(color_grupo)
 
             # Botones de acción
             self.tabla.setCellWidget(row, COL_ACCIONES, self._widget_acciones(v.id))
@@ -451,27 +498,38 @@ class VentasDiaPanel(QWidget):
         w = QWidget()
         lay = QHBoxLayout(w)
         lay.setContentsMargins(4, 2, 4, 2)
-        lay.setSpacing(6)
+        lay.setSpacing(4)
 
         btn_editar = QPushButton("Editar")
         btn_editar.setFixedHeight(26)
         btn_editar.setStyleSheet(
             "QPushButton { background:#EFF6FF; color:#1D4ED8; border:1px solid #BFDBFE;"
-            "border-radius:4px; font-size:11px; font-weight:bold; padding:0 10px; }"
+            "border-radius:4px; font-size:11px; font-weight:bold; padding:0 8px; }"
             "QPushButton:hover { background:#DBEAFE; }"
         )
         btn_editar.clicked.connect(lambda _, vid=venta_id: self._on_editar(vid))
+
+        btn_recibo = QPushButton("Recibo")
+        btn_recibo.setFixedHeight(26)
+        btn_recibo.setToolTip("Generar e imprimir recibo PDF")
+        btn_recibo.setStyleSheet(
+            "QPushButton { background:#F0FDF4; color:#15803D; border:1px solid #BBF7D0;"
+            "border-radius:4px; font-size:11px; font-weight:bold; padding:0 8px; }"
+            "QPushButton:hover { background:#DCFCE7; }"
+        )
+        btn_recibo.clicked.connect(lambda _, vid=venta_id: self._on_imprimir_recibo(vid))
 
         btn_eliminar = QPushButton("Borrar")
         btn_eliminar.setFixedHeight(26)
         btn_eliminar.setStyleSheet(
             "QPushButton { background:#FEF2F2; color:#DC2626; border:1px solid #FECACA;"
-            "border-radius:4px; font-size:11px; font-weight:bold; padding:0 10px; }"
+            "border-radius:4px; font-size:11px; font-weight:bold; padding:0 8px; }"
             "QPushButton:hover { background:#FEE2E2; }"
         )
         btn_eliminar.clicked.connect(lambda _, vid=venta_id: self._on_eliminar(vid))
 
         lay.addWidget(btn_editar)
+        lay.addWidget(btn_recibo)
         lay.addWidget(btn_eliminar)
         return w
 
@@ -485,17 +543,27 @@ class VentasDiaPanel(QWidget):
         cfg        = obtener_configuracion()
         utilidad   = round(neta - gastos_op - cfg.gasto_diario, 2)
 
+        pct_neta = round(neta / ingresos * 100, 1) if ingresos > 0 else 0.0
+        pct_util = round(utilidad / ingresos * 100, 1) if ingresos > 0 else 0.0
+
         self.lbl_cantidad.setText(f"{n} venta{'s' if n != 1 else ''}")
         self.lbl_ingresos.setText(f"Ingresos: {cop(ingresos)}")
         self.lbl_costos.setText(f"Costos: {cop(costos)}")
         self.lbl_comisiones.setText(f"Comisiones: {cop(comisiones)}")
         self.lbl_neta_total.setText(f"G. neta: {cop(neta)}")
+        self.lbl_pct_neta.setText(f"G.Neta: {pct_neta:+.1f}%")
         self.lbl_gastos_op.setText(f"Gastos op.: {cop(gastos_op)}")
         self.lbl_utilidad.setText(f"Utilidad: {cop(utilidad)}")
+        self.lbl_pct_util.setText(f"Util: {pct_util:+.1f}%")
 
         color_neta = "#15803D" if neta >= 0 else "#DC2626"
         self.lbl_neta_total.setStyleSheet(
             f"color: {color_neta}; font-weight: bold; font-size: 12px;"
+            f"background: #F1F5F9; border-radius: 4px; padding: 4px 10px;"
+        )
+        color_pct_neta = "#15803D" if pct_neta >= 20 else ("#D97706" if pct_neta >= 10 else "#DC2626")
+        self.lbl_pct_neta.setStyleSheet(
+            f"color: {color_pct_neta}; font-weight: bold; font-size: 12px;"
             f"background: #F1F5F9; border-radius: 4px; padding: 4px 10px;"
         )
         color_util = "#15803D" if utilidad >= 0 else "#DC2626"
@@ -503,14 +571,15 @@ class VentasDiaPanel(QWidget):
             f"color: {color_util}; font-weight: bold; font-size: 12px;"
             f"background: #F1F5F9; border-radius: 4px; padding: 4px 10px;"
         )
+        color_pct_util = "#15803D" if pct_util >= 10 else ("#D97706" if pct_util >= 0 else "#DC2626")
+        self.lbl_pct_util.setStyleSheet(
+            f"color: {color_pct_util}; font-weight: bold; font-size: 12px;"
+            f"background: #F1F5F9; border-radius: 4px; padding: 4px 10px;"
+        )
 
-        # Totales por método de pago
-        totales: dict[str, float] = {}
-        for v in self._ventas:
-            # "Transferencia NEQUI" → "Transferencia"
-            metodo = v.metodo_pago.split()[0]
-            totales[metodo] = totales.get(metodo, 0.0) + v.precio * v.cantidad
-        self._actualizar_metodos(totales)
+        # Totales por metodo de pago (expandiendo pagos combinados)
+        from controllers.dashboard_controller import _expandir_metodos
+        self._actualizar_metodos(_expandir_metodos(self._ventas))
 
     def _actualizar_metodos(self, totales: dict) -> None:
         """Reemplaza los chips de métodos de pago con los datos actuales."""
@@ -528,17 +597,21 @@ class VentasDiaPanel(QWidget):
             self._lay_metodos.addWidget(self._lbl_sin_ventas)
             return
 
-        # Colores por método
+        # Colores por metodo (los sub-tipos de transferencia heredan el color azul)
         _COLORES = {
-            "Efectivo":      ("#DCFCE7", "#15803D"),
-            "Bold":          ("#FEF3C7", "#92400E"),
-            "Addi":          ("#EDE9FE", "#6D28D9"),
-            "Transferencia": ("#DBEAFE", "#1D4ED8"),
-            "Otro":          ("#F3F4F6", "#374151"),
+            "Efectivo":               ("#DCFCE7", "#15803D"),
+            "Bold":                   ("#FEF3C7", "#92400E"),
+            "Addi":                   ("#EDE9FE", "#6D28D9"),
+            "Transferencia":          ("#DBEAFE", "#1D4ED8"),
+            "Transferencia NU":       ("#DBEAFE", "#1D4ED8"),
+            "Transferencia QR":       ("#E0F2FE", "#0369A1"),
+            "Transferencia NEQUI":    ("#EFF6FF", "#2563EB"),
+            "Transferencia DAVIPLATA":("#F0F9FF", "#0284C7"),
+            "Otro":                   ("#F3F4F6", "#374151"),
         }
 
         for metodo, total in sorted(totales.items()):
-            bg, fg = _COLORES.get(metodo, ("#F3F4F6", "#374151"))
+            bg, fg = _COLORES.get(metodo, ("#DBEAFE", "#1D4ED8") if "Transferencia" in metodo else ("#F3F4F6", "#374151"))
             lbl = QLabel(f"{metodo}: {cop(total)}")
             lbl.setStyleSheet(
                 f"background:{bg}; color:{fg}; border-radius:4px;"
@@ -573,6 +646,22 @@ class VentasDiaPanel(QWidget):
         if resp == QMessageBox.Yes:
             self._ctrl.eliminar(venta_id)
             self._cargar_datos()
+
+    def _on_imprimir_recibo(self, venta_id: int) -> None:
+        """Genera el PDF del recibo y lo abre con el visor predeterminado."""
+        venta = next((v for v in self._ventas if v.id == venta_id), None)
+        if not venta:
+            return
+        try:
+            from services.recibo_generator import generar_recibo
+            from utils.pdf_utils import abrir_pdf
+            path = generar_recibo(venta)
+            abrir_pdf(path)
+        except Exception as exc:
+            QMessageBox.warning(
+                self, "Error al generar recibo",
+                f"No se pudo generar el PDF:\n{exc}"
+            )
 
     # ------------------------------------------------------------------
     # Acciones CRUD — gastos operativos

@@ -38,7 +38,7 @@ def main() -> None:
     hacer_backup()
 
     window = MainWindow()
-    window.show()
+    window.showMaximized()
 
     # Cerrar BD limpiamente al salir
     app.aboutToQuit.connect(DatabaseConnection.close)

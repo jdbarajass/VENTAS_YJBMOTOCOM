@@ -236,7 +236,7 @@ class HistorialPanel(QWidget):
         )
         self._campo_busqueda_hist.textChanged.connect(self._on_busqueda_hist)
 
-        self._btn_cerrar_detalle = QPushButton("✕ Cerrar")
+        self._btn_cerrar_detalle = QPushButton("X Cerrar")
         self._btn_cerrar_detalle.setFixedHeight(26)
         self._btn_cerrar_detalle.setStyleSheet(
             "QPushButton { border:1px solid #D1D5DB; border-radius:4px;"
@@ -246,10 +246,23 @@ class HistorialPanel(QWidget):
         self._btn_cerrar_detalle.clicked.connect(self._cerrar_detalle)
         self._btn_cerrar_detalle.setVisible(False)
 
+        self._btn_vista_dia = QPushButton("Ver Vista del Día")
+        self._btn_vista_dia.setFixedHeight(26)
+        self._btn_vista_dia.setStyleSheet(
+            "QPushButton { border:1px solid #BFDBFE; border-radius:4px;"
+            "background:#EFF6FF; color:#1D4ED8; padding:0 12px;"
+            "font-size:11px; font-weight:bold; }"
+            "QPushButton:hover { background:#DBEAFE; }"
+        )
+        self._btn_vista_dia.clicked.connect(self._on_abrir_vista_dia)
+        self._btn_vista_dia.setVisible(False)
+
         hb_lay.addWidget(self._lbl_detalle_titulo)
         hb_lay.addStretch()
         hb_lay.addWidget(self._campo_busqueda_hist)
         hb_lay.addSpacing(8)
+        hb_lay.addWidget(self._btn_vista_dia)
+        hb_lay.addSpacing(4)
         hb_lay.addWidget(self._btn_cerrar_detalle)
         lay.addWidget(header_bar)
 
@@ -421,6 +434,7 @@ class HistorialPanel(QWidget):
         self._lbl_placeholder.setVisible(False)
         self.tabla_detalle.setVisible(True)
         self._btn_cerrar_detalle.setVisible(True)
+        self._btn_vista_dia.setVisible(True)
         self._lbl_detalle_titulo.setText(
             f"  Ventas del {fecha_corta(fecha)}  —  {len(ventas)} venta(s)"
         )
@@ -560,7 +574,16 @@ class HistorialPanel(QWidget):
         self.tabla_detalle.setVisible(False)
         self._lbl_placeholder.setVisible(True)
         self._btn_cerrar_detalle.setVisible(False)
+        self._btn_vista_dia.setVisible(False)
         self._lbl_detalle_titulo.setText("  Detalle del Día")
+
+    def _on_abrir_vista_dia(self) -> None:
+        if self._fecha_seleccionada is None:
+            return
+        ventas_dia = [v for v in self._ventas if v.fecha == self._fecha_seleccionada]
+        from ui.vista_diaria_dialog import VistaDiariaDialog
+        dlg = VistaDiariaDialog(ventas_dia, self._fecha_seleccionada, self)
+        dlg.exec()
 
     # ------------------------------------------------------------------
     # Botones de acción (devuelven QPushButton directo, sin wrapper)

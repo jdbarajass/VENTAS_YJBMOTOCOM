@@ -150,12 +150,14 @@ class _LineaProducto:
         self._lbl_stock.setAlignment(Qt.AlignCenter)
         self._lbl_stock.setStyleSheet("font-size:9px; padding:1px 5px; border-radius:3px;")
 
-        btn_del = QPushButton("✕")
+        btn_del = QPushButton("X")
         btn_del.setFixedSize(26, 26)
+        btn_del.setToolTip("Quitar este producto del carrito")
         btn_del.setStyleSheet(
             "QPushButton { background:#FEE2E2; color:#DC2626; border:1px solid #FECACA;"
-            "border-radius:4px; font-size:11px; }"
+            "border-radius:4px; font-size:12px; font-weight:bold; }"
             "QPushButton:hover { background:#FECACA; }"
+            "QPushButton:disabled { background:#F3F4F6; color:#D1D5DB; border-color:#E5E7EB; }"
         )
         btn_del.clicked.connect(on_remove)
         self._btn_del = btn_del

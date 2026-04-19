@@ -11,7 +11,7 @@ from typing import NamedTuple
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
     QFileDialog, QTableWidget, QTableWidgetItem, QHeaderView,
-    QAbstractItemView, QFrame, QMessageBox, QLineEdit,
+    QAbstractItemView, QFrame, QMessageBox, QLineEdit, QComboBox,
 )
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QColor, QFont
@@ -75,8 +75,8 @@ class CarguesPedidosWidget(QWidget):
         root.addLayout(cab)
 
         info = QLabel(
-            "Carga el PDF de pedido de ACCESORIOS PARA MOTOS S.A.S. "
-            "El sistema extrae los cascos, sugiere nombres y genera códigos de barras. "
+            "Selecciona el proveedor, carga el PDF del pedido y el sistema extrae los cascos, "
+            "sugiere nombres y genera códigos de barras. "
             "Revisa, edita si es necesario y confirma para actualizar el inventario."
         )
         info.setWordWrap(True)
@@ -86,6 +86,26 @@ class CarguesPedidosWidget(QWidget):
             "border-radius:6px;padding:8px 12px;"
         )
         root.addWidget(info)
+
+        # ── Selector de proveedor ─────────────────────────────────────────
+        prov_row = QHBoxLayout(); prov_row.setSpacing(10)
+        lbl_prov = QLabel("Proveedor:")
+        lbl_prov.setStyleSheet("font-size:12px;font-weight:bold;color:#374151;")
+        self._combo_proveedor = QComboBox()
+        self._combo_proveedor.addItems([
+            "ACCESORIOS PARA MOTOS S.A.S.  (XTRONG)",
+            "DISTRIFABRICA RAMIREZ SAS  (SHAFT / HRO / ICH)",
+        ])
+        self._combo_proveedor.setFixedHeight(32)
+        self._combo_proveedor.setStyleSheet(
+            "QComboBox{border:1px solid #D1D5DB;border-radius:6px;"
+            "padding:0 10px;font-size:12px;background:white;}"
+            "QComboBox::drop-down{border:none;}"
+        )
+        prov_row.addWidget(lbl_prov)
+        prov_row.addWidget(self._combo_proveedor)
+        prov_row.addStretch()
+        root.addLayout(prov_row)
 
         # ── Barra de carga ────────────────────────────────────────────────
         barra = QHBoxLayout(); barra.setSpacing(10)
@@ -205,9 +225,20 @@ class CarguesPedidosWidget(QWidget):
         self._btn_limpiar.setEnabled(False)
         self._lbl_resumen.setVisible(False)
 
+        es_distrifabrica = "DISTRIFABRICA" in self._combo_proveedor.currentText()
+
         try:
-            from services.pdf_pedido_parser import parsear_pdf, generar_codigos_barras
-            items = parsear_pdf(ruta)
+            if es_distrifabrica:
+                from services.pdf_distrifabrica_parser import (
+                    parsear_pdf_distrifabrica,
+                    generar_codigos_barras_distrifabrica,
+                )
+                items = parsear_pdf_distrifabrica(ruta)
+                _gen_cbs = generar_codigos_barras_distrifabrica
+            else:
+                from services.pdf_pedido_parser import parsear_pdf, generar_codigos_barras
+                items = parsear_pdf(ruta)
+                _gen_cbs = generar_codigos_barras
         except ImportError as exc:
             QMessageBox.critical(self, "Dependencia faltante", str(exc))
             return
@@ -216,16 +247,22 @@ class CarguesPedidosWidget(QWidget):
             return
 
         if not items:
-            QMessageBox.information(
-                self, "Sin ítems",
-                "No se encontraron cascos XTRONG en el PDF.\n"
-                "Verifica que el archivo sea una factura de ACCESORIOS PARA MOTOS S.A.S."
-            )
+            if es_distrifabrica:
+                msg = (
+                    "No se encontraron cascos en el PDF de DISTRIFABRICA RAMIREZ SAS.\n"
+                    "Verifica que el archivo sea el correcto."
+                )
+            else:
+                msg = (
+                    "No se encontraron cascos XTRONG en el PDF.\n"
+                    "Verifica que el archivo sea una factura de ACCESORIOS PARA MOTOS S.A.S."
+                )
+            QMessageBox.information(self, "Sin ítems", msg)
             return
 
         # Generar códigos de barras
         try:
-            cbs = generar_codigos_barras(items)
+            cbs = _gen_cbs(items)
         except Exception:
             cbs = {}
 

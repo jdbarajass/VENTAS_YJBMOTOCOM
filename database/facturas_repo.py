@@ -24,12 +24,14 @@ def _parse_fecha(val) -> date | None:
 
 def _row_to_factura(row) -> Factura:
     fecha_obj = _parse_fecha(row["fecha_llegada"]) or date.today()
-    # fecha_vencimiento puede no existir en filas antiguas — usar dict.get con fallback
     try:
         fv_raw = row["fecha_vencimiento"]
     except (IndexError, KeyError):
         fv_raw = None
-    fecha_venc = _parse_fecha(fv_raw)
+    try:
+        fp_raw = row["fecha_pago"]
+    except (IndexError, KeyError):
+        fp_raw = None
 
     return Factura(
         id=row["id"],
@@ -39,26 +41,21 @@ def _row_to_factura(row) -> Factura:
         fecha_llegada=fecha_obj,
         estado=row["estado"],
         notas=row["notas"] or "",
-        fecha_vencimiento=fecha_venc,
+        fecha_vencimiento=_parse_fecha(fv_raw),
+        fecha_pago=_parse_fecha(fp_raw),
     )
 
 
 def insertar_factura(f: Factura) -> int:
     conn = DatabaseConnection.get()
     fv = f.fecha_vencimiento.strftime("%Y-%m-%d") if f.fecha_vencimiento else None
+    fp = f.fecha_pago.strftime("%Y-%m-%d") if f.fecha_pago else None
     cur = conn.execute(
         """INSERT INTO facturas
-           (descripcion, proveedor, monto, fecha_llegada, estado, notas, fecha_vencimiento)
-           VALUES (?, ?, ?, ?, ?, ?, ?)""",
-        (
-            f.descripcion,
-            f.proveedor,
-            f.monto,
-            f.fecha_llegada.strftime("%Y-%m-%d"),
-            f.estado,
-            f.notas,
-            fv,
-        ),
+           (descripcion, proveedor, monto, fecha_llegada, estado, notas, fecha_vencimiento, fecha_pago)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+        (f.descripcion, f.proveedor, f.monto,
+         f.fecha_llegada.strftime("%Y-%m-%d"), f.estado, f.notas, fv, fp),
     )
     conn.commit()
     return cur.lastrowid
@@ -83,31 +80,27 @@ def obtener_facturas_pendientes() -> list[Factura]:
 def actualizar_factura(f: Factura) -> bool:
     conn = DatabaseConnection.get()
     fv = f.fecha_vencimiento.strftime("%Y-%m-%d") if f.fecha_vencimiento else None
+    fp = f.fecha_pago.strftime("%Y-%m-%d") if f.fecha_pago else None
     cur = conn.execute(
         """UPDATE facturas
            SET descripcion=?, proveedor=?, monto=?, fecha_llegada=?, estado=?, notas=?,
-               fecha_vencimiento=?
+               fecha_vencimiento=?, fecha_pago=?
            WHERE id=?""",
-        (
-            f.descripcion,
-            f.proveedor,
-            f.monto,
-            f.fecha_llegada.strftime("%Y-%m-%d"),
-            f.estado,
-            f.notas,
-            fv,
-            f.id,
-        ),
+        (f.descripcion, f.proveedor, f.monto,
+         f.fecha_llegada.strftime("%Y-%m-%d"), f.estado, f.notas, fv, fp, f.id),
     )
     conn.commit()
     return cur.rowcount > 0
 
 
-def actualizar_estado_factura(factura_id: int, estado: str) -> bool:
+def actualizar_estado_factura(
+    factura_id: int, estado: str, fecha_pago: "date | None" = None
+) -> bool:
     conn = DatabaseConnection.get()
+    fp = fecha_pago.strftime("%Y-%m-%d") if fecha_pago else None
     cur = conn.execute(
-        "UPDATE facturas SET estado = ? WHERE id = ?",
-        (estado, factura_id),
+        "UPDATE facturas SET estado = ?, fecha_pago = ? WHERE id = ?",
+        (estado, fp, factura_id),
     )
     conn.commit()
     return cur.rowcount > 0
@@ -130,19 +123,14 @@ def insertar_factura_directa(f) -> int:
     """Igual que insertar_factura pero acepta estado arbitrario (para importación)."""
     conn = DatabaseConnection.get()
     fv = f.fecha_vencimiento.strftime("%Y-%m-%d") if getattr(f, "fecha_vencimiento", None) else None
+    fp_val = getattr(f, "fecha_pago", None)
+    fp = fp_val.strftime("%Y-%m-%d") if fp_val else None
     cur = conn.execute(
         """INSERT INTO facturas
-           (descripcion, proveedor, monto, fecha_llegada, estado, notas, fecha_vencimiento)
-           VALUES (?, ?, ?, ?, ?, ?, ?)""",
-        (
-            f.descripcion,
-            f.proveedor,
-            f.monto,
-            f.fecha_llegada.strftime("%Y-%m-%d"),
-            f.estado,
-            f.notas,
-            fv,
-        ),
+           (descripcion, proveedor, monto, fecha_llegada, estado, notas, fecha_vencimiento, fecha_pago)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+        (f.descripcion, f.proveedor, f.monto,
+         f.fecha_llegada.strftime("%Y-%m-%d"), f.estado, f.notas, fv, fp),
     )
     conn.commit()
     return cur.lastrowid

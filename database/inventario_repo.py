@@ -50,12 +50,12 @@ def obtener_todos_productos() -> list[Producto]:
 
 
 def buscar_productos_por_nombre(texto: str) -> list[Producto]:
-    """Búsqueda parcial por nombre — para el autocomplete del formulario de venta."""
+    """Búsqueda parcial por nombre o código de barras — para el autocomplete del formulario de venta."""
     conn = DatabaseConnection.get()
-    # Sin LIMIT: devuelve todas las coincidencias para que el completer las muestre
+    patron = f"%{texto}%"
     rows = conn.execute(
-        "SELECT * FROM inventario WHERE producto LIKE ? ORDER BY producto ASC",
-        (f"%{texto}%",),
+        "SELECT * FROM inventario WHERE producto LIKE ? OR codigo_barras LIKE ? ORDER BY producto ASC",
+        (patron, patron),
     ).fetchall()
     return [_row_to_producto(r) for r in rows]
 
@@ -66,6 +66,18 @@ def obtener_producto_por_nombre_exacto(nombre: str) -> Producto | None:
     row = conn.execute(
         "SELECT * FROM inventario WHERE LOWER(producto) = LOWER(?) LIMIT 1",
         (nombre,),
+    ).fetchone()
+    return _row_to_producto(row) if row else None
+
+
+def obtener_producto_por_codigo_barras(codigo: str) -> Producto | None:
+    """Retorna el producto cuyo código de barras coincide exactamente."""
+    if not codigo:
+        return None
+    conn = DatabaseConnection.get()
+    row = conn.execute(
+        "SELECT * FROM inventario WHERE codigo_barras = ? LIMIT 1",
+        (codigo.strip(),),
     ).fetchone()
     return _row_to_producto(row) if row else None
 

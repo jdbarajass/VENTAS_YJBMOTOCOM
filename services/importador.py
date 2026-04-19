@@ -189,6 +189,7 @@ def _leer_facturas(ws) -> list[Factura]:
             fecha_obj = date.today()
 
         # Columnas desplazadas según versión del archivo
+        fecha_pago = None
         if tiene_vencimiento:
             fv_val = ws.cell(row_idx, 5).value
             try:
@@ -204,6 +205,17 @@ def _leer_facturas(ws) -> list[Factura]:
                 fecha_venc = None
             estado_raw = str(ws.cell(row_idx, 6).value or "pendiente").strip().lower()
             notas = str(ws.cell(row_idx, 7).value or "").strip()
+            # Col 8 = fecha_pago (nuevo formato)
+            fp_val = ws.cell(row_idx, 8).value
+            try:
+                if isinstance(fp_val, datetime):
+                    fecha_pago = fp_val.date()
+                elif isinstance(fp_val, date):
+                    fecha_pago = fp_val
+                elif fp_val and str(fp_val).strip():
+                    fecha_pago = datetime.strptime(str(fp_val).strip(), "%d/%m/%Y").date()
+            except (ValueError, TypeError):
+                pass
         else:
             fecha_venc = None
             estado_raw = str(ws.cell(row_idx, 5).value or "pendiente").strip().lower()
@@ -221,6 +233,7 @@ def _leer_facturas(ws) -> list[Factura]:
                 estado=estado_raw,
                 notas=notas,
                 fecha_vencimiento=fecha_venc,
+                fecha_pago=fecha_pago,
             ))
         except ValueError:
             pass

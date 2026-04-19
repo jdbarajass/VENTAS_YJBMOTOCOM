@@ -306,8 +306,8 @@ def _escribir_hoja_inventario(ws, productos: list) -> None:
         ws.column_dimensions[get_column_letter(i)].width = ancho
 
 
-_HEADERS_FACTURAS = ["Descripción", "Proveedor", "Monto", "Fecha llegada", "Fecha vencimiento", "Estado", "Notas"]
-_ANCHOS_FACTURAS  = [38, 24, 16, 14, 16, 12, 34]
+_HEADERS_FACTURAS = ["Descripción", "Proveedor", "Monto", "Fecha llegada", "Fecha vencimiento", "Estado", "Notas", "Fecha pago"]
+_ANCHOS_FACTURAS  = [38, 24, 16, 14, 16, 12, 34, 14]
 _FACTURA_ESTADO_COLOR = {
     "pendiente": "FEF3C7",
     "pagada":    "DCFCE7",
@@ -348,6 +348,8 @@ def _escribir_hoja_facturas(ws, facturas: list) -> None:
         )
         fv = getattr(f, "fecha_vencimiento", None)
         fv_str = fv.strftime("%d/%m/%Y") if fv else ""
+        fp = getattr(f, "fecha_pago", None)
+        fp_str = fp.strftime("%d/%m/%Y") if fp else ""
         ws.append([
             f.descripcion,
             f.proveedor,
@@ -356,6 +358,7 @@ def _escribir_hoja_facturas(ws, facturas: list) -> None:
             fv_str,
             f.estado,
             f.notas or "",
+            fp_str,
         ])
         row = ws.max_row
         color = _FACTURA_ESTADO_COLOR.get(f.estado, "FFFFFF")

@@ -68,9 +68,9 @@ class FacturasController:
             raise ValueError("El monto no puede ser negativo.")
         return actualizar_factura(f)
 
-    def marcar_pagada(self, factura_id: int) -> bool:
-        """Marca la factura como pagada."""
-        return actualizar_estado_factura(factura_id, "pagada")
+    def marcar_pagada(self, factura_id: int, fecha_pago: date | None = None) -> bool:
+        """Marca la factura como pagada, registrando la fecha de pago (hoy si no se indica)."""
+        return actualizar_estado_factura(factura_id, "pagada", fecha_pago or date.today())
 
     def eliminar(self, factura_id: int) -> bool:
         """Elimina una factura del historial."""
@@ -96,7 +96,7 @@ class FacturasController:
         total = obtener_total_abonado(factura_id)
         factura = next((f for f in obtener_todas_facturas() if f.id == factura_id), None)
         if factura and total >= factura.monto:
-            actualizar_estado_factura(factura_id, "pagada")
+            actualizar_estado_factura(factura_id, "pagada", fecha)
         return a
 
     def cargar_abonos(self, factura_id: int) -> list[AbonoFactura]:

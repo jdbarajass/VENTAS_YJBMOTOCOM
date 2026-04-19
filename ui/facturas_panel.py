@@ -1,6 +1,8 @@
 """
 ui/facturas_panel.py
-Panel de gestión de facturas y recibos pendientes de pago.
+Panel de gestión de facturas — dos pestañas:
+  • Facturas por pagar (gestión CRUD + abonos)
+  • Cargue de pedidos  (importar PDF → inventario de cascos)
 """
 
 from datetime import date
@@ -9,7 +11,7 @@ from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
     QLineEdit, QTableWidget, QTableWidgetItem, QHeaderView,
     QAbstractItemView, QFrame, QMessageBox, QCheckBox,
-    QDateEdit, QSizePolicy, QDialog, QScrollArea,
+    QDateEdit, QSizePolicy, QDialog, QScrollArea, QTabWidget,
 )
 from PySide6.QtCore import Qt, QDate, Signal
 from PySide6.QtGui import QFont, QColor
@@ -207,8 +209,8 @@ class AbonosDialog(QDialog):
             self.abono_registrado.emit()
 
 
-class FacturasPanel(QWidget):
-    """Vista de gestión de facturas y recibos."""
+class _FacturasPorPagarPanel(QWidget):
+    """Vista de gestión de facturas y recibos (sub-panel interno)."""
 
     def __init__(self, parent=None) -> None:
         super().__init__(parent)
@@ -448,11 +450,11 @@ class FacturasPanel(QWidget):
 
     def _build_tabla(self) -> QTableWidget:
         self.tabla = QTableWidget()
-        # Cols: ID(hidden) | Descripción | Proveedor | Monto | Fecha llegada | Vence | Días | Estado | Acciones
-        self.tabla.setColumnCount(9)
+        # Cols: ID(hidden)|Descripción|Proveedor|Monto|Fecha llegada|Vencimiento|Días|Estado|Fecha pago|Acciones
+        self.tabla.setColumnCount(10)
         self.tabla.setHorizontalHeaderLabels([
             "ID", "Descripción", "Proveedor", "Monto",
-            "Fecha llegada", "Vencimiento", "Días", "Estado", "Acciones"
+            "Fecha llegada", "Vencimiento", "Días", "Estado", "Fecha pago", "Acciones"
         ])
         self.tabla.setColumnHidden(0, True)
         self.tabla.setEditTriggers(QAbstractItemView.NoEditTriggers)
@@ -477,15 +479,13 @@ class FacturasPanel(QWidget):
         """)
 
         hh = self.tabla.horizontalHeader()
-        hh.setMinimumSectionSize(55)
-        hh.setSectionResizeMode(1, QHeaderView.Interactive); self.tabla.setColumnWidth(1, 240)
-        hh.setSectionResizeMode(2, QHeaderView.Interactive); self.tabla.setColumnWidth(2, 140)
-        hh.setSectionResizeMode(3, QHeaderView.Fixed);       self.tabla.setColumnWidth(3, 115)
-        hh.setSectionResizeMode(4, QHeaderView.Fixed);       self.tabla.setColumnWidth(4, 105)
-        hh.setSectionResizeMode(5, QHeaderView.Fixed);       self.tabla.setColumnWidth(5, 105)
-        hh.setSectionResizeMode(6, QHeaderView.Fixed);       self.tabla.setColumnWidth(6, 60)
-        hh.setSectionResizeMode(7, QHeaderView.Fixed);       self.tabla.setColumnWidth(7, 100)
-        hh.setSectionResizeMode(8, QHeaderView.Fixed);       self.tabla.setColumnWidth(8, 225)
+        hh.setMinimumSectionSize(50)
+        hh.setStretchLastSection(False)
+        for col, w in [(1, 230), (2, 140), (3, 115), (4, 105), (5, 105),
+                       (6, 60), (7, 100), (8, 105), (9, 250)]:
+            hh.setSectionResizeMode(col, QHeaderView.Interactive)
+            self.tabla.setColumnWidth(col, w)
+        self.tabla.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
         self.tabla.setHorizontalScrollMode(QAbstractItemView.ScrollPerPixel)
 
         return self.tabla
@@ -614,7 +614,20 @@ class FacturasPanel(QWidget):
             self.tabla.setItem(row, 6, item_dias)
 
             self.tabla.setCellWidget(row, 7, self._badge_estado(f.estado))
-            self.tabla.setCellWidget(row, 8, self._widget_acciones(f.id, f.estado))
+
+            # Columna Fecha pago
+            if f.fecha_pago:
+                item_fp = QTableWidgetItem(f.fecha_pago.strftime("%d/%m/%Y"))
+                item_fp.setTextAlignment(Qt.AlignCenter)
+                item_fp.setForeground(QColor("#15803D"))
+                self.tabla.setItem(row, 8, item_fp)
+            else:
+                item_fp = QTableWidgetItem("—")
+                item_fp.setTextAlignment(Qt.AlignCenter)
+                item_fp.setForeground(QColor("#9CA3AF"))
+                self.tabla.setItem(row, 8, item_fp)
+
+            self.tabla.setCellWidget(row, 9, self._widget_acciones(f.id, f.estado))
 
     def _celda(self, row, col, texto, alin=Qt.AlignLeft | Qt.AlignVCenter):
         item = QTableWidgetItem(str(texto))
@@ -809,13 +822,58 @@ class FacturasPanel(QWidget):
     def _on_marcar_pagada(self, factura_id: int) -> None:
         f = next((x for x in self._facturas if x.id == factura_id), None)
         nombre = f.descripcion if f else f"id {factura_id}"
-        resp = QMessageBox.question(
-            self, "Marcar como pagada",
-            f"¿Marcar <b>{nombre}</b> como pagada?",
-            QMessageBox.Yes | QMessageBox.No, QMessageBox.Yes,
+
+        dlg = QDialog(self)
+        dlg.setWindowTitle("Registrar pago")
+        dlg.setFixedWidth(320)
+        lay = QVBoxLayout(dlg)
+        lay.setContentsMargins(18, 14, 18, 14)
+        lay.setSpacing(10)
+
+        lbl = QLabel(f"Factura: <b>{nombre}</b>")
+        lbl.setWordWrap(True)
+        lbl.setStyleSheet("font-size:12px; color:#374151;")
+        lay.addWidget(lbl)
+
+        lbl_fecha = QLabel("Fecha de pago:")
+        lbl_fecha.setStyleSheet("font-size:11px; color:#6B7280;")
+        lay.addWidget(lbl_fecha)
+
+        f_picker = QDateEdit()
+        f_picker.setDate(QDate.currentDate())
+        f_picker.setCalendarPopup(True)
+        f_picker.setDisplayFormat("dd/MM/yyyy")
+        f_picker.setFixedHeight(30)
+        f_picker.setStyleSheet(
+            "QDateEdit { border:1px solid #D1D5DB; border-radius:4px; padding:0 8px; }"
         )
-        if resp == QMessageBox.Yes:
-            self._ctrl.marcar_pagada(factura_id)
+        lay.addWidget(f_picker)
+
+        btns = QHBoxLayout(); btns.setSpacing(8)
+        btn_ok = QPushButton("Confirmar pago")
+        btn_ok.setFixedHeight(30)
+        btn_ok.setStyleSheet(
+            "QPushButton { background:#15803D; color:white; border-radius:4px;"
+            "padding:0 14px; font-weight:bold; border:none; }"
+            "QPushButton:hover { background:#166534; }"
+        )
+        btn_cancel = QPushButton("Cancelar")
+        btn_cancel.setFixedHeight(30)
+        btn_cancel.setStyleSheet(
+            "QPushButton { border:1px solid #D1D5DB; border-radius:4px;"
+            "padding:0 14px; background:white; }"
+            "QPushButton:hover { background:#F3F4F6; }"
+        )
+        btn_ok.clicked.connect(dlg.accept)
+        btn_cancel.clicked.connect(dlg.reject)
+        btns.addWidget(btn_ok)
+        btns.addWidget(btn_cancel)
+        lay.addLayout(btns)
+
+        if dlg.exec() == QDialog.Accepted:
+            qd = f_picker.date()
+            fecha_pago = date(qd.year(), qd.month(), qd.day())
+            self._ctrl.marcar_pagada(factura_id, fecha_pago)
             self._cargar_datos()
 
     def _on_eliminar(self, factura_id: int) -> None:
@@ -847,3 +905,60 @@ class FacturasPanel(QWidget):
         self._f_notas.clear()
         self._chk_vence.setChecked(False)
         self._f_vence.setDate(QDate.currentDate().addDays(30))
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Wrapper público con pestañas
+# ──────────────────────────────────────────────────────────────────────────────
+
+class FacturasPanel(QWidget):
+    """
+    Contenedor de dos pestañas:
+      • Facturas por pagar  → _FacturasPorPagarPanel (CRUD existente)
+      • Cargue de pedidos   → CarguesPedidosWidget   (importar PDF de cascos)
+    """
+
+    def __init__(self, parent=None) -> None:
+        super().__init__(parent)
+        from ui.cargue_pedidos_widget import CarguesPedidosWidget
+
+        lay = QVBoxLayout(self)
+        lay.setContentsMargins(0, 0, 0, 0)
+        lay.setSpacing(0)
+
+        self._tabs = QTabWidget()
+        self._tabs.setStyleSheet("""
+            QTabWidget::pane {
+                border: none;
+                background: #F8FAFC;
+            }
+            QTabBar::tab {
+                background: #E2E8F0;
+                color: #374151;
+                padding: 8px 20px;
+                font-size: 12px;
+                font-weight: bold;
+                border: none;
+                border-top-left-radius: 6px;
+                border-top-right-radius: 6px;
+                margin-right: 3px;
+            }
+            QTabBar::tab:selected {
+                background: #1E293B;
+                color: white;
+            }
+            QTabBar::tab:hover:!selected {
+                background: #CBD5E1;
+            }
+        """)
+
+        self._panel_facturas = _FacturasPorPagarPanel()
+        self._panel_cargue   = CarguesPedidosWidget()
+
+        self._tabs.addTab(self._panel_facturas, "🧾  Facturas por pagar")
+        self._tabs.addTab(self._panel_cargue,   "📦  Cargue de pedidos → Inventario")
+
+        lay.addWidget(self._tabs)
+
+    def refresh(self) -> None:
+        self._panel_facturas.refresh()

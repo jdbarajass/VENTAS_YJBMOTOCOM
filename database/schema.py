@@ -156,10 +156,16 @@ def _create_abonos_factura(conn: sqlite3.Connection) -> None:
 
 
 def _migrate_facturas(conn: sqlite3.Connection) -> None:
-    """Agrega fecha_vencimiento a facturas si no existe."""
+    """Agrega fecha_vencimiento y fecha_pago a facturas si no existen."""
     try:
         conn.execute(
             "ALTER TABLE facturas ADD COLUMN fecha_vencimiento TEXT DEFAULT NULL"
+        )
+    except sqlite3.OperationalError:
+        pass  # La columna ya existe
+    try:
+        conn.execute(
+            "ALTER TABLE facturas ADD COLUMN fecha_pago TEXT DEFAULT NULL"
         )
     except sqlite3.OperationalError:
         pass  # La columna ya existe

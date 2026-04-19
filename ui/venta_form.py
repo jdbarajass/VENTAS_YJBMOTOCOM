@@ -202,7 +202,20 @@ class _LineaProducto:
             self._lbl_stock.setVisible(False)
             return
         try:
-            from database.inventario_repo import buscar_productos_por_nombre
+            from database.inventario_repo import (
+                buscar_productos_por_nombre,
+                obtener_producto_por_codigo_barras,
+            )
+            # Primero: coincidencia exacta por código de barras
+            por_barras = obtener_producto_por_codigo_barras(texto)
+            if por_barras:
+                self._completer_model.setStringList([por_barras.producto])
+                self.campo_producto.blockSignals(True)
+                self.campo_producto.setText(por_barras.producto)
+                self.campo_producto.blockSignals(False)
+                self._aplicar_producto(por_barras)
+                return
+            # Búsqueda parcial por nombre o código de barras
             prods = buscar_productos_por_nombre(texto)
             self._completer_model.setStringList([p.producto for p in prods])
             exacto = next((p for p in prods if p.producto.lower() == texto.lower()), None)
@@ -225,9 +238,13 @@ class _LineaProducto:
         if not texto or self._lbl_stock.isVisible():
             return
         try:
-            from database.inventario_repo import obtener_producto_por_nombre_exacto
-            p = obtener_producto_por_nombre_exacto(texto)
+            from database.inventario_repo import (
+                obtener_producto_por_nombre_exacto,
+                obtener_producto_por_codigo_barras,
+            )
+            p = obtener_producto_por_nombre_exacto(texto) or obtener_producto_por_codigo_barras(texto)
             if p:
+                self.campo_producto.setText(p.producto)
                 self._aplicar_producto(p)
         except Exception:
             pass
@@ -261,8 +278,11 @@ class _LineaProducto:
         if not texto:
             return None
         try:
-            from database.inventario_repo import obtener_producto_por_nombre_exacto
-            p = obtener_producto_por_nombre_exacto(texto)
+            from database.inventario_repo import (
+                obtener_producto_por_nombre_exacto,
+                obtener_producto_por_codigo_barras,
+            )
+            p = obtener_producto_por_nombre_exacto(texto) or obtener_producto_por_codigo_barras(texto)
             return p.cantidad if p else None
         except Exception:
             return None

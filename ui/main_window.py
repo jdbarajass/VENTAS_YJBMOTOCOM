@@ -14,6 +14,7 @@ from PySide6.QtWidgets import (
 from PySide6.QtCore import Qt, QSize
 from PySide6.QtGui import QFont
 
+from ui.calculadora_panel import CalculadoraPanel
 from ui.venta_form import VentaForm
 from ui.ventas_dia_panel import VentasDiaPanel
 from ui.dashboard_panel import DashboardPanel
@@ -27,16 +28,17 @@ from ui.presupuesto_panel import PresupuestoPanel
 
 
 # Índices de página en el QStackedWidget
-PAGE_REGISTRAR    = 0
-PAGE_VENTAS_DIA   = 1
-PAGE_DASHBOARD    = 2
-PAGE_HISTORIAL    = 3
-PAGE_CONFIG       = 4
-PAGE_PRESTAMOS    = 5
-PAGE_INVENTARIO   = 6
-PAGE_EXPORTAR     = 7
-PAGE_FACTURAS     = 8
-PAGE_PRESUPUESTO  = 9
+PAGE_CALCULADORA  = 0
+PAGE_REGISTRAR    = 1
+PAGE_VENTAS_DIA   = 2
+PAGE_DASHBOARD    = 3
+PAGE_HISTORIAL    = 4
+PAGE_CONFIG       = 5
+PAGE_PRESTAMOS    = 6
+PAGE_INVENTARIO   = 7
+PAGE_EXPORTAR     = 8
+PAGE_FACTURAS     = 9
+PAGE_PRESUPUESTO  = 10
 
 
 class MainWindow(QMainWindow):
@@ -49,7 +51,7 @@ class MainWindow(QMainWindow):
         super().__init__()
         self._setup_window()
         self._build_ui()
-        self._nav_buttons[PAGE_REGISTRAR].setChecked(True)
+        self._nav_buttons[PAGE_CALCULADORA].setChecked(True)
         self._actualizar_badge_stock()
 
     # ------------------------------------------------------------------
@@ -127,6 +129,7 @@ class MainWindow(QMainWindow):
 
         # Botones de navegación
         nav_items = [
+            (PAGE_CALCULADORA, "🧮  Calculadora"),
             (PAGE_REGISTRAR,  "＋  Registrar Venta"),
             (PAGE_VENTAS_DIA, "📋  Ventas del Día"),
             (PAGE_DASHBOARD,  "📊  Dashboard"),
@@ -200,43 +203,47 @@ class MainWindow(QMainWindow):
 
         self._stack = QStackedWidget()
 
-        # Página 0 — Registrar Venta (FASE 4)
+        # Página 0 — Calculadora de Precios
+        self._calculadora = CalculadoraPanel()
+        self._stack.addWidget(self._calculadora)
+
+        # Página 1 — Registrar Venta
         self._form_venta = VentaForm()
         self._stack.addWidget(self._form_venta)
 
-        # Página 1 — Ventas del Día (FASE 5)
+        # Página 2 — Ventas del Día
         self._ventas_dia = VentasDiaPanel()
         self._stack.addWidget(self._ventas_dia)
 
-        # Página 2 — Dashboard Diario (FASE 6)
+        # Página 3 — Dashboard Diario
         self._dashboard = DashboardPanel()
         self._stack.addWidget(self._dashboard)
 
-        # Página 3 — Historial Mensual (FASE 7)
+        # Página 4 — Historial Mensual
         self._historial = HistorialPanel()
         self._stack.addWidget(self._historial)
 
-        # Página 4 — Configuración (FASE 8)
+        # Página 5 — Configuración
         self._config = ConfigPanel()
         self._stack.addWidget(self._config)
 
-        # Página 5 — Préstamos
+        # Página 6 — Préstamos
         self._prestamos = PrestamosPanel()
         self._stack.addWidget(self._prestamos)
 
-        # Página 6 — Inventario
+        # Página 7 — Inventario
         self._inventario = InventarioPanel()
         self._stack.addWidget(self._inventario)
 
-        # Página 7 — Exportar / Importar
+        # Página 8 — Exportar / Importar
         self._exportar_importar = ExportarImportarPanel()
         self._stack.addWidget(self._exportar_importar)
 
-        # Página 8 — Facturas y Recibos
+        # Página 9 — Facturas y Recibos
         self._facturas = FacturasPanel()
         self._stack.addWidget(self._facturas)
 
-        # Página 9 — Presupuesto Mensual
+        # Página 10 — Presupuesto Mensual
         self._presupuesto = PresupuestoPanel()
         self._stack.addWidget(self._presupuesto)
 
@@ -247,6 +254,9 @@ class MainWindow(QMainWindow):
         self._inventario.inventario_actualizado.connect(self._form_venta.actualizar_inventario)
         self._inventario.inventario_actualizado.connect(self._actualizar_badge_stock)
         self._exportar_importar.datos_importados.connect(self._on_datos_importados)
+        self._facturas._panel_cargue.inventario_actualizado.connect(self._inventario.refresh)
+        self._facturas._panel_cargue.inventario_actualizado.connect(self._form_venta.actualizar_inventario)
+        self._facturas._panel_cargue.inventario_actualizado.connect(self._actualizar_badge_stock)
 
         layout.addWidget(self._stack)
         return wrapper

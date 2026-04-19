@@ -62,7 +62,7 @@ class _ChipGroup(QWidget):
             btn = QPushButton(f"{op}%")
             btn.setCheckable(True)
             btn.setFixedHeight(26)
-            btn.setFixedWidth(48)
+            btn.setMinimumWidth(52)
             btn.setStyleSheet(
                 "QPushButton{border:1px solid #CBD5E1;border-radius:13px;"
                 "background:white;color:#374151;font-size:10px;font-weight:bold;}"
@@ -177,6 +177,11 @@ class CalculadoraPanel(QWidget):
         self._completer.setCaseSensitivity(Qt.CaseInsensitive)
         self._completer.setFilterMode(Qt.MatchContains)
         self._campo_buscar.setCompleter(self._completer)
+        self._completer.popup().setStyleSheet(
+            "QListView{background:white;color:#1E293B;border:1px solid #CBD5E1;"
+            "border-radius:4px;font-size:11px;padding:2px;}"
+            "QListView::item:selected{background:#DBEAFE;color:#1E40AF;}"
+        )
         self._campo_buscar.textEdited.connect(self._on_buscar)
         self._completer.activated.connect(self._on_seleccionado)
         lay_b.addWidget(lbl_b); lay_b.addWidget(self._campo_buscar)

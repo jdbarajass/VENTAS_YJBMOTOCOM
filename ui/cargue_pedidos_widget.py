@@ -41,6 +41,7 @@ COL_TALLA     = 2
 COL_COSTO     = 3
 COL_CANTIDAD  = 4
 COL_CB        = 5
+COL_ELIMINAR  = 6
 
 
 class CarguesPedidosWidget(QWidget):
@@ -93,8 +94,10 @@ class CarguesPedidosWidget(QWidget):
         lbl_prov.setStyleSheet("font-size:12px;font-weight:bold;color:#374151;")
         self._combo_proveedor = QComboBox()
         self._combo_proveedor.addItems([
+            "— Seleccione proveedor —",
             "ACCESORIOS PARA MOTOS S.A.S.  (XTRONG)",
             "DISTRIFABRICA RAMIREZ SAS  (SHAFT / HRO / ICH)",
+            "Otro proveedor",
         ])
         self._combo_proveedor.setFixedHeight(32)
         self._combo_proveedor.setStyleSheet(
@@ -137,10 +140,10 @@ class CarguesPedidosWidget(QWidget):
 
         # ── Tabla de revisión ─────────────────────────────────────────────
         self._tabla = QTableWidget()
-        self._tabla.setColumnCount(6)
+        self._tabla.setColumnCount(7)
         self._tabla.setHorizontalHeaderLabels([
             "Estado", "Nombre en inventario (editable)", "Talla",
-            "Costo unit.", "Cantidad", "Código barras"
+            "Costo unit.", "Cantidad", "Código barras", ""
         ])
         self._tabla.setEditTriggers(QAbstractItemView.NoEditTriggers)
         self._tabla.setSelectionBehavior(QAbstractItemView.SelectRows)
@@ -159,12 +162,13 @@ class CarguesPedidosWidget(QWidget):
         """)
         hh = self._tabla.horizontalHeader()
         hh.setStretchLastSection(False)
-        hh.setSectionResizeMode(COL_ESTADO,   QHeaderView.Fixed);    self._tabla.setColumnWidth(COL_ESTADO,   90)
-        hh.setSectionResizeMode(COL_NOMBRE,   QHeaderView.Stretch)
-        hh.setSectionResizeMode(COL_TALLA,    QHeaderView.Fixed);    self._tabla.setColumnWidth(COL_TALLA,    52)
-        hh.setSectionResizeMode(COL_COSTO,    QHeaderView.Fixed);    self._tabla.setColumnWidth(COL_COSTO,   105)
-        hh.setSectionResizeMode(COL_CANTIDAD, QHeaderView.Fixed);    self._tabla.setColumnWidth(COL_CANTIDAD, 70)
-        hh.setSectionResizeMode(COL_CB,       QHeaderView.Fixed);    self._tabla.setColumnWidth(COL_CB,      115)
+        hh.setSectionResizeMode(COL_ESTADO,    QHeaderView.Fixed);    self._tabla.setColumnWidth(COL_ESTADO,    90)
+        hh.setSectionResizeMode(COL_NOMBRE,    QHeaderView.Stretch)
+        hh.setSectionResizeMode(COL_TALLA,     QHeaderView.Fixed);    self._tabla.setColumnWidth(COL_TALLA,     52)
+        hh.setSectionResizeMode(COL_COSTO,     QHeaderView.Fixed);    self._tabla.setColumnWidth(COL_COSTO,    105)
+        hh.setSectionResizeMode(COL_CANTIDAD,  QHeaderView.Fixed);    self._tabla.setColumnWidth(COL_CANTIDAD,  70)
+        hh.setSectionResizeMode(COL_CB,        QHeaderView.Fixed);    self._tabla.setColumnWidth(COL_CB,       115)
+        hh.setSectionResizeMode(COL_ELIMINAR,  QHeaderView.Fixed);    self._tabla.setColumnWidth(COL_ELIMINAR,  38)
         self._tabla.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
         self._tabla.setHorizontalScrollMode(QAbstractItemView.ScrollPerPixel)
         root.addWidget(self._tabla, stretch=1)
@@ -225,18 +229,37 @@ class CarguesPedidosWidget(QWidget):
         self._btn_limpiar.setEnabled(False)
         self._lbl_resumen.setVisible(False)
 
-        es_distrifabrica = "DISTRIFABRICA" in self._combo_proveedor.currentText()
+        seleccion = self._combo_proveedor.currentText()
+
+        # ── Validar que se haya seleccionado proveedor ────────────────────
+        if seleccion.startswith("—"):
+            QMessageBox.warning(
+                self, "Selecciona un proveedor",
+                "Debes seleccionar el proveedor antes de cargar el PDF.\n\n"
+                "Elige entre ACCESORIOS PARA MOTOS, DISTRIFABRICA o 'Otro proveedor'."
+            )
+            return
+
+        es_distrifabrica = "DISTRIFABRICA" in seleccion
+        es_otro = "Otro" in seleccion
 
         try:
+            from services.pdf_pedido_parser import parsear_pdf, generar_codigos_barras
+            from services.pdf_distrifabrica_parser import (
+                parsear_pdf_distrifabrica, generar_codigos_barras_distrifabrica,
+            )
+
             if es_distrifabrica:
-                from services.pdf_distrifabrica_parser import (
-                    parsear_pdf_distrifabrica,
-                    generar_codigos_barras_distrifabrica,
-                )
                 items = parsear_pdf_distrifabrica(ruta)
                 _gen_cbs = generar_codigos_barras_distrifabrica
+            elif es_otro:
+                # Intentar con ambos parsers: primero ACCESORIOS, luego DISTRIFABRICA
+                items = parsear_pdf(ruta)
+                _gen_cbs = generar_codigos_barras
+                if not items:
+                    items = parsear_pdf_distrifabrica(ruta)
+                    _gen_cbs = generar_codigos_barras_distrifabrica
             else:
-                from services.pdf_pedido_parser import parsear_pdf, generar_codigos_barras
                 items = parsear_pdf(ruta)
                 _gen_cbs = generar_codigos_barras
         except ImportError as exc:
@@ -247,17 +270,26 @@ class CarguesPedidosWidget(QWidget):
             return
 
         if not items:
-            if es_distrifabrica:
-                msg = (
+            if es_otro:
+                QMessageBox.warning(
+                    self, "Formato no reconocido",
+                    "No se pudieron extraer datos de este PDF.\n\n"
+                    "El formato no coincide con los proveedores conocidos "
+                    "(ACCESORIOS PARA MOTOS S.A.S. ni DISTRIFABRICA RAMIREZ SAS).\n\n"
+                    "Si es un proveedor nuevo, comparte una factura de muestra para agregar soporte."
+                )
+            elif es_distrifabrica:
+                QMessageBox.information(
+                    self, "Sin ítems",
                     "No se encontraron cascos en el PDF de DISTRIFABRICA RAMIREZ SAS.\n"
                     "Verifica que el archivo sea el correcto."
                 )
             else:
-                msg = (
+                QMessageBox.information(
+                    self, "Sin ítems",
                     "No se encontraron cascos XTRONG en el PDF.\n"
                     "Verifica que el archivo sea una factura de ACCESORIOS PARA MOTOS S.A.S."
                 )
-            QMessageBox.information(self, "Sin ítems", msg)
             return
 
         # Generar códigos de barras
@@ -354,6 +386,36 @@ class CarguesPedidosWidget(QWidget):
             it_cb.setTextAlignment(Qt.AlignCenter)
             it_cb.setForeground(QColor("#6B7280") if es_nuevo else QColor("#374151"))
             self._tabla.setItem(row, COL_CB, it_cb)
+
+            # Col 6 — Eliminar
+            btn_x = QPushButton("✕")
+            btn_x.setFixedSize(26, 26)
+            btn_x.setStyleSheet(
+                "QPushButton{border:none;background:transparent;color:#9CA3AF;font-size:13px;}"
+                "QPushButton:hover{color:#EF4444;background:#FEE2E2;border-radius:4px;}"
+            )
+            btn_x.setToolTip("Quitar de la importación")
+            btn_x.clicked.connect(lambda _, r=row: self._eliminar_fila(r))
+            cont_x = QWidget()
+            lx = QHBoxLayout(cont_x); lx.setContentsMargins(4, 2, 4, 2)
+            lx.addWidget(btn_x)
+            self._tabla.setCellWidget(row, COL_ELIMINAR, cont_x)
+
+    def _eliminar_fila(self, row: int):
+        """Quita una fila de la lista de importación y refresca la tabla."""
+        if row < 0 or row >= len(self._filas):
+            return
+        self._filas.pop(row)
+        self._poblar_tabla()
+        if self._filas:
+            n_new  = sum(1 for f in self._filas if f.inv_id is None)
+            n_suma = len(self._filas) - n_new
+            self._lbl_resumen.setText(
+                f"{len(self._filas)} cascos  •  🟢 {n_new} nuevos  •  🔵 {n_suma} suman stock"
+            )
+        else:
+            self._lbl_resumen.setVisible(False)
+            self._btn_confirmar.setEnabled(False)
 
     def _on_nombre_editado(self, row: int, nuevo_nombre: str):
         """Actualiza el nombre sugerido y re-verifica si existe en inventario."""

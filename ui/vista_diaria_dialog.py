@@ -65,8 +65,8 @@ class VistaDiariaDialog(QDialog):
         except Exception:
             self._gastos = []
         try:
-            from database.prestamos_repo import obtener_todos_prestamos
-            self._prestamos = obtener_todos_prestamos()
+            from database.prestamos_repo import obtener_prestamos_pendientes
+            self._prestamos = obtener_prestamos_pendientes()
         except Exception:
             self._prestamos = []
 

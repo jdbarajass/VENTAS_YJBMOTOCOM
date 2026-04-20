@@ -14,12 +14,21 @@ from openpyxl.styles import (
 from openpyxl.utils import get_column_letter
 
 import json
+import re as _re
 
 from models.venta import Venta
 from models.producto import Producto
 from models.factura import Factura
 from models.configuracion import Configuracion
 from utils.formatters import fecha_corta, nombre_mes
+
+
+_PAT_TALLA_EXPORT = _re.compile(r"-T:(\w+)$")
+
+
+def _talla_de(nombre: str) -> str:
+    m = _PAT_TALLA_EXPORT.search(nombre or "")
+    return m.group(1) if m else "N/A"
 
 
 # Paleta de colores
@@ -38,22 +47,22 @@ def _borde_fino() -> Border:
 # ── Encabezados comunes de ventas ──────────────────────────────────────────
 # Col 11 "Pagos JSON" es datos internos — no editar manualmente
 _HEADERS_VENTAS = [
-    "#", "Fecha", "Producto", "Cant.", "Costo", "Precio venta",
+    "#", "Fecha", "Producto", "Talla", "Cant.", "Costo", "Precio venta",
     "Método pago", "Comisión", "Ganancia neta", "Notas", "Pagos JSON"
 ]
 
-_ANCHOS_VENTAS = [5, 12, 30, 7, 15, 16, 14, 14, 15, 28, 1]
+_ANCHOS_VENTAS = [5, 12, 30, 8, 7, 15, 16, 14, 14, 15, 28, 1]
 
 _EJEMPLOS_VENTAS = [
-    (1, "04/04/2026", "Casco X-Sport T.M",   1, 85000, 120000, "Efectivo",        0,     35000,  "", ""),
-    (2, "04/04/2026", "Aceite 10W-40 1L",    2, 18000,  28000, "Transferencia NEQUI", 0, 20000,  "", ""),
-    (3, "04/04/2026", "Guantes cuero talla L", 1, 25000, 40000, "Bold",          2000,   13000,  "Cliente frecuente", ""),
+    (1, "04/04/2026", "Casco X-Sport T.M",    "M",   1, 85000, 120000, "Efectivo",            0,  35000, "", ""),
+    (2, "04/04/2026", "Aceite 10W-40 1L",     "N/A", 2, 18000,  28000, "Transferencia NEQUI", 0,  20000, "", ""),
+    (3, "04/04/2026", "Guantes cuero talla L", "N/A", 1, 25000,  40000, "Bold",             2000, 13000, "Cliente frecuente", ""),
 ]
 
 
 def _escribir_encabezados_ventas(ws, titulo_celda: str, titulo_valor: str) -> None:
     """Escribe título (fila 1), fila vacía (2) y encabezados (3) en un worksheet."""
-    ws.merge_cells(f"{titulo_celda}:J1")   # solo hasta J — col K es interna
+    ws.merge_cells(f"{titulo_celda}:K1")   # solo hasta K — col L es interna
     t = ws[titulo_celda]
     t.value = titulo_valor
     t.font = Font(name="Calibri", bold=True, size=14, color="FFFFFF")
@@ -64,9 +73,9 @@ def _escribir_encabezados_ventas(ws, titulo_celda: str, titulo_valor: str) -> No
     ws.append([])  # fila 2 vacía
 
     ws.append(_HEADERS_VENTAS)  # fila 3
-    for col_idx in range(1, 12):
+    for col_idx in range(1, 13):
         cell = ws.cell(row=3, column=col_idx)
-        if col_idx == 11:
+        if col_idx == 12:
             # Columna interna — gris apagada
             cell.font = Font(bold=False, color="AAAAAA", name="Calibri", size=8)
             cell.fill = PatternFill("solid", fgColor="F3F4F6")
@@ -105,7 +114,7 @@ def generar_plantilla_ventas_dia(ruta: Path, fecha: date) -> None:
         ws.row_dimensions[row].height = 18
 
     # Nota instructiva
-    ws.merge_cells(f"A{ws.max_row + 1}:J{ws.max_row + 1}")
+    ws.merge_cells(f"A{ws.max_row + 1}:K{ws.max_row + 1}")
     nota = ws.cell(ws.max_row, 1)
     nota.value = (
         "↑ Borra las filas de ejemplo. Agrega tus ventas desde la fila 4. "
@@ -150,7 +159,7 @@ def generar_plantilla_ventas_mes(ruta: Path, año: int, mes: int,
         ws.row_dimensions[row].height = 18
 
     # Nota instructiva
-    ws.merge_cells(f"A{ws.max_row + 1}:J{ws.max_row + 1}")
+    ws.merge_cells(f"A{ws.max_row + 1}:K{ws.max_row + 1}")
     nota = ws.cell(ws.max_row, 1)
     nota.value = (
         "↑ Borra las filas de ejemplo. Agrega tus ventas desde la fila 4. "
@@ -228,8 +237,8 @@ def _escribir_hoja_prestamos(ws, prestamos: list) -> None:
         ws.column_dimensions[get_column_letter(i)].width = ancho
 
 
-_HEADERS_INVENTARIO = ["Serial", "Producto", "Costo unitario", "Cantidad", "Código barras", "Talla"]
-_ANCHOS_INVENTARIO  = [12, 38, 16, 12, 20, 8]
+_HEADERS_INVENTARIO = ["Serial", "Producto", "Talla", "Costo unitario", "Cantidad", "Código barras"]
+_ANCHOS_INVENTARIO  = [12, 38, 8, 16, 12, 20]
 
 
 def _escribir_hoja_inventario(ws, productos: list) -> None:
@@ -266,10 +275,10 @@ def _escribir_hoja_inventario(ws, productos: list) -> None:
         ws.append([
             p.serial or "",
             p.producto,
+            p.talla,
             p.costo_unitario,
             p.cantidad,
             p.codigo_barras or "",
-            p.talla,
         ])
         row = ws.max_row
         fondo = "F0F9FF" if i % 2 == 0 else "FFFFFF"
@@ -280,7 +289,7 @@ def _escribir_hoja_inventario(ws, productos: list) -> None:
             c.font = Font(name="Calibri", size=10)
             c.alignment = Alignment(
                 vertical="center",
-                horizontal="center" if col_idx in (1, 4, 5, 6) else "left",
+                horizontal="center" if col_idx in (1, 3, 5, 6) else "left",
             )
         ws.row_dimensions[row].height = 18
         if p.cantidad > 0:
@@ -292,9 +301,10 @@ def _escribir_hoja_inventario(ws, productos: list) -> None:
     ws.append([
         "TOTALES",
         f"{total_referencias} ref. con stock",
+        "",
         total_valor_inv,
         total_unidades,
-        "", "",
+        "",
     ])
     total_row = ws.max_row
     for col_idx in range(1, 7):
@@ -508,7 +518,7 @@ def exportar_todo(
     # ── Hoja Ventas (opcional) ────────────────────────────────────────────
     if ventas is not None:
         ws_v = _hoja("Ventas")
-        ws_v.merge_cells("A1:J1")
+        ws_v.merge_cells("A1:K1")
         titulo_c = ws_v["A1"]
         titulo_c.value = "YJBMOTOCOM — Historial de Ventas"
         titulo_c.font = Font(name="Calibri", bold=True, size=14, color="FFFFFF")
@@ -518,9 +528,9 @@ def exportar_todo(
 
         ws_v.append([])
         ws_v.append(_HEADERS_VENTAS)
-        for col_idx in range(1, 12):
+        for col_idx in range(1, 13):
             cell = ws_v.cell(row=3, column=col_idx)
-            if col_idx == 11:
+            if col_idx == 12:
                 cell.font = Font(bold=False, color="AAAAAA", name="Calibri", size=8)
                 cell.fill = PatternFill("solid", fgColor="F3F4F6")
             else:
@@ -538,22 +548,22 @@ def exportar_todo(
         for i, v in enumerate(ventas, start=1):
             pagos_json = json.dumps(v.pagos_combinados, ensure_ascii=False) if v.pagos_combinados else ""
             ws_v.append([
-                i, fecha_corta(v.fecha), v.producto, v.cantidad,
-                v.costo, v.precio, v.metodo_pago,
+                i, fecha_corta(v.fecha), v.producto, _talla_de(v.producto),
+                v.cantidad, v.costo, v.precio, v.metodo_pago,
                 v.comision, v.ganancia_neta, v.notas, pagos_json,
             ])
             row = ws_v.max_row
             fondo = _GRIS_FILA if i % 2 == 0 else "FFFFFF"
-            for col_idx in range(1, 12):
+            for col_idx in range(1, 13):
                 c = ws_v.cell(row=row, column=col_idx)
-                if col_idx == 11:
+                if col_idx == 12:
                     c.fill = PatternFill("solid", fgColor="F9FAFB")
                     c.font = Font(name="Calibri", size=8, color="AAAAAA")
                 else:
                     c.fill = PatternFill("solid", fgColor=fondo)
                     c.font = Font(name="Calibri", size=10)
                 c.border = _borde_fino()
-            cell_neta = ws_v.cell(row=row, column=9)
+            cell_neta = ws_v.cell(row=row, column=10)
             cell_neta.fill = PatternFill(
                 "solid", fgColor=_VERDE if v.ganancia_neta >= 0 else _ROJO
             )
@@ -567,28 +577,29 @@ def exportar_todo(
         ws_v.append([
             "", "TOTALES",
             f"{len(ventas)} venta(s)",
-            total_cant,          # Cant.
-            total_costos,        # Costo total
-            total_ingresos,      # Ingresos totales
-            "",                  # Método pago
-            total_comision,      # Comisión total
-            total_neta,          # Ganancia neta total
+            "",              # Talla
+            total_cant,      # Cant.
+            total_costos,    # Costo total
+            total_ingresos,  # Ingresos totales
+            "",              # Método pago
+            total_comision,  # Comisión total
+            total_neta,      # Ganancia neta total
             "", "",
         ])
         total_row = ws_v.max_row
-        for col_idx in range(1, 12):
+        for col_idx in range(1, 13):
             c = ws_v.cell(row=total_row, column=col_idx)
             c.font = Font(bold=True, name="Calibri", size=10)
             c.fill = PatternFill("solid", fgColor=_AZUL_SUAVE)
             c.border = _borde_fino()
         # Colorear celda de ganancia neta total
-        ws_v.cell(row=total_row, column=9).fill = PatternFill(
+        ws_v.cell(row=total_row, column=10).fill = PatternFill(
             "solid", fgColor=_VERDE if total_neta >= 0 else _ROJO
         )
 
         for i, ancho in enumerate(_ANCHOS_VENTAS, start=1):
             ws_v.column_dimensions[get_column_letter(i)].width = ancho
-        ws_v.column_dimensions["K"].width = 1
+        ws_v.column_dimensions["L"].width = 1
 
     # ── Hoja Préstamos (opcional) ─────────────────────────────────────────
     if prestamos is not None:
@@ -635,7 +646,7 @@ def generar_plantilla_todo(ruta: Path) -> None:
     for ej in _EJEMPLOS_VENTAS:
         ws_v.append(list(ej))
         row = ws_v.max_row
-        for col_idx in range(1, 11):
+        for col_idx in range(1, 12):
             c = ws_v.cell(row=row, column=col_idx)
             c.fill = PatternFill("solid", fgColor="F1F5F9")
             c.font = Font(name="Calibri", size=10, italic=True, color="94A3B8")
@@ -643,7 +654,7 @@ def generar_plantilla_todo(ruta: Path) -> None:
             c.alignment = Alignment(vertical="center")
         ws_v.row_dimensions[row].height = 18
 
-    ws_v.merge_cells(f"A{ws_v.max_row + 1}:J{ws_v.max_row + 1}")
+    ws_v.merge_cells(f"A{ws_v.max_row + 1}:K{ws_v.max_row + 1}")
     nota_v = ws_v.cell(ws_v.max_row, 1)
     nota_v.value = (
         "↑ Borra las filas de ejemplo. Agrega tus ventas desde la fila 4. "
@@ -813,7 +824,7 @@ def exportar_ventas_dia(ventas: list[Venta], fecha: date, ruta: Path) -> None:
     ws.title = "Ventas del Día"
 
     # ---- Título ----
-    ws.merge_cells("A1:J1")
+    ws.merge_cells("A1:K1")
     titulo = ws["A1"]
     titulo.value = f"YJBMOTOCOM — Ventas del {fecha_corta(fecha)}"
     titulo.font = Font(name="Calibri", bold=True, size=14, color="FFFFFF")
@@ -823,7 +834,7 @@ def exportar_ventas_dia(ventas: list[Venta], fecha: date, ruta: Path) -> None:
 
     # ---- Encabezados ----
     headers = [
-        "#", "Fecha", "Producto", "Cant.", "Costo", "Precio venta",
+        "#", "Fecha", "Producto", "Talla", "Cant.", "Costo", "Precio venta",
         "Método pago", "Comisión", "Ganancia neta", "Notas"
     ]
     ws.append([])           # fila 2 vacía
@@ -843,6 +854,7 @@ def exportar_ventas_dia(ventas: list[Venta], fecha: date, ruta: Path) -> None:
             i,
             fecha_corta(v.fecha),
             v.producto,
+            _talla_de(v.producto),
             v.cantidad,
             v.costo,
             v.precio,
@@ -854,19 +866,19 @@ def exportar_ventas_dia(ventas: list[Venta], fecha: date, ruta: Path) -> None:
         ws.append(fila)
         row = ws.max_row
         fondo = _GRIS_FILA if i % 2 == 0 else "FFFFFF"
-        for col_idx in range(1, 11):
+        for col_idx in range(1, 12):
             c = ws.cell(row=row, column=col_idx)
             c.fill = PatternFill("solid", fgColor=fondo)
             c.border = _borde_fino()
             c.font = Font(name="Calibri", size=10)
             c.alignment = Alignment(vertical="center")
         # Números a la derecha
-        for col_idx in (4, 5, 6, 8, 9):
+        for col_idx in (5, 6, 7, 9, 10):
             ws.cell(row=row, column=col_idx).alignment = Alignment(
                 horizontal="right", vertical="center"
             )
         # Color ganancia neta
-        cell_neta = ws.cell(row=row, column=9)
+        cell_neta = ws.cell(row=row, column=10)
         if v.ganancia_neta >= 0:
             cell_neta.fill = PatternFill("solid", fgColor=_VERDE)
         else:
@@ -880,11 +892,11 @@ def exportar_ventas_dia(ventas: list[Venta], fecha: date, ruta: Path) -> None:
     # ---- Fila totales ----
     ws.append([
         "", "TOTALES", f"{len(ventas)} venta(s)", "",
-        total_costos, total_ingresos, "",
+        "", total_costos, total_ingresos, "",
         total_comision, total_neta, ""
     ])
     total_row = ws.max_row
-    for col_idx in range(1, 11):
+    for col_idx in range(1, 12):
         c = ws.cell(row=total_row, column=col_idx)
         c.font = Font(bold=True, name="Calibri", size=10)
         c.fill = PatternFill("solid", fgColor=_AZUL_SUAVE)
@@ -892,7 +904,7 @@ def exportar_ventas_dia(ventas: list[Venta], fecha: date, ruta: Path) -> None:
     ws.row_dimensions[total_row].height = 18
 
     # ---- Anchos de columna ----
-    anchos = [5, 12, 30, 7, 15, 16, 14, 14, 15, 28]
+    anchos = [5, 12, 30, 8, 7, 15, 16, 14, 14, 15, 28]
     for i, ancho in enumerate(anchos, start=1):
         ws.column_dimensions[get_column_letter(i)].width = ancho
 
@@ -909,7 +921,7 @@ def exportar_ventas_mes(ventas: list[Venta], año: int, mes: int, ruta: Path,
     ws = wb.active
     ws.title = nombre_mes(mes, año)
 
-    ws.merge_cells("A1:J1")
+    ws.merge_cells("A1:K1")
     titulo = ws["A1"]
     titulo.value = f"YJBMOTOCOM — {nombre_mes(mes, año)}"
     titulo.font = Font(name="Calibri", bold=True, size=14, color="FFFFFF")
@@ -918,12 +930,12 @@ def exportar_ventas_mes(ventas: list[Venta], año: int, mes: int, ruta: Path,
     ws.row_dimensions[1].height = 28
 
     headers = [
-        "#", "Fecha", "Producto", "Cant.", "Costo", "Precio venta",
+        "#", "Fecha", "Producto", "Talla", "Cant.", "Costo", "Precio venta",
         "Método pago", "Comisión", "Ganancia neta", "Notas"
     ]
     ws.append([])
     ws.append(headers)
-    for col_idx in range(1, 11):
+    for col_idx in range(1, 12):
         cell = ws.cell(row=3, column=col_idx)
         cell.font = Font(bold=True, color="FFFFFF", name="Calibri", size=10)
         cell.fill = PatternFill("solid", fgColor="2563EB")
@@ -933,33 +945,33 @@ def exportar_ventas_mes(ventas: list[Venta], año: int, mes: int, ruta: Path,
     total_neta = 0.0
     for i, v in enumerate(ventas, start=1):
         ws.append([
-            i, fecha_corta(v.fecha), v.producto, v.cantidad,
-            v.costo, v.precio, v.metodo_pago,
+            i, fecha_corta(v.fecha), v.producto, _talla_de(v.producto),
+            v.cantidad, v.costo, v.precio, v.metodo_pago,
             v.comision, v.ganancia_neta, v.notas,
         ])
         row = ws.max_row
         fondo = _GRIS_FILA if i % 2 == 0 else "FFFFFF"
-        for col_idx in range(1, 11):
+        for col_idx in range(1, 12):
             c = ws.cell(row=row, column=col_idx)
             c.fill = PatternFill("solid", fgColor=fondo)
             c.border = _borde_fino()
             c.font = Font(name="Calibri", size=10)
-        cell_neta = ws.cell(row=row, column=9)
+        cell_neta = ws.cell(row=row, column=10)
         if v.ganancia_neta >= 0:
             cell_neta.fill = PatternFill("solid", fgColor=_VERDE)
         else:
             cell_neta.fill = PatternFill("solid", fgColor=_ROJO)
         total_neta += v.ganancia_neta
 
-    ws.append(["", "TOTALES", f"{len(ventas)} venta(s)", "", "", "", "", "", total_neta, ""])
+    ws.append(["", "TOTALES", f"{len(ventas)} venta(s)", "", "", "", "", "", "", total_neta, ""])
     total_row = ws.max_row
-    for col_idx in range(1, 11):
+    for col_idx in range(1, 12):
         c = ws.cell(row=total_row, column=col_idx)
         c.font = Font(bold=True, name="Calibri", size=10)
         c.fill = PatternFill("solid", fgColor=_AZUL_SUAVE)
         c.border = _borde_fino()
 
-    anchos = [5, 12, 30, 7, 15, 16, 14, 14, 15, 28]
+    anchos = [5, 12, 30, 8, 7, 15, 16, 14, 14, 15, 28]
     for i, ancho in enumerate(anchos, start=1):
         ws.column_dimensions[get_column_letter(i)].width = ancho
 

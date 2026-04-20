@@ -208,8 +208,8 @@ class InventarioPanel(QWidget):
         self.tabla = QTableWidget()
         self.tabla.setColumnCount(8)
         self.tabla.setHorizontalHeaderLabels([
-            "ID", "Serial", "Producto", "Costo Unitario",
-            "Cantidad", "Código de Barras", "Talla", "Acciones"
+            "ID", "Serial", "Producto", "Talla",
+            "Costo Unitario", "Cantidad", "Código de Barras", "Acciones"
         ])
         self.tabla.setColumnHidden(0, True)
         self.tabla.setEditTriggers(QAbstractItemView.NoEditTriggers)
@@ -237,10 +237,10 @@ class InventarioPanel(QWidget):
         hh.setMinimumSectionSize(60)
         hh.setSectionResizeMode(1, QHeaderView.Fixed);        self.tabla.setColumnWidth(1, 90)
         hh.setSectionResizeMode(2, QHeaderView.Interactive);  self.tabla.setColumnWidth(2, 220)
-        hh.setSectionResizeMode(3, QHeaderView.Fixed);        self.tabla.setColumnWidth(3, 130)
-        hh.setSectionResizeMode(4, QHeaderView.Fixed);        self.tabla.setColumnWidth(4, 90)
-        hh.setSectionResizeMode(5, QHeaderView.Interactive);  self.tabla.setColumnWidth(5, 140)
-        hh.setSectionResizeMode(6, QHeaderView.Fixed);        self.tabla.setColumnWidth(6, 58)
+        hh.setSectionResizeMode(3, QHeaderView.Fixed);        self.tabla.setColumnWidth(3, 58)
+        hh.setSectionResizeMode(4, QHeaderView.Fixed);        self.tabla.setColumnWidth(4, 130)
+        hh.setSectionResizeMode(5, QHeaderView.Fixed);        self.tabla.setColumnWidth(5, 90)
+        hh.setSectionResizeMode(6, QHeaderView.Interactive);  self.tabla.setColumnWidth(6, 140)
         hh.setSectionResizeMode(7, QHeaderView.Fixed);        self.tabla.setColumnWidth(7, 145)
         self.tabla.setHorizontalScrollMode(QAbstractItemView.ScrollPerPixel)
 
@@ -313,9 +313,19 @@ class InventarioPanel(QWidget):
             self.tabla.setItem(row, 0, QTableWidgetItem(str(p.id)))
             self._celda(row, 1, p.serial or "", Qt.AlignCenter)
             self._celda(row, 2, p.producto)
-            self._celda(row, 3, cop(p.costo_unitario), Qt.AlignRight | Qt.AlignVCenter)
 
-            # Cantidad con color
+            # Talla (col 3)
+            talla_item = QTableWidgetItem(p.talla)
+            talla_item.setTextAlignment(Qt.AlignCenter)
+            if p.talla != "N/A":
+                talla_item.setForeground(QColor("#1D4ED8"))
+            else:
+                talla_item.setForeground(QColor("#9CA3AF"))
+            self.tabla.setItem(row, 3, talla_item)
+
+            self._celda(row, 4, cop(p.costo_unitario), Qt.AlignRight | Qt.AlignVCenter)
+
+            # Cantidad con color (col 5)
             item_cant = QTableWidgetItem(str(p.cantidad))
             item_cant.setTextAlignment(Qt.AlignCenter)
             if p.cantidad == 0:
@@ -324,18 +334,9 @@ class InventarioPanel(QWidget):
                 item_cant.setForeground(QColor("#D97706"))
             else:
                 item_cant.setForeground(QColor("#15803D"))
-            self.tabla.setItem(row, 4, item_cant)
+            self.tabla.setItem(row, 5, item_cant)
 
-            self._celda(row, 5, p.codigo_barras or "", Qt.AlignCenter)
-
-            # Talla
-            talla_item = QTableWidgetItem(p.talla)
-            talla_item.setTextAlignment(Qt.AlignCenter)
-            if p.talla != "N/A":
-                talla_item.setForeground(QColor("#1D4ED8"))
-            else:
-                talla_item.setForeground(QColor("#9CA3AF"))
-            self.tabla.setItem(row, 6, talla_item)
+            self._celda(row, 6, p.codigo_barras or "", Qt.AlignCenter)
 
             # Acciones
             self.tabla.setCellWidget(row, 7, self._widget_acciones(p.id))

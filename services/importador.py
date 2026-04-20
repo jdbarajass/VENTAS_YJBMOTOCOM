@@ -343,6 +343,10 @@ def importar_todo(ruta: Path) -> ResultadoImportacionTotal:
     if ws_v is None:
         resultado.errores.append("No se encontró la hoja 'Ventas' en el archivo.")
     else:
+        # Detectar formato nuevo (col 4 = "Talla") vs. formato viejo
+        _hdr4 = str(ws_v.cell(3, 4).value or "").strip().lower()
+        _of = 1 if "talla" in _hdr4 else 0  # offset para columnas después de Producto
+
         for row_idx in range(4, ws_v.max_row + 1):
             col2 = ws_v.cell(row_idx, 2).value
             if col2 is None:
@@ -364,31 +368,31 @@ def importar_todo(ruta: Path) -> ResultadoImportacionTotal:
             if not producto:
                 continue
             try:
-                cantidad = int(ws_v.cell(row_idx, 4).value or 1)
+                cantidad = int(ws_v.cell(row_idx, 4 + _of).value or 1)
                 if cantidad < 1:
                     cantidad = 1
             except (ValueError, TypeError):
                 cantidad = 1
             try:
-                costo = float(ws_v.cell(row_idx, 5).value or 0)
+                costo = float(ws_v.cell(row_idx, 5 + _of).value or 0)
             except (ValueError, TypeError):
                 costo = 0.0
             try:
-                precio = float(ws_v.cell(row_idx, 6).value or 0)
+                precio = float(ws_v.cell(row_idx, 6 + _of).value or 0)
             except (ValueError, TypeError):
                 precio = 0.0
-            metodo = str(ws_v.cell(row_idx, 7).value or "Efectivo").strip() or "Efectivo"
+            metodo = str(ws_v.cell(row_idx, 7 + _of).value or "Efectivo").strip() or "Efectivo"
             try:
-                comision = float(ws_v.cell(row_idx, 8).value or 0)
+                comision = float(ws_v.cell(row_idx, 8 + _of).value or 0)
             except (ValueError, TypeError):
                 comision = 0.0
             try:
-                ganancia = float(ws_v.cell(row_idx, 9).value or 0)
+                ganancia = float(ws_v.cell(row_idx, 9 + _of).value or 0)
             except (ValueError, TypeError):
                 ganancia = 0.0
-            notas = str(ws_v.cell(row_idx, 10).value or "").strip()
-            # Col 11: pagos_combinados JSON (solo existe en archivos exportados)
-            pagos_raw = ws_v.cell(row_idx, 11).value
+            notas = str(ws_v.cell(row_idx, 10 + _of).value or "").strip()
+            # Col 11/12: pagos_combinados JSON (solo existe en archivos exportados)
+            pagos_raw = ws_v.cell(row_idx, 11 + _of).value
             pagos_combinados = None
             if pagos_raw:
                 try:

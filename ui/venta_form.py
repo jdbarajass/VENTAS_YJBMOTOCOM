@@ -15,12 +15,17 @@ from PySide6.QtWidgets import (
 from PySide6.QtCore import Qt, QDate, QTimer, Signal, QStringListModel
 from PySide6.QtGui import QFont
 
+import re as _re_vf
+
 from models.venta import Venta
 from controllers.venta_controller import VentaController
 from utils.formatters import cop, porcentaje
 
 # Métodos de pago disponibles (orden de ComboBox)
 METODOS_PAGO = ["Efectivo", "Bold", "Addi", "Transferencia", "Otro"]
+
+_TALLAS = ["XS", "S", "M", "L", "XL", "2XL"]
+_PAT_TALLA_FORM = _re_vf.compile(r"-T:(\w+)$")
 
 # Sub-tipos de transferencia
 TRANSFERENCIA_SUBTIPOS = ["NU", "QR", "NEQUI", "DAVIPLATA"]
@@ -144,6 +149,18 @@ class _LineaProducto:
         self.campo_cantidad.setFixedWidth(62)
         self.campo_cantidad.setPrefix("x")
 
+        self._combo_talla = QComboBox()
+        self._combo_talla.addItems(["—"] + _TALLAS)
+        self._combo_talla.setFixedHeight(30)
+        self._combo_talla.setFixedWidth(62)
+        self._combo_talla.setVisible(False)
+        self._combo_talla.setToolTip("Talla del producto")
+        self._combo_talla.setStyleSheet(
+            "QComboBox { border:1px solid #D1D5DB; border-radius:5px;"
+            "padding:0 4px; background:white; } "
+            "QComboBox:focus { border:2px solid #3B82F6; }"
+        )
+
         self._lbl_stock = QLabel("")
         self._lbl_stock.setVisible(False)
         self._lbl_stock.setFixedWidth(86)
@@ -163,6 +180,7 @@ class _LineaProducto:
         self._btn_del = btn_del
 
         lay.addWidget(self.campo_producto, stretch=3)
+        lay.addWidget(self._combo_talla)
         lay.addWidget(self.campo_costo)
         lay.addWidget(self.campo_precio)
         lay.addWidget(self.campo_cantidad)
@@ -193,6 +211,7 @@ class _LineaProducto:
         self.campo_costo.textChanged.connect(on_change)
         self.campo_precio.textChanged.connect(on_change)
         self.campo_cantidad.valueChanged.connect(on_change)
+        self._combo_talla.currentTextChanged.connect(self._on_talla_cambiada)
 
     # -- Autocompletado --
 
@@ -249,7 +268,62 @@ class _LineaProducto:
         except Exception:
             pass
 
+    def _on_talla_cambiada(self, nueva_talla: str) -> None:
+        if nueva_talla == "—":
+            return
+        nombre = self.campo_producto.text()
+        # Reemplazar -T:XX con la nueva talla, o agregar si no existe
+        if _PAT_TALLA_FORM.search(nombre):
+            nuevo_nombre = _PAT_TALLA_FORM.sub(f"-T:{nueva_talla}", nombre)
+        else:
+            return  # sin patrón -T:, no modificar
+        if nuevo_nombre == nombre:
+            return
+        self.campo_producto.blockSignals(True)
+        self.campo_producto.setText(nuevo_nombre)
+        self.campo_producto.blockSignals(False)
+        # Buscar el producto con el nuevo nombre y actualizar costo/stock
+        try:
+            from database.inventario_repo import obtener_producto_por_nombre_exacto
+            p = obtener_producto_por_nombre_exacto(nuevo_nombre)
+            if p:
+                self.campo_costo.set_valor(int(p.costo_unitario))
+                # Actualizar stock sin llamar a _aplicar_producto completo
+                if p.cantidad > 5:
+                    self._lbl_stock.setText(f"Stock: {p.cantidad}")
+                    self._lbl_stock.setStyleSheet(
+                        "font-size:9px; padding:1px 5px; border-radius:3px;"
+                        "color:#15803D; background:#DCFCE7;"
+                    )
+                elif p.cantidad > 0:
+                    self._lbl_stock.setText(f"Bajo: {p.cantidad}")
+                    self._lbl_stock.setStyleSheet(
+                        "font-size:9px; padding:1px 5px; border-radius:3px;"
+                        "color:#92400E; background:#FEF3C7;"
+                    )
+                else:
+                    self._lbl_stock.setText("Sin stock")
+                    self._lbl_stock.setStyleSheet(
+                        "font-size:9px; padding:1px 5px; border-radius:3px;"
+                        "color:#DC2626; background:#FEE2E2;"
+                    )
+                self._lbl_stock.setVisible(True)
+        except Exception:
+            pass
+        self._on_change()
+
     def _aplicar_producto(self, producto) -> None:
+        # Mostrar/preseleccionar talla si el nombre tiene -T:XX
+        m = _PAT_TALLA_FORM.search(producto.producto or "")
+        if m:
+            talla = m.group(1).upper()
+            self._combo_talla.blockSignals(True)
+            idx = self._combo_talla.findText(talla)
+            self._combo_talla.setCurrentIndex(idx if idx >= 0 else 0)
+            self._combo_talla.blockSignals(False)
+            self._combo_talla.setVisible(True)
+        else:
+            self._combo_talla.setVisible(False)
         self.campo_costo.set_valor(int(producto.costo_unitario))
         if producto.cantidad > 5:
             self._lbl_stock.setText(f"Stock: {producto.cantidad}")
@@ -302,6 +376,8 @@ class _LineaProducto:
         self.campo_precio.clear()
         self.campo_cantidad.setValue(1)
         self._lbl_stock.setVisible(False)
+        self._combo_talla.setCurrentIndex(0)
+        self._combo_talla.setVisible(False)
 
 
 class VentaForm(QWidget):
@@ -372,7 +448,7 @@ class VentaForm(QWidget):
         lbl_prods.setFont(f_hdr)
 
         # Encabezado de columnas
-        lbl_cols = QLabel("Producto                                      Costo          Precio        Cant.")
+        lbl_cols = QLabel("Producto                               Talla   Costo         Precio        Cant.")
         lbl_cols.setStyleSheet("color:#9CA3AF; font-size:10px;")
 
         btn_add_linea = QPushButton("+ Producto")

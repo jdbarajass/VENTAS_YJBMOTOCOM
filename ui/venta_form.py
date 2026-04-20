@@ -921,13 +921,15 @@ class VentaForm(QWidget):
                         f"al precio total ({_cop(total_esperado)})."
                     )
 
-            ventas = self._ctrl.guardar_carrito(
-                fecha=fecha,
-                lineas=lineas,
-                metodo_pago=metodo,
-                notas=notas,
-                pagos_combinados=pagos,
-            )
+            from utils.busy import ocupado
+            with ocupado(mensaje="Guardando venta..."):
+                ventas = self._ctrl.guardar_carrito(
+                    fecha=fecha,
+                    lineas=lineas,
+                    metodo_pago=metodo,
+                    notas=notas,
+                    pagos_combinados=pagos,
+                )
             self._mostrar_exito(ventas)
             for v in ventas:
                 self.venta_guardada.emit(v)

@@ -206,10 +206,10 @@ class InventarioPanel(QWidget):
 
     def _build_tabla(self) -> QTableWidget:
         self.tabla = QTableWidget()
-        self.tabla.setColumnCount(7)
+        self.tabla.setColumnCount(8)
         self.tabla.setHorizontalHeaderLabels([
             "ID", "Serial", "Producto", "Costo Unitario",
-            "Cantidad", "Código de Barras", "Acciones"
+            "Cantidad", "Código de Barras", "Talla", "Acciones"
         ])
         self.tabla.setColumnHidden(0, True)
         self.tabla.setEditTriggers(QAbstractItemView.NoEditTriggers)
@@ -240,7 +240,8 @@ class InventarioPanel(QWidget):
         hh.setSectionResizeMode(3, QHeaderView.Fixed);        self.tabla.setColumnWidth(3, 130)
         hh.setSectionResizeMode(4, QHeaderView.Fixed);        self.tabla.setColumnWidth(4, 90)
         hh.setSectionResizeMode(5, QHeaderView.Interactive);  self.tabla.setColumnWidth(5, 140)
-        hh.setSectionResizeMode(6, QHeaderView.Fixed);        self.tabla.setColumnWidth(6, 145)
+        hh.setSectionResizeMode(6, QHeaderView.Fixed);        self.tabla.setColumnWidth(6, 58)
+        hh.setSectionResizeMode(7, QHeaderView.Fixed);        self.tabla.setColumnWidth(7, 145)
         self.tabla.setHorizontalScrollMode(QAbstractItemView.ScrollPerPixel)
 
         return self.tabla
@@ -273,9 +274,11 @@ class InventarioPanel(QWidget):
     # ------------------------------------------------------------------
 
     def refresh(self) -> None:
-        self._productos = obtener_todos_productos()
-        self._campo_busqueda.clear()
-        self._aplicar_filtros()
+        from utils.busy import ocupado
+        with ocupado(mensaje="Cargando inventario..."):
+            self._productos = obtener_todos_productos()
+            self._campo_busqueda.clear()
+            self._aplicar_filtros()
 
     def _on_toggle_stock(self, checked: bool) -> None:
         self._solo_con_stock = checked
@@ -325,8 +328,17 @@ class InventarioPanel(QWidget):
 
             self._celda(row, 5, p.codigo_barras or "", Qt.AlignCenter)
 
+            # Talla
+            talla_item = QTableWidgetItem(p.talla)
+            talla_item.setTextAlignment(Qt.AlignCenter)
+            if p.talla != "N/A":
+                talla_item.setForeground(QColor("#1D4ED8"))
+            else:
+                talla_item.setForeground(QColor("#9CA3AF"))
+            self.tabla.setItem(row, 6, talla_item)
+
             # Acciones
-            self.tabla.setCellWidget(row, 6, self._widget_acciones(p.id))
+            self.tabla.setCellWidget(row, 7, self._widget_acciones(p.id))
 
     def _celda(self, row, col, texto, alin=Qt.AlignLeft | Qt.AlignVCenter):
         item = QTableWidgetItem(texto)

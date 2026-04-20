@@ -244,24 +244,25 @@ class CarguesPedidosWidget(QWidget):
         es_otro = "Otro" in seleccion
 
         try:
+            from utils.busy import ocupado
             from services.pdf_pedido_parser import parsear_pdf, generar_codigos_barras
             from services.pdf_distrifabrica_parser import (
                 parsear_pdf_distrifabrica, generar_codigos_barras_distrifabrica,
             )
 
-            if es_distrifabrica:
-                items = parsear_pdf_distrifabrica(ruta)
-                _gen_cbs = generar_codigos_barras_distrifabrica
-            elif es_otro:
-                # Intentar con ambos parsers: primero ACCESORIOS, luego DISTRIFABRICA
-                items = parsear_pdf(ruta)
-                _gen_cbs = generar_codigos_barras
-                if not items:
+            with ocupado(mensaje="Leyendo PDF y analizando cascos..."):
+                if es_distrifabrica:
                     items = parsear_pdf_distrifabrica(ruta)
                     _gen_cbs = generar_codigos_barras_distrifabrica
-            else:
-                items = parsear_pdf(ruta)
-                _gen_cbs = generar_codigos_barras
+                elif es_otro:
+                    items = parsear_pdf(ruta)
+                    _gen_cbs = generar_codigos_barras
+                    if not items:
+                        items = parsear_pdf_distrifabrica(ruta)
+                        _gen_cbs = generar_codigos_barras_distrifabrica
+                else:
+                    items = parsear_pdf(ruta)
+                    _gen_cbs = generar_codigos_barras
         except ImportError as exc:
             QMessageBox.critical(self, "Dependencia faltante", str(exc))
             return

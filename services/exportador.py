@@ -228,8 +228,8 @@ def _escribir_hoja_prestamos(ws, prestamos: list) -> None:
         ws.column_dimensions[get_column_letter(i)].width = ancho
 
 
-_HEADERS_INVENTARIO = ["Serial", "Producto", "Costo unitario", "Cantidad", "Código barras"]
-_ANCHOS_INVENTARIO  = [12, 38, 16, 12, 20]
+_HEADERS_INVENTARIO = ["Serial", "Producto", "Costo unitario", "Cantidad", "Código barras", "Talla"]
+_ANCHOS_INVENTARIO  = [12, 38, 16, 12, 20, 8]
 
 
 def _escribir_hoja_inventario(ws, productos: list) -> None:
@@ -240,7 +240,7 @@ def _escribir_hoja_inventario(ws, productos: list) -> None:
     hoy = _date.today().strftime("%d/%m/%Y")
 
     # Título
-    ws.merge_cells("A1:E1")
+    ws.merge_cells("A1:F1")
     t = ws["A1"]
     t.value = f"YJBMOTOCOM — Inventario ({hoy})"
     t.font = Font(name="Calibri", bold=True, size=13, color="FFFFFF")
@@ -250,7 +250,7 @@ def _escribir_hoja_inventario(ws, productos: list) -> None:
 
     # Encabezados
     ws.append(_HEADERS_INVENTARIO)
-    for col_idx in range(1, 6):
+    for col_idx in range(1, 7):
         cell = ws.cell(row=2, column=col_idx)
         cell.font = Font(bold=True, color="FFFFFF", name="Calibri", size=10)
         cell.fill = PatternFill("solid", fgColor="0284C7")
@@ -259,9 +259,9 @@ def _escribir_hoja_inventario(ws, productos: list) -> None:
     ws.row_dimensions[2].height = 20
 
     # Datos
-    total_referencias  = 0   # líneas con stock > 0
-    total_unidades     = 0   # suma de cantidades con stock
-    total_valor_inv    = 0.0 # suma de costo_unitario × cantidad (solo stock > 0)
+    total_referencias  = 0
+    total_unidades     = 0
+    total_valor_inv    = 0.0
     for i, p in enumerate(productos, start=1):
         ws.append([
             p.serial or "",
@@ -269,15 +269,19 @@ def _escribir_hoja_inventario(ws, productos: list) -> None:
             p.costo_unitario,
             p.cantidad,
             p.codigo_barras or "",
+            p.talla,
         ])
         row = ws.max_row
         fondo = "F0F9FF" if i % 2 == 0 else "FFFFFF"
-        for col_idx in range(1, 6):
+        for col_idx in range(1, 7):
             c = ws.cell(row=row, column=col_idx)
             c.fill = PatternFill("solid", fgColor=fondo)
             c.border = borde
             c.font = Font(name="Calibri", size=10)
-            c.alignment = Alignment(vertical="center")
+            c.alignment = Alignment(
+                vertical="center",
+                horizontal="center" if col_idx in (1, 4, 5, 6) else "left",
+            )
         ws.row_dimensions[row].height = 18
         if p.cantidad > 0:
             total_referencias += 1
@@ -288,12 +292,12 @@ def _escribir_hoja_inventario(ws, productos: list) -> None:
     ws.append([
         "TOTALES",
         f"{total_referencias} ref. con stock",
-        total_valor_inv,   # valor del inventario en col "Costo unitario"
-        total_unidades,    # unidades totales en stock en col "Cantidad"
-        "",
+        total_valor_inv,
+        total_unidades,
+        "", "",
     ])
     total_row = ws.max_row
-    for col_idx in range(1, 6):
+    for col_idx in range(1, 7):
         c = ws.cell(row=total_row, column=col_idx)
         c.font = Font(bold=True, name="Calibri", size=10)
         c.fill = PatternFill("solid", fgColor="E0F2FE")

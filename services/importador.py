@@ -118,6 +118,10 @@ def _leer_inventario(ws) -> list[Producto]:
         header_row_idx = 1
 
     for row_idx in range(header_row_idx + 1, ws.max_row + 1):
+        # Saltar filas de totales exportadas por el sistema
+        if str(ws.cell(row_idx, 1).value or "").strip().upper() == "TOTALES":
+            continue
+
         col_prod = mapa.get("producto")
         val_prod = ws.cell(row_idx, (col_prod or 0) + 1).value if col_prod is not None else None
         if not val_prod or not str(val_prod).strip():

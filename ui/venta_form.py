@@ -111,81 +111,94 @@ class _LineaProducto:
             "QWidget { background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 6px; }"
         )
 
-        lay = QHBoxLayout(self.widget)
-        lay.setContentsMargins(8, 6, 8, 6)
-        lay.setSpacing(6)
+        # Layout principal: 2 filas dentro del widget
+        root = QVBoxLayout(self.widget)
+        root.setContentsMargins(8, 6, 8, 6)
+        root.setSpacing(4)
+
+        # ── Fila 1: nombre (ancho completo) + talla + botón X ────────────
+        fila1 = QHBoxLayout()
+        fila1.setSpacing(6)
 
         self.campo_producto = QLineEdit()
         self.campo_producto.setPlaceholderText("Buscar producto en inventario...")
-        self.campo_producto.setFixedHeight(30)
+        self.campo_producto.setFixedHeight(32)
         self.campo_producto.setStyleSheet(
             "QLineEdit { background:white; border:1px solid #D1D5DB; border-radius:5px;"
-            "padding:0 8px; } QLineEdit:focus { border:2px solid #3B82F6; }"
+            "padding:0 10px; font-size:12px; } QLineEdit:focus { border:2px solid #3B82F6; }"
         )
-
-        self.campo_costo = MoneyLineEdit()
-        self.campo_costo.setPlaceholderText("Costo")
-        self.campo_costo.setFixedHeight(30)
-        self.campo_costo.setFixedWidth(105)
-        self.campo_costo.setStyleSheet(
-            "QLineEdit { background:white; border:1px solid #D1D5DB; border-radius:5px;"
-            "padding:0 6px; } QLineEdit:focus { border:2px solid #3B82F6; }"
-        )
-
-        self.campo_precio = MoneyLineEdit()
-        self.campo_precio.setPlaceholderText("Precio")
-        self.campo_precio.setFixedHeight(30)
-        self.campo_precio.setFixedWidth(115)
-        self.campo_precio.setStyleSheet(
-            "QLineEdit { background:white; border:1px solid #D1D5DB; border-radius:5px;"
-            "padding:0 6px; } QLineEdit:focus { border:2px solid #3B82F6; }"
-        )
-
-        self.campo_cantidad = QSpinBox()
-        self.campo_cantidad.setMinimum(1)
-        self.campo_cantidad.setMaximum(999)
-        self.campo_cantidad.setValue(1)
-        self.campo_cantidad.setFixedHeight(30)
-        self.campo_cantidad.setFixedWidth(62)
-        self.campo_cantidad.setPrefix("x")
 
         self._combo_talla = QComboBox()
         self._combo_talla.addItems(["—"] + _TALLAS)
-        self._combo_talla.setFixedHeight(30)
-        self._combo_talla.setFixedWidth(62)
+        self._combo_talla.setFixedHeight(32)
+        self._combo_talla.setFixedWidth(68)
         self._combo_talla.setVisible(False)
         self._combo_talla.setToolTip("Talla del producto")
         self._combo_talla.setStyleSheet(
             "QComboBox { border:1px solid #D1D5DB; border-radius:5px;"
-            "padding:0 4px; background:white; } "
+            "padding:0 4px; background:white; font-size:11px; } "
             "QComboBox:focus { border:2px solid #3B82F6; }"
         )
 
-        self._lbl_stock = QLabel("")
-        self._lbl_stock.setVisible(False)
-        self._lbl_stock.setFixedWidth(86)
-        self._lbl_stock.setAlignment(Qt.AlignCenter)
-        self._lbl_stock.setStyleSheet("font-size:9px; padding:1px 5px; border-radius:3px;")
-
-        btn_del = QPushButton("X")
-        btn_del.setFixedSize(26, 26)
+        btn_del = QPushButton("✕")
+        btn_del.setFixedSize(28, 28)
         btn_del.setToolTip("Quitar este producto del carrito")
         btn_del.setStyleSheet(
             "QPushButton { background:#FEE2E2; color:#DC2626; border:1px solid #FECACA;"
-            "border-radius:4px; font-size:12px; font-weight:bold; }"
+            "border-radius:4px; font-size:13px; font-weight:bold; }"
             "QPushButton:hover { background:#FECACA; }"
             "QPushButton:disabled { background:#F3F4F6; color:#D1D5DB; border-color:#E5E7EB; }"
         )
         btn_del.clicked.connect(on_remove)
         self._btn_del = btn_del
 
-        lay.addWidget(self.campo_producto, stretch=3)
-        lay.addWidget(self._combo_talla)
-        lay.addWidget(self.campo_costo)
-        lay.addWidget(self.campo_precio)
-        lay.addWidget(self.campo_cantidad)
-        lay.addWidget(self._lbl_stock)
-        lay.addWidget(btn_del)
+        fila1.addWidget(self.campo_producto, stretch=1)
+        fila1.addWidget(self._combo_talla)
+        fila1.addWidget(btn_del)
+
+        # ── Fila 2: costo + precio + cantidad + badge stock ──────────────
+        fila2 = QHBoxLayout()
+        fila2.setSpacing(6)
+
+        _campo_style = (
+            "QLineEdit { background:white; border:1px solid #D1D5DB; border-radius:5px;"
+            "padding:0 6px; font-size:11px; } QLineEdit:focus { border:2px solid #3B82F6; }"
+        )
+
+        self.campo_costo = MoneyLineEdit()
+        self.campo_costo.setPlaceholderText("Costo")
+        self.campo_costo.setFixedHeight(28)
+        self.campo_costo.setFixedWidth(115)
+        self.campo_costo.setStyleSheet(_campo_style)
+
+        self.campo_precio = MoneyLineEdit()
+        self.campo_precio.setPlaceholderText("Precio venta")
+        self.campo_precio.setFixedHeight(28)
+        self.campo_precio.setFixedWidth(130)
+        self.campo_precio.setStyleSheet(_campo_style)
+
+        self.campo_cantidad = QSpinBox()
+        self.campo_cantidad.setMinimum(1)
+        self.campo_cantidad.setMaximum(999)
+        self.campo_cantidad.setValue(1)
+        self.campo_cantidad.setFixedHeight(28)
+        self.campo_cantidad.setFixedWidth(66)
+        self.campo_cantidad.setPrefix("x")
+
+        self._lbl_stock = QLabel("")
+        self._lbl_stock.setVisible(False)
+        self._lbl_stock.setFixedWidth(90)
+        self._lbl_stock.setAlignment(Qt.AlignCenter)
+        self._lbl_stock.setStyleSheet("font-size:9px; padding:1px 5px; border-radius:3px;")
+
+        fila2.addWidget(self.campo_costo)
+        fila2.addWidget(self.campo_precio)
+        fila2.addWidget(self.campo_cantidad)
+        fila2.addWidget(self._lbl_stock)
+        fila2.addStretch()
+
+        root.addLayout(fila1)
+        root.addLayout(fila2)
 
         # Autocompletado
         self._completer = QCompleter()
@@ -448,7 +461,7 @@ class VentaForm(QWidget):
         lbl_prods.setFont(f_hdr)
 
         # Encabezado de columnas
-        lbl_cols = QLabel("Producto                               Talla   Costo         Precio        Cant.")
+        lbl_cols = QLabel("Nombre del producto / Talla                    Costo          Precio venta   Cant.")
         lbl_cols.setStyleSheet("color:#9CA3AF; font-size:10px;")
 
         btn_add_linea = QPushButton("+ Producto")

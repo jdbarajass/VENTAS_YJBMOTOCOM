@@ -34,7 +34,6 @@ class ConfigController:
         if not (1 <= cfg.dias_mes <= 31):
             raise ValueError("Los días del mes deben estar entre 1 y 31.")
         for nombre, val in [
-            ("Bold", cfg.comision_bold),
             ("Addi", cfg.comision_addi),
             ("Transferencia", cfg.comision_transferencia),
         ]:

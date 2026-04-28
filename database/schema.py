@@ -28,6 +28,7 @@ def initialize_schema() -> None:
     _migrate_ventas(conn)
     _migrate_facturas(conn)
     _migrate_gastos_dia(conn)
+    _migrate_configuracion(conn)
     conn.commit()
 
 
@@ -176,6 +177,16 @@ def _migrate_gastos_dia(conn: sqlite3.Connection) -> None:
     try:
         conn.execute(
             "ALTER TABLE gastos_dia ADD COLUMN categoria TEXT NOT NULL DEFAULT 'Otro'"
+        )
+    except sqlite3.OperationalError:
+        pass  # La columna ya existe
+
+
+def _migrate_configuracion(conn: sqlite3.Connection) -> None:
+    """Agrega clave_inventario a configuracion si no existe."""
+    try:
+        conn.execute(
+            "ALTER TABLE configuracion ADD COLUMN clave_inventario TEXT DEFAULT 'YJB2026_*'"
         )
     except sqlite3.OperationalError:
         pass  # La columna ya existe

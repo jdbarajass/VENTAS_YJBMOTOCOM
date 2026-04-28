@@ -339,7 +339,7 @@ class EditVentaDialog(QDialog):
         self._panel_combinado.setVisible(activo)
         if activo and not self._filas_pago:
             self._agregar_fila_pago("Efectivo", 0)
-            self._agregar_fila_pago("Bold", 0)
+            self._agregar_fila_pago("Transferencia", 0)
         elif not activo:
             self._limpiar_filas_pago()
         self._actualizar_preview()

@@ -16,9 +16,10 @@ class Configuracion:
     servicios: float = 0.0         # COP/mes (agua, luz, internet, etc.)
     otros_gastos: float = 0.0      # COP/mes (misceláneos)
     dias_mes: int = 30             # Días para repartir el gasto diario
-    comision_bold: float = 0.0     # Porcentaje ej: 3.49
+    comision_bold: float = 0.0     # Guardado para compatibilidad histórica
     comision_addi: float = 0.0     # Porcentaje ej: 5.0
     comision_transferencia: float = 0.0  # Porcentaje (normalmente 0)
+    clave_inventario: str = "YJB2026_*"  # Contraseña para Inventario y Configuración
 
     # ------------------------------------------------------------------
     # Propiedades derivadas

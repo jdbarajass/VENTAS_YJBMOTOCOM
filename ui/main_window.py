@@ -10,6 +10,7 @@ from datetime import date as _date
 from PySide6.QtWidgets import (
     QMainWindow, QWidget, QHBoxLayout, QVBoxLayout,
     QLabel, QStatusBar, QPushButton, QStackedWidget, QFrame,
+    QInputDialog, QLineEdit, QMessageBox,
 )
 from PySide6.QtCore import Qt, QSize
 from PySide6.QtGui import QFont
@@ -49,6 +50,7 @@ class MainWindow(QMainWindow):
 
     def __init__(self) -> None:
         super().__init__()
+        self._paginas_desbloqueadas: set[int] = set()   # páginas ya autenticadas esta sesión
         self._setup_window()
         self._build_ui()
         self._nav_buttons[PAGE_CALCULADORA].setChecked(True)
@@ -279,7 +281,26 @@ class MainWindow(QMainWindow):
     # ------------------------------------------------------------------
 
     def _navegar(self, page_idx: int) -> None:
-        """Cambia la página visible y marca el botón activo."""
+        """Cambia la página visible; pide contraseña para Inventario y Configuración."""
+        _PAGINAS_PROTEGIDAS = {PAGE_INVENTARIO, PAGE_CONFIG}
+        if page_idx in _PAGINAS_PROTEGIDAS and page_idx not in self._paginas_desbloqueadas:
+            from database.config_repo import obtener_configuracion
+            clave_correcta = obtener_configuracion().clave_inventario
+            clave, ok = QInputDialog.getText(
+                self, "Acceso restringido",
+                "Ingresa la contraseña para continuar:",
+                QLineEdit.Password,
+            )
+            if not ok or clave != clave_correcta:
+                if ok:
+                    QMessageBox.warning(self, "Acceso denegado", "Contraseña incorrecta.")
+                # Restaurar el botón que estaba activo antes
+                current = self._stack.currentIndex()
+                for idx, btn in self._nav_buttons.items():
+                    btn.setChecked(idx == current)
+                return
+            self._paginas_desbloqueadas.add(page_idx)
+
         self._stack.setCurrentIndex(page_idx)
         for idx, btn in self._nav_buttons.items():
             btn.setChecked(idx == page_idx)

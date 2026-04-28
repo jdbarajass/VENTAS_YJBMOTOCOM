@@ -267,7 +267,6 @@ class VistaDiariaDialog(QDialog):
 
             _COL = {
                 "Efectivo": ("#DCFCE7", "#15803D"),
-                "Bold":     ("#FEF3C7", "#92400E"),
                 "Addi":     ("#EDE9FE", "#6D28D9"),
                 "Otro":     ("#F3F4F6", "#374151"),
             }

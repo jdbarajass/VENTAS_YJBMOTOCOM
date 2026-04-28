@@ -10,7 +10,7 @@ from PySide6.QtWidgets import (
     QWidget, QHBoxLayout, QVBoxLayout, QFormLayout,
     QLabel, QLineEdit, QComboBox, QTextEdit,
     QPushButton, QDateEdit, QFrame, QMessageBox,
-    QSpinBox, QCompleter,
+    QSpinBox, QCompleter, QScrollArea,
 )
 from PySide6.QtCore import Qt, QDate, QTimer, Signal, QStringListModel
 from PySide6.QtGui import QFont
@@ -21,8 +21,21 @@ from models.venta import Venta
 from controllers.venta_controller import VentaController
 from utils.formatters import cop, porcentaje
 
+# Estilo compartido para QComboBox (evita fondo negro del sistema)
+_COMBO_STYLE = (
+    "QComboBox { background:white; color:#1E293B; border:1px solid #D1D5DB;"
+    "  border-radius:5px; padding:0 10px; font-size:12px; }"
+    "QComboBox:focus { border:2px solid #3B82F6; }"
+    "QComboBox::drop-down { border:none; width:20px; }"
+    "QComboBox QAbstractItemView {"
+    "  background:white; color:#1E293B;"
+    "  selection-background-color:#DBEAFE; selection-color:#1E3A5F;"
+    "  border:1px solid #BFDBFE; border-radius:4px; padding:2px; font-size:12px;"
+    "}"
+)
+
 # Métodos de pago disponibles (orden de ComboBox)
-METODOS_PAGO = ["Efectivo", "Bold", "Addi", "Transferencia", "Otro"]
+METODOS_PAGO = ["Efectivo", "Addi", "Transferencia", "Otro"]
 
 _TALLAS = ["XS", "S", "M", "L", "XL", "2XL"]
 _PAT_TALLA_FORM = _re_vf.compile(r"-T:(\w+)$")
@@ -136,8 +149,13 @@ class _LineaProducto:
         self._combo_talla.setToolTip("Talla del producto")
         self._combo_talla.setStyleSheet(
             "QComboBox { border:1px solid #D1D5DB; border-radius:5px;"
-            "padding:0 4px; background:white; font-size:11px; } "
+            "  padding:0 4px; background:white; color:#1E293B; font-size:11px; }"
             "QComboBox:focus { border:2px solid #3B82F6; }"
+            "QComboBox::drop-down { border:none; width:16px; }"
+            "QComboBox QAbstractItemView {"
+            "  background:white; color:#1E293B;"
+            "  selection-background-color:#DBEAFE; selection-color:#1E3A5F;"
+            "  border:1px solid #BFDBFE; font-size:11px; }"
         )
 
         btn_del = QPushButton("✕")
@@ -417,17 +435,31 @@ class VentaForm(QWidget):
 
     def _build_ui(self) -> None:
         root = QHBoxLayout(self)
-        root.setContentsMargins(28, 24, 28, 24)
-        root.setSpacing(24)
+        root.setContentsMargins(0, 0, 0, 0)
+        root.setSpacing(0)
 
-        root.addWidget(self._panel_formulario(), stretch=3)
+        # Panel izquierdo (formulario) dentro de un scroll para manejar muchos productos
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QFrame.NoFrame)
+        scroll.setStyleSheet("background: transparent;")
+        scroll.setWidget(self._panel_formulario())
+
+        # Panel derecho (preview) con márgenes propios
+        preview_wrapper = QWidget()
+        preview_wrapper.setStyleSheet("background: transparent;")
+        pw_lay = QVBoxLayout(preview_wrapper)
+        pw_lay.setContentsMargins(12, 24, 28, 24)
+        pw_lay.addWidget(self._panel_preview())
+
+        root.addWidget(scroll, stretch=3)
         root.addWidget(self._separador_vertical())
-        root.addWidget(self._panel_preview(), stretch=2)
+        root.addWidget(preview_wrapper, stretch=2)
 
     def _panel_formulario(self) -> QWidget:
         panel = QWidget()
         layout = QVBoxLayout(panel)
-        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setContentsMargins(28, 24, 16, 24)
         layout.setSpacing(16)
 
         # Título
@@ -478,21 +510,13 @@ class VentaForm(QWidget):
         layout.addLayout(hdr)
         layout.addWidget(lbl_cols)
 
-        # Área scrollable de lineas de productos
+        # Contenedor de líneas de productos (sin scroll propio — el panel completo scrollea)
         self._lineas_container = QWidget()
         self._lineas_container.setStyleSheet("background:transparent;")
         self._lineas_layout = QVBoxLayout(self._lineas_container)
         self._lineas_layout.setContentsMargins(0, 0, 0, 0)
         self._lineas_layout.setSpacing(4)
-
-        from PySide6.QtWidgets import QScrollArea
-        self._scroll_lineas = QScrollArea()
-        self._scroll_lineas.setWidget(self._lineas_container)
-        self._scroll_lineas.setWidgetResizable(True)
-        self._scroll_lineas.setMaximumHeight(200)
-        self._scroll_lineas.setFrameShape(QFrame.NoFrame)
-        self._scroll_lineas.setStyleSheet("background:transparent;")
-        layout.addWidget(self._scroll_lineas)
+        layout.addWidget(self._lineas_container)
 
         # Formulario inferior — método de pago
         form2 = QFormLayout()
@@ -507,6 +531,7 @@ class VentaForm(QWidget):
         self.campo_metodo = QComboBox()
         self.campo_metodo.addItems(METODOS_PAGO)
         self.campo_metodo.setFixedHeight(34)
+        self.campo_metodo.setStyleSheet(_COMBO_STYLE)
         self._btn_combinado = QPushButton("Combinado")
         self._btn_combinado.setCheckable(True)
         self._btn_combinado.setFixedHeight(34)
@@ -532,6 +557,7 @@ class VentaForm(QWidget):
         self.campo_sub_transferencia = QComboBox()
         self.campo_sub_transferencia.addItems(TRANSFERENCIA_SUBTIPOS)
         self.campo_sub_transferencia.setFixedHeight(34)
+        self.campo_sub_transferencia.setStyleSheet(_COMBO_STYLE)
         form2.addRow(self.lbl_sub_transferencia, self.campo_sub_transferencia)
         self.lbl_sub_transferencia.setVisible(False)
         self.campo_sub_transferencia.setVisible(False)
@@ -754,7 +780,7 @@ class VentaForm(QWidget):
             # Inicializar con dos filas vacías si no hay ninguna
             if not self._filas_pago:
                 self._agregar_fila_pago("Efectivo", 0)
-                self._agregar_fila_pago("Bold", 0)
+                self._agregar_fila_pago("Transferencia", 0)
         else:
             # Limpiar filas al desactivar
             self._limpiar_filas_pago()

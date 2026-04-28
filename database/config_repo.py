@@ -9,6 +9,7 @@ from database.connection import DatabaseConnection
 
 
 def _row_to_config(row: sqlite3.Row) -> Configuracion:
+    keys = row.keys()
     return Configuracion(
         arriendo=row["arriendo"],
         sueldo=row["sueldo"],
@@ -18,6 +19,7 @@ def _row_to_config(row: sqlite3.Row) -> Configuracion:
         comision_bold=row["comision_bold"],
         comision_addi=row["comision_addi"],
         comision_transferencia=row["comision_transferencia"],
+        clave_inventario=row["clave_inventario"] if "clave_inventario" in keys else "YJB2026_*",
     )
 
 
@@ -43,7 +45,8 @@ def guardar_configuracion(cfg: Configuracion) -> None:
             dias_mes               = ?,
             comision_bold          = ?,
             comision_addi          = ?,
-            comision_transferencia = ?
+            comision_transferencia = ?,
+            clave_inventario       = ?
         WHERE id = 1
         """,
         (
@@ -55,6 +58,7 @@ def guardar_configuracion(cfg: Configuracion) -> None:
             cfg.comision_bold,
             cfg.comision_addi,
             cfg.comision_transferencia,
+            cfg.clave_inventario,
         ),
     )
     conn.commit()

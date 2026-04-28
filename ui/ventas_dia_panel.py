@@ -600,7 +600,6 @@ class VentasDiaPanel(QWidget):
         # Colores por metodo (los sub-tipos de transferencia heredan el color azul)
         _COLORES = {
             "Efectivo":               ("#DCFCE7", "#15803D"),
-            "Bold":                   ("#FEF3C7", "#92400E"),
             "Addi":                   ("#EDE9FE", "#6D28D9"),
             "Transferencia":          ("#DBEAFE", "#1D4ED8"),
             "Transferencia NU":       ("#DBEAFE", "#1D4ED8"),

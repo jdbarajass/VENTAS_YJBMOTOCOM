@@ -6,7 +6,7 @@ Emite configuracion_guardada() al guardar para que MainWindow refresque todo.
 
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QFormLayout,
-    QLabel, QDoubleSpinBox, QSpinBox,
+    QLabel, QDoubleSpinBox, QSpinBox, QLineEdit,
     QPushButton, QFrame, QMessageBox, QScrollArea,
     QGroupBox,
 )
@@ -76,6 +76,9 @@ class ConfigPanel(QWidget):
 
         # Botón guardar
         root.addLayout(self._fila_guardar())
+
+        # Sección de seguridad (cambio de contraseña)
+        root.addWidget(self._seccion_seguridad())
         root.addStretch()
 
         scroll.setWidget(contenido)
@@ -124,11 +127,9 @@ class ConfigPanel(QWidget):
         form.setLabelAlignment(Qt.AlignRight | Qt.AlignVCenter)
         form.setFieldGrowthPolicy(QFormLayout.ExpandingFieldsGrow)
 
-        self.campo_bold          = self._campo_pct(3.49)
         self.campo_addi          = self._campo_pct(5.0)
         self.campo_transferencia = self._campo_pct(0.0)
 
-        form.addRow("Bold (%):", self.campo_bold)
         form.addRow("Addi (%):", self.campo_addi)
         form.addRow("Transferencia (%):", self.campo_transferencia)
 
@@ -184,6 +185,65 @@ class ConfigPanel(QWidget):
         s = QFrame(); s.setFrameShape(QFrame.VLine)
         s.setFixedHeight(40); s.setStyleSheet("color:#86EFAC;")
         return s
+
+    # ---- Sección seguridad ----
+
+    def _seccion_seguridad(self) -> QGroupBox:
+        box = QGroupBox("Seguridad — Contraseña de acceso")
+        box.setStyleSheet(self._estilo_groupbox())
+        form = QFormLayout(box)
+        form.setSpacing(10)
+        form.setLabelAlignment(Qt.AlignRight | Qt.AlignVCenter)
+        form.setFieldGrowthPolicy(QFormLayout.ExpandingFieldsGrow)
+
+        _style = self._estilo_campo()
+
+        self._campo_clave_actual = QLineEdit()
+        self._campo_clave_actual.setEchoMode(QLineEdit.Password)
+        self._campo_clave_actual.setPlaceholderText("Contraseña actual")
+        self._campo_clave_actual.setFixedHeight(34)
+        self._campo_clave_actual.setStyleSheet(_style)
+
+        self._campo_clave_nueva = QLineEdit()
+        self._campo_clave_nueva.setEchoMode(QLineEdit.Password)
+        self._campo_clave_nueva.setPlaceholderText("Nueva contraseña")
+        self._campo_clave_nueva.setFixedHeight(34)
+        self._campo_clave_nueva.setStyleSheet(_style)
+
+        self._campo_clave_confirmar = QLineEdit()
+        self._campo_clave_confirmar.setEchoMode(QLineEdit.Password)
+        self._campo_clave_confirmar.setPlaceholderText("Confirmar nueva contraseña")
+        self._campo_clave_confirmar.setFixedHeight(34)
+        self._campo_clave_confirmar.setStyleSheet(_style)
+
+        self._lbl_clave_feedback = QLabel("")
+        self._lbl_clave_feedback.setStyleSheet("font-size:12px;")
+
+        btn_cambiar = QPushButton("Cambiar contraseña")
+        btn_cambiar.setFixedHeight(36)
+        btn_cambiar.setFixedWidth(180)
+        btn_cambiar.setCursor(Qt.PointingHandCursor)
+        btn_cambiar.setStyleSheet(
+            "QPushButton { background:#374151; color:white; border-radius:6px; font-size:11px; }"
+            "QPushButton:hover { background:#1F2937; }"
+        )
+        btn_cambiar.clicked.connect(self._on_cambiar_clave)
+
+        form.addRow("Contraseña actual:", self._campo_clave_actual)
+        form.addRow("Nueva contraseña:", self._campo_clave_nueva)
+        form.addRow("Confirmar:", self._campo_clave_confirmar)
+        form.addRow("", self._lbl_clave_feedback)
+        form.addRow("", btn_cambiar)
+
+        info = QLabel(
+            "Esta contraseña protege el acceso a Inventario y Configuración. "
+            "Por defecto: YJB2026_*"
+        )
+        info.setWordWrap(True)
+        info.setStyleSheet("color:#9CA3AF; font-size:10px; padding-top:4px;")
+        form.addRow(info)
+
+        return box
 
     # ---- Fila guardar ----
 
@@ -269,7 +329,6 @@ class ConfigPanel(QWidget):
         self.campo_otros.set_valor(int(cfg.otros_gastos))
         self.campo_dias.setValue(cfg.dias_mes)
 
-        self.campo_bold.setValue(cfg.comision_bold)
         self.campo_addi.setValue(cfg.comision_addi)
         self.campo_transferencia.setValue(cfg.comision_transferencia)
 
@@ -298,15 +357,18 @@ class ConfigPanel(QWidget):
 
     def _on_guardar(self) -> None:
         try:
+            from database.config_repo import obtener_configuracion
+            cfg_actual = obtener_configuracion()
             cfg = Configuracion(
                 arriendo=float(self._parse_int(self.campo_arriendo.text())),
                 sueldo=float(self._parse_int(self.campo_sueldo.text())),
                 servicios=float(self._parse_int(self.campo_servicios.text())),
                 otros_gastos=float(self._parse_int(self.campo_otros.text())),
                 dias_mes=self.campo_dias.value(),
-                comision_bold=self.campo_bold.value(),
+                comision_bold=cfg_actual.comision_bold,
                 comision_addi=self.campo_addi.value(),
                 comision_transferencia=self.campo_transferencia.value(),
+                clave_inventario=cfg_actual.clave_inventario,
             )
             self._ctrl.guardar(cfg)
             self._lbl_feedback.setText("✔  Configuración guardada correctamente.")
@@ -315,6 +377,45 @@ class ConfigPanel(QWidget):
         except ValueError as exc:
             self._lbl_feedback.setText("")
             QMessageBox.warning(self, "Error de validación", str(exc))
+
+    def _on_cambiar_clave(self) -> None:
+        self._lbl_clave_feedback.setText("")
+        actual = self._campo_clave_actual.text()
+        nueva = self._campo_clave_nueva.text()
+        confirmar = self._campo_clave_confirmar.text()
+
+        if not actual or not nueva or not confirmar:
+            self._lbl_clave_feedback.setText("Completa los tres campos.")
+            self._lbl_clave_feedback.setStyleSheet("font-size:12px; color:#DC2626;")
+            return
+
+        from database.config_repo import obtener_configuracion
+        cfg_actual = obtener_configuracion()
+
+        if actual != cfg_actual.clave_inventario:
+            self._lbl_clave_feedback.setText("Contraseña actual incorrecta.")
+            self._lbl_clave_feedback.setStyleSheet("font-size:12px; color:#DC2626;")
+            return
+
+        if nueva != confirmar:
+            self._lbl_clave_feedback.setText("Las contraseñas nuevas no coinciden.")
+            self._lbl_clave_feedback.setStyleSheet("font-size:12px; color:#DC2626;")
+            return
+
+        if len(nueva) < 4:
+            self._lbl_clave_feedback.setText("La nueva contraseña debe tener al menos 4 caracteres.")
+            self._lbl_clave_feedback.setStyleSheet("font-size:12px; color:#DC2626;")
+            return
+
+        cfg_actual.clave_inventario = nueva
+        from database.config_repo import guardar_configuracion
+        guardar_configuracion(cfg_actual)
+
+        self._campo_clave_actual.clear()
+        self._campo_clave_nueva.clear()
+        self._campo_clave_confirmar.clear()
+        self._lbl_clave_feedback.setText("✔  Contraseña actualizada correctamente.")
+        self._lbl_clave_feedback.setStyleSheet("font-size:12px; color:#15803D;")
 
     # ------------------------------------------------------------------
     # API pública

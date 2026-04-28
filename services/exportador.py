@@ -56,7 +56,7 @@ _ANCHOS_VENTAS = [5, 12, 30, 8, 7, 15, 16, 14, 14, 15, 28, 1]
 _EJEMPLOS_VENTAS = [
     (1, "04/04/2026", "Casco X-Sport T.M",    "M",   1, 85000, 120000, "Efectivo",            0,  35000, "", ""),
     (2, "04/04/2026", "Aceite 10W-40 1L",     "N/A", 2, 18000,  28000, "Transferencia NEQUI", 0,  20000, "", ""),
-    (3, "04/04/2026", "Guantes cuero talla L", "N/A", 1, 25000,  40000, "Bold",             2000, 13000, "Cliente frecuente", ""),
+    (3, "04/04/2026", "Guantes cuero talla L", "N/A", 1, 25000,  40000, "Efectivo",            0, 15000, "Cliente frecuente", ""),
 ]
 
 

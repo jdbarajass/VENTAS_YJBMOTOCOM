@@ -202,7 +202,8 @@ class _Recibo:
         nl(2 * mm); sep(); nl(2 * mm)
 
         # ── Datos de la transacción ────────────────────────────────────
-        num = str(v0.id) if v0.id else "---"
+        num_factura = getattr(v0, "numero_factura", None) or v0.id
+        num = str(num_factura) if num_factura else "---"
         kv("Factura N:", f"#{num}")
 
         fecha_str = (v0.fecha.strftime("%d/%m/%Y")

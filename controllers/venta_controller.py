@@ -15,7 +15,12 @@ from services.calculator import (
     calcular_comision_combinada,
     completar_venta,
 )
-from database.ventas_repo import insertar_venta, actualizar_venta, eliminar_venta as _eliminar_venta
+from database.ventas_repo import (
+    insertar_venta,
+    actualizar_venta,
+    eliminar_venta as _eliminar_venta,
+    siguiente_numero_factura,
+)
 from database.config_repo import obtener_configuracion
 
 
@@ -97,6 +102,7 @@ class VentaController:
 
         cfg = self.get_configuracion()
         metodo_final = "Combinado" if pagos_combinados else metodo_pago
+        nro_factura = siguiente_numero_factura()
         venta = Venta(
             producto=producto.strip(),
             costo=costo,
@@ -107,6 +113,7 @@ class VentaController:
             notas=notas.strip(),
             pagos_combinados=pagos_combinados,
         )
+        venta.numero_factura = nro_factura
         completar_venta(venta, cfg)
         insertar_venta(venta)
 
@@ -148,6 +155,7 @@ class VentaController:
 
         from database.ventas_repo import siguiente_grupo_venta_id
         grupo_id = siguiente_grupo_venta_id() if len(lineas) > 1 else None
+        nro_factura = siguiente_numero_factura()
 
         ventas = []
         for i, ln in enumerate(lineas):
@@ -187,6 +195,7 @@ class VentaController:
                 pagos_combinados=pagos_linea,
                 grupo_venta_id=grupo_id,
             )
+            venta.numero_factura = nro_factura
             completar_venta(venta, cfg)
             insertar_venta(venta)
 

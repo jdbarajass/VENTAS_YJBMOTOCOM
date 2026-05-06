@@ -27,6 +27,8 @@ class Venta:
     pagos_combinados: list | None = None
     # Agrupa varias ventas de un mismo carrito (multi-producto). None = venta simple.
     grupo_venta_id: int | None = None
+    # Número de factura consecutivo compartido por todo el carrito.
+    numero_factura: int | None = None
 
     # ------------------------------------------------------------------
     # Propiedades derivadas (sin acceso a BD)

@@ -33,6 +33,7 @@ def _row_to_venta(row: sqlite3.Row) -> Venta:
         pagos_combinados=pagos,
     )
     v.grupo_venta_id = row["grupo_venta_id"] if "grupo_venta_id" in keys else None
+    v.numero_factura = row["numero_factura"] if "numero_factura" in keys else None
     return v
 
 
@@ -49,6 +50,15 @@ def siguiente_grupo_venta_id() -> int:
     return row[0]
 
 
+def siguiente_numero_factura() -> int:
+    """Retorna el próximo número de factura consecutivo (max existente + 1)."""
+    conn = DatabaseConnection.get()
+    row = conn.execute(
+        "SELECT COALESCE(MAX(numero_factura), 0) + 1 FROM ventas"
+    ).fetchone()
+    return row[0]
+
+
 def insertar_venta(venta: Venta) -> int:
     """
     Persiste una nueva venta y retorna el id generado.
@@ -57,12 +67,14 @@ def insertar_venta(venta: Venta) -> int:
     conn = DatabaseConnection.get()
     pagos_json = json.dumps(venta.pagos_combinados) if venta.pagos_combinados else None
     grupo_id = getattr(venta, "grupo_venta_id", None)
+    nro_factura = getattr(venta, "numero_factura", None)
     cursor = conn.execute(
         """
         INSERT INTO ventas
             (fecha, producto, costo, precio, metodo_pago, cantidad,
-             comision, ganancia_neta, notas, pagos_combinados, grupo_venta_id)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+             comision, ganancia_neta, notas, pagos_combinados, grupo_venta_id,
+             numero_factura)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         (
             venta.fecha.isoformat(),
@@ -76,6 +88,7 @@ def insertar_venta(venta: Venta) -> int:
             venta.notas,
             pagos_json,
             grupo_id,
+            nro_factura,
         ),
     )
     conn.commit()

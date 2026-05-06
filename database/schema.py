@@ -26,6 +26,7 @@ def initialize_schema() -> None:
     _create_presupuesto_mensual(conn)
     _seed_configuracion(conn)
     _migrate_ventas(conn)
+    _migrate_ventas_numero_factura(conn)
     _migrate_facturas(conn)
     _migrate_gastos_dia(conn)
     _migrate_configuracion(conn)
@@ -154,6 +155,14 @@ def _create_abonos_factura(conn: sqlite3.Connection) -> None:
             notas       TEXT             DEFAULT ''
         )
     """)
+
+
+def _migrate_ventas_numero_factura(conn: sqlite3.Connection) -> None:
+    """Agrega numero_factura a ventas si no existe."""
+    try:
+        conn.execute("ALTER TABLE ventas ADD COLUMN numero_factura INTEGER DEFAULT NULL")
+    except sqlite3.OperationalError:
+        pass  # La columna ya existe
 
 
 def _migrate_facturas(conn: sqlite3.Connection) -> None:

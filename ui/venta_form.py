@@ -1078,10 +1078,9 @@ class VentaForm(QWidget):
         if msg.clickedButton() == btn_recibo:
             try:
                 from services.recibo_generator import generar_recibo
-                from utils.pdf_utils import abrir_pdf
-                for v in ventas:
-                    path = generar_recibo(v)
-                    abrir_pdf(path)
+                from utils.pdf_utils import imprimir_pdf_pos
+                path = generar_recibo(ventas)
+                imprimir_pdf_pos(path)
             except Exception as exc:
                 QMessageBox.warning(self, "Error al generar recibo",
                                     f"No se pudo generar el PDF:\n{exc}")

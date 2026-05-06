@@ -647,15 +647,33 @@ class VentasDiaPanel(QWidget):
             self._cargar_datos()
 
     def _on_imprimir_recibo(self, venta_id: int) -> None:
-        """Genera el PDF del recibo y lo abre con el visor predeterminado."""
+        """Genera el PDF del recibo con todos los productos del grupo y lo imprime."""
         venta = next((v for v in self._ventas if v.id == venta_id), None)
         if not venta:
             return
+
+        # Si la venta pertenece a un grupo (carrito multi-producto), incluir todas
+        grupo_id = getattr(venta, "grupo_venta_id", None)
+        if grupo_id:
+            from database.ventas_repo import obtener_ventas_por_grupo
+            ventas_recibo = obtener_ventas_por_grupo(grupo_id)
+        else:
+            ventas_recibo = [venta]
+
         try:
             from services.recibo_generator import generar_recibo
-            from utils.pdf_utils import abrir_pdf
-            path = generar_recibo(venta)
-            abrir_pdf(path)
+            from utils.pdf_utils import imprimir_pdf_pos
+            path = generar_recibo(ventas_recibo)
+            enviado = imprimir_pdf_pos(path)
+            if not enviado:
+                QMessageBox.information(
+                    self, "Imprimir recibo",
+                    "El PDF se abrió en el visor.\n\n"
+                    "Para evitar papel en blanco al imprimir:\n"
+                    "  • Selecciona «Tamaño real» (sin escalar) en el diálogo de impresión.\n\n"
+                    "Tip: instala SumatraPDF (gratuito) para impresión directa y automática:\n"
+                    "  sumatrapdfreader.org"
+                )
         except Exception as exc:
             QMessageBox.warning(
                 self, "Error al generar recibo",

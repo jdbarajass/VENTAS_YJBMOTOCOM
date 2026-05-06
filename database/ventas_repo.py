@@ -87,6 +87,16 @@ def insertar_venta(venta: Venta) -> int:
 # READ
 # ------------------------------------------------------------------
 
+def obtener_ventas_por_grupo(grupo_id: int) -> list[Venta]:
+    """Retorna todas las ventas que comparten un mismo grupo_venta_id, en orden de id."""
+    conn = DatabaseConnection.get()
+    rows = conn.execute(
+        "SELECT * FROM ventas WHERE grupo_venta_id = ? ORDER BY id ASC",
+        (grupo_id,),
+    ).fetchall()
+    return [_row_to_venta(r) for r in rows]
+
+
 def obtener_venta_por_id(venta_id: int) -> Optional[Venta]:
     """Retorna una Venta por su id, o None si no existe."""
     conn = DatabaseConnection.get()

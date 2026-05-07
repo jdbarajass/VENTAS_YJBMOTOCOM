@@ -20,6 +20,7 @@ def _row_to_config(row: sqlite3.Row) -> Configuracion:
         comision_addi=row["comision_addi"],
         comision_transferencia=row["comision_transferencia"],
         clave_inventario=row["clave_inventario"] if "clave_inventario" in keys else "YJB2026_*",
+        nombre_impresora=row["nombre_impresora"] if "nombre_impresora" in keys else "",
     )
 
 
@@ -46,7 +47,8 @@ def guardar_configuracion(cfg: Configuracion) -> None:
             comision_bold          = ?,
             comision_addi          = ?,
             comision_transferencia = ?,
-            clave_inventario       = ?
+            clave_inventario       = ?,
+            nombre_impresora       = ?
         WHERE id = 1
         """,
         (
@@ -59,6 +61,7 @@ def guardar_configuracion(cfg: Configuracion) -> None:
             cfg.comision_addi,
             cfg.comision_transferencia,
             cfg.clave_inventario,
+            cfg.nombre_impresora,
         ),
     )
     conn.commit()

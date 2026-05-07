@@ -8,7 +8,7 @@ from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QFormLayout,
     QLabel, QDoubleSpinBox, QSpinBox, QLineEdit,
     QPushButton, QFrame, QMessageBox, QScrollArea,
-    QGroupBox,
+    QGroupBox, QComboBox,
 )
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QFont
@@ -76,6 +76,9 @@ class ConfigPanel(QWidget):
 
         # Botón guardar
         root.addLayout(self._fila_guardar())
+
+        # Sección impresora térmica POS
+        root.addWidget(self._seccion_impresora())
 
         # Sección de seguridad (cambio de contraseña)
         root.addWidget(self._seccion_seguridad())
@@ -185,6 +188,81 @@ class ConfigPanel(QWidget):
         s = QFrame(); s.setFrameShape(QFrame.VLine)
         s.setFixedHeight(40); s.setStyleSheet("color:#86EFAC;")
         return s
+
+    # ---- Sección impresora ----
+
+    def _seccion_impresora(self) -> QGroupBox:
+        box = QGroupBox("Impresora Termica POS (ESC/POS)")
+        box.setStyleSheet(self._estilo_groupbox())
+        lay = QVBoxLayout(box)
+        lay.setSpacing(10)
+
+        desc = QLabel(
+            "Selecciona la impresora termica conectada por USB. "
+            "Con ESC/POS no habra papel en blanco ni texto cortado. "
+            "Si no aparece, conecta la impresora y presiona Detectar."
+        )
+        desc.setWordWrap(True)
+        desc.setStyleSheet("color:#6B7280; font-size:11px;")
+        lay.addWidget(desc)
+
+        fila = QHBoxLayout()
+        fila.setSpacing(8)
+
+        self._combo_impresora = QComboBox()
+        self._combo_impresora.setFixedHeight(34)
+        self._combo_impresora.setEditable(True)
+        self._combo_impresora.setStyleSheet(
+            "QComboBox { background:white; color:#1E293B; border:1px solid #D1D5DB;"
+            "  border-radius:6px; padding:0 10px; font-size:12px; }"
+            "QComboBox:focus { border:2px solid #2563EB; }"
+            "QComboBox QAbstractItemView { background:white; color:#1E293B;"
+            "  selection-background-color:#DBEAFE; }"
+        )
+        fila.addWidget(self._combo_impresora, stretch=1)
+
+        btn_detectar = QPushButton("Detectar")
+        btn_detectar.setFixedHeight(34)
+        btn_detectar.setFixedWidth(90)
+        btn_detectar.setCursor(Qt.PointingHandCursor)
+        btn_detectar.setStyleSheet(
+            "QPushButton { background:#E5E7EB; color:#374151; border-radius:6px; font-size:11px; }"
+            "QPushButton:hover { background:#D1D5DB; }"
+        )
+        btn_detectar.clicked.connect(self._detectar_impresoras)
+        fila.addWidget(btn_detectar)
+
+        lay.addLayout(fila)
+
+        lbl_hint = QLabel(
+            "Deja el campo vacio para usar el metodo PDF (visor del sistema)."
+        )
+        lbl_hint.setStyleSheet("color:#9CA3AF; font-size:10px;")
+        lay.addWidget(lbl_hint)
+
+        self._detectar_impresoras()
+        return box
+
+    def _detectar_impresoras(self) -> None:
+        """Detecta impresoras disponibles y actualiza el ComboBox."""
+        try:
+            from services.escpos_printer import listar_impresoras_windows
+            impresoras = listar_impresoras_windows()
+        except Exception:
+            impresoras = []
+
+        actual = self._combo_impresora.currentText()
+        self._combo_impresora.clear()
+        self._combo_impresora.addItem("")  # opción vacía = sin ESC/POS
+        for imp in impresoras:
+            self._combo_impresora.addItem(imp)
+
+        # Restaurar selección previa si sigue disponible
+        idx = self._combo_impresora.findText(actual)
+        if idx >= 0:
+            self._combo_impresora.setCurrentIndex(idx)
+        elif actual:
+            self._combo_impresora.setEditText(actual)
 
     # ---- Sección seguridad ----
 
@@ -332,6 +410,13 @@ class ConfigPanel(QWidget):
         self.campo_addi.setValue(cfg.comision_addi)
         self.campo_transferencia.setValue(cfg.comision_transferencia)
 
+        # Impresora guardada
+        idx = self._combo_impresora.findText(cfg.nombre_impresora)
+        if idx >= 0:
+            self._combo_impresora.setCurrentIndex(idx)
+        elif cfg.nombre_impresora:
+            self._combo_impresora.setEditText(cfg.nombre_impresora)
+
         self._actualizar_preview()
 
     def _connect_signals(self) -> None:
@@ -369,6 +454,7 @@ class ConfigPanel(QWidget):
                 comision_addi=self.campo_addi.value(),
                 comision_transferencia=self.campo_transferencia.value(),
                 clave_inventario=cfg_actual.clave_inventario,
+                nombre_impresora=self._combo_impresora.currentText().strip(),
             )
             self._ctrl.guardar(cfg)
             self._lbl_feedback.setText("✔  Configuración guardada correctamente.")

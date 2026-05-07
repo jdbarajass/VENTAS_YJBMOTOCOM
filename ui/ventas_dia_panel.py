@@ -661,10 +661,8 @@ class VentasDiaPanel(QWidget):
             ventas_recibo = [venta]
 
         try:
-            from services.recibo_generator import generar_recibo
-            from utils.pdf_utils import imprimir_pdf_pos
-            path = generar_recibo(ventas_recibo)
-            enviado = imprimir_pdf_pos(path)
+            from utils.pdf_utils import imprimir_recibo
+            enviado = imprimir_recibo(ventas_recibo)
             if not enviado:
                 QMessageBox.information(
                     self, "Imprimir recibo",

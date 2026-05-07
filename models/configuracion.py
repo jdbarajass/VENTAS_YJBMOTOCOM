@@ -20,6 +20,7 @@ class Configuracion:
     comision_addi: float = 0.0     # Porcentaje ej: 5.0
     comision_transferencia: float = 0.0  # Porcentaje (normalmente 0)
     clave_inventario: str = "YJB2026_*"  # Contraseña para Inventario y Configuración
+    nombre_impresora: str = ""           # Nombre Windows de la impresora térmica POS
 
     # ------------------------------------------------------------------
     # Propiedades derivadas

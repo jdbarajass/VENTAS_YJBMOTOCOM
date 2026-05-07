@@ -1077,13 +1077,11 @@ class VentaForm(QWidget):
         msg.exec()
         if msg.clickedButton() == btn_recibo:
             try:
-                from services.recibo_generator import generar_recibo
-                from utils.pdf_utils import imprimir_pdf_pos
-                path = generar_recibo(ventas)
-                imprimir_pdf_pos(path)
+                from utils.pdf_utils import imprimir_recibo
+                imprimir_recibo(ventas)
             except Exception as exc:
-                QMessageBox.warning(self, "Error al generar recibo",
-                                    f"No se pudo generar el PDF:\n{exc}")
+                QMessageBox.warning(self, "Error al imprimir recibo",
+                                    f"No se pudo imprimir:\n{exc}")
 
     def _limpiar_form(self) -> None:
         """Resetea el formulario para la próxima entrada."""

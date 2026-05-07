@@ -65,3 +65,37 @@ def imprimir_pdf_pos(path: str) -> bool:
     # Fallback: abrir en visor para impresión manual
     abrir_pdf(path)
     return False
+
+
+def imprimir_recibo(ventas) -> bool:
+    """
+    Punto de entrada unificado para imprimir un recibo POS.
+    Acepta una Venta o lista de Ventas.
+
+    Orden de intento:
+      1. ESC/POS directo (si hay impresora configurada) — sin papel en blanco.
+      2. SumatraPDF con noscale (si está instalado).
+      3. Visor del SO para impresión manual (fallback).
+
+    Retorna True si se envió a la impresora física.
+    """
+    from models.venta import Venta
+    if isinstance(ventas, Venta):
+        ventas = [ventas]
+    ventas = list(ventas)
+
+    # 1. ESC/POS directo
+    try:
+        from database.config_repo import obtener_configuracion
+        from services.escpos_printer import imprimir_recibo_escpos
+        cfg = obtener_configuracion()
+        if cfg.nombre_impresora:
+            if imprimir_recibo_escpos(ventas, cfg.nombre_impresora):
+                return True
+    except Exception:
+        pass
+
+    # 2 & 3. PDF (SumatraPDF o visor)
+    from services.recibo_generator import generar_recibo
+    path = generar_recibo(ventas)
+    return imprimir_pdf_pos(path)

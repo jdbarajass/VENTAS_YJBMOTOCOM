@@ -32,7 +32,8 @@ NEGOCIO_REGIMEN = "Regimen: Responsable de IVA"
 # ---------------------------------------------------------------------------
 PAGE_W   = 80 * mm
 MARGIN_X = 4 * mm
-COL_W    = PAGE_W - 2 * MARGIN_X      # ~204 pt de ancho útil
+MARGIN_R = 8 * mm   # margen derecho mayor: cabezal térmico no imprime hasta el borde
+COL_W    = PAGE_W - MARGIN_X - MARGIN_R   # ~193 pt de ancho útil (≈68mm)
 
 # ---------------------------------------------------------------------------
 # Tipografía
@@ -166,7 +167,7 @@ class _Recibo:
         def sep(estilo: str = "solid") -> None:
             c.setDash(3, 3) if estilo == "dashed" else c.setDash(1, 0)
             c.setLineWidth(0.4)
-            c.line(MARGIN_X, y(), PAGE_W - MARGIN_X, y())
+            c.line(MARGIN_X, y(), PAGE_W - MARGIN_R, y())
             c.setDash(1, 0)
             cur[0] += 1
 
@@ -175,7 +176,7 @@ class _Recibo:
             c.setFont(FONT_BOLD, FONT_BODY)
             c.drawString(MARGIN_X, y(), _safe(llave))
             c.setFont(FONT_NORMAL, FONT_BODY)
-            c.drawRightString(PAGE_W - MARGIN_X, y(), _safe(valor))
+            c.drawRightString(PAGE_W - MARGIN_R, y(), _safe(valor))
             nl(LINE_H_SM)
 
         v0 = self._v0
@@ -217,7 +218,7 @@ class _Recibo:
                 c.setFont(FONT_NORMAL, FONT_BODY)
                 c.drawString(MARGIN_X + 4 * mm, y(),
                              _safe(f"  {p['metodo']}:"))
-                c.drawRightString(PAGE_W - MARGIN_X, y(),
+                c.drawRightString(PAGE_W - MARGIN_R, y(),
                                   _safe(cop(p["monto"])))
                 nl(LINE_H_SM)
         else:
@@ -230,7 +231,7 @@ class _Recibo:
         # Cabecera sencilla: "#  Descripcion" | "Total" (sin columnas apretadas)
         c.setFont(FONT_BOLD, FONT_SMALL + 0.5)
         c.drawString(MARGIN_X, y(), "#  Descripcion")
-        c.drawRightString(PAGE_W - MARGIN_X, y(), "Total")
+        c.drawRightString(PAGE_W - MARGIN_R, y(), "Total")
         nl(LINE_H)
 
         for idx, v in enumerate(self._ventas, start=1):
@@ -250,7 +251,7 @@ class _Recibo:
             total_linea = v.precio * v.cantidad
             detalle = f"{v.cantidad}u x {cop(v.precio)} = {cop(total_linea)}"
             c.setFont(FONT_NORMAL, FONT_SMALL)
-            c.drawRightString(PAGE_W - MARGIN_X, y(), _safe(detalle))
+            c.drawRightString(PAGE_W - MARGIN_R, y(), _safe(detalle))
             nl(LINE_H_SM + 3)
 
         sep("dashed"); nl(2 * mm)
@@ -261,7 +262,7 @@ class _Recibo:
 
         c.setFont(FONT_NORMAL, FONT_BODY)
         c.drawString(MARGIN_X, y(), "Subtotal:")
-        c.drawRightString(PAGE_W - MARGIN_X, y(), _safe(cop(subtotal)))
+        c.drawRightString(PAGE_W - MARGIN_R, y(), _safe(cop(subtotal)))
         nl(LINE_H)
 
         if total_com > 0:
@@ -269,12 +270,12 @@ class _Recibo:
                          if not v0.pagos_combinados else "Comb.")
             c.setFont(FONT_NORMAL, FONT_SMALL)
             c.drawString(MARGIN_X, y(), _safe(f"Comision ({metodo_com}):"))
-            c.drawRightString(PAGE_W - MARGIN_X, y(), _safe(cop(total_com)))
+            c.drawRightString(PAGE_W - MARGIN_R, y(), _safe(cop(total_com)))
             nl(LINE_H_SM)
 
         c.setFont(FONT_BOLD, FONT_TITLE)
         c.drawString(MARGIN_X, y(), "TOTAL:")
-        c.drawRightString(PAGE_W - MARGIN_X, y(), _safe(cop(subtotal)))
+        c.drawRightString(PAGE_W - MARGIN_R, y(), _safe(cop(subtotal)))
         nl(LINE_H * 1.2)
 
         nl(2 * mm); sep(); nl(2 * mm)
@@ -284,10 +285,10 @@ class _Recibo:
         total_items = sum(v.cantidad for v in self._ventas)
         c.setFont(FONT_NORMAL, FONT_BODY)
         c.drawString(MARGIN_X, y(), "Forma de pago:")
-        c.drawRightString(PAGE_W - MARGIN_X, y(), _safe(metodo_display))
+        c.drawRightString(PAGE_W - MARGIN_R, y(), _safe(metodo_display))
         nl(LINE_H_SM)
         c.drawString(MARGIN_X, y(), "Items:")
-        c.drawRightString(PAGE_W - MARGIN_X, y(), str(total_items))
+        c.drawRightString(PAGE_W - MARGIN_R, y(), str(total_items))
         nl(LINE_H_SM)
 
         nl(2 * mm); sep(); nl(2 * mm)

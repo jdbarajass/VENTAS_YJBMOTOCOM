@@ -511,13 +511,13 @@ class VentasDiaPanel(QWidget):
 
         btn_recibo = QPushButton("Recibo")
         btn_recibo.setFixedHeight(26)
-        btn_recibo.setToolTip("Generar e imprimir recibo PDF")
+        btn_recibo.setToolTip("Ver y/o imprimir el recibo de esta venta")
         btn_recibo.setStyleSheet(
             "QPushButton { background:#F0FDF4; color:#15803D; border:1px solid #BBF7D0;"
             "border-radius:4px; font-size:11px; font-weight:bold; padding:0 8px; }"
             "QPushButton:hover { background:#DCFCE7; }"
         )
-        btn_recibo.clicked.connect(lambda _, vid=venta_id: self._on_imprimir_recibo(vid))
+        btn_recibo.clicked.connect(lambda _, vid=venta_id: self._on_ver_recibo(vid))
 
         btn_eliminar = QPushButton("Borrar")
         btn_eliminar.setFixedHeight(26)
@@ -645,6 +645,23 @@ class VentasDiaPanel(QWidget):
         if resp == QMessageBox.Yes:
             self._ctrl.eliminar(venta_id)
             self._cargar_datos()
+
+    def _on_ver_recibo(self, venta_id: int) -> None:
+        """Abre el diálogo de vista previa del recibo (con opción de imprimir)."""
+        venta = next((v for v in self._ventas if v.id == venta_id), None)
+        if not venta:
+            return
+
+        grupo_id = getattr(venta, "grupo_venta_id", None)
+        if grupo_id:
+            from database.ventas_repo import obtener_ventas_por_grupo
+            ventas_recibo = obtener_ventas_por_grupo(grupo_id)
+        else:
+            ventas_recibo = [venta]
+
+        from ui.recibo_preview_dialog import ReciboPreviewDialog
+        dlg = ReciboPreviewDialog(ventas_recibo, parent=self)
+        dlg.exec()
 
     def _on_imprimir_recibo(self, venta_id: int) -> None:
         """Genera el PDF del recibo con todos los productos del grupo y lo imprime."""

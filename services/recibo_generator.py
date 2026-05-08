@@ -96,7 +96,7 @@ class _Recibo:
         # Cabecera empresa
         av(4 * mm)
         av(LINE_H * 1.4)          # nombre (fuente grande)
-        av(LINE_H_SM * 5)         # NIT + dir + tel + email + regimen
+        av(LINE_H_SM * 4)         # NIT + dir + tel + email
         av(2 * mm); av(1); av(2 * mm)   # gap + sep + gap
 
         # Cliente
@@ -189,8 +189,7 @@ class _Recibo:
         nl(LINE_H * 1.4)
 
         c.setFont(FONT_NORMAL, FONT_BODY)
-        for linea in (NEGOCIO_NIT, NEGOCIO_DIR, NEGOCIO_TEL,
-                      NEGOCIO_EMAIL, NEGOCIO_REGIMEN):
+        for linea in (NEGOCIO_NIT, NEGOCIO_DIR, NEGOCIO_TEL, NEGOCIO_EMAIL):
             c.drawCentredString(PAGE_W / 2, y(), _safe(linea))
             nl(LINE_H_SM)
 

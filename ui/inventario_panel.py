@@ -6,7 +6,7 @@ Panel de gestión de inventario: tabla, formulario, importación desde Excel.
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
     QLineEdit, QTableWidget, QTableWidgetItem, QHeaderView,
-    QAbstractItemView, QFrame, QMessageBox,
+    QAbstractItemView, QFrame, QMessageBox, QInputDialog,
     QSpinBox, QSizePolicy, QCheckBox,
 )
 from PySide6.QtCore import Qt, Signal
@@ -31,6 +31,7 @@ class InventarioPanel(QWidget):
         self._productos: list[Producto] = []
         self._editando_id: int | None = None  # id del producto en edición
         self._solo_con_stock: bool = True     # filtro por defecto
+        self._edicion_desbloqueada: bool = False  # clave verificada esta sesión
         self._build_ui()
         self.refresh()
 
@@ -388,7 +389,27 @@ class InventarioPanel(QWidget):
     # Acciones
     # ------------------------------------------------------------------
 
+    def _verificar_edicion(self) -> bool:
+        """Pide la clave una sola vez por sesión antes de permitir modificaciones."""
+        if self._edicion_desbloqueada:
+            return True
+        from database.config_repo import obtener_configuracion
+        clave_correcta = obtener_configuracion().clave_inventario
+        clave, ok = QInputDialog.getText(
+            self, "Modificar inventario",
+            "Ingresa la contraseña para editar:",
+            QLineEdit.Password,
+        )
+        if not ok or clave != clave_correcta:
+            if ok:
+                QMessageBox.warning(self, "Acceso denegado", "Contraseña incorrecta.")
+            return False
+        self._edicion_desbloqueada = True
+        return True
+
     def _on_nuevo(self) -> None:
+        if not self._verificar_edicion():
+            return
         self._editando_id = None
         self._lbl_form_titulo.setText("Nuevo Producto")
         self._btn_guardar_form.setText("Guardar")
@@ -401,6 +422,8 @@ class InventarioPanel(QWidget):
         self._editando_id = None
 
     def _on_editar(self, producto_id: int) -> None:
+        if not self._verificar_edicion():
+            return
         p = next((x for x in self._productos if x.id == producto_id), None)
         if not p:
             return
@@ -449,6 +472,8 @@ class InventarioPanel(QWidget):
         self.inventario_actualizado.emit()
 
     def _on_eliminar(self, producto_id: int) -> None:
+        if not self._verificar_edicion():
+            return
         p = next((x for x in self._productos if x.id == producto_id), None)
         nombre = p.producto if p else f"id {producto_id}"
         resp = QMessageBox.question(

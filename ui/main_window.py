@@ -26,6 +26,7 @@ from ui.inventario_panel import InventarioPanel
 from ui.exportar_importar_panel import ExportarImportarPanel
 from ui.facturas_panel import FacturasPanel
 from ui.presupuesto_panel import PresupuestoPanel
+from ui.notas_panel import NotasPanel
 
 
 # Índices de página en el QStackedWidget
@@ -40,6 +41,7 @@ PAGE_INVENTARIO   = 7
 PAGE_EXPORTAR     = 8
 PAGE_FACTURAS     = 9
 PAGE_PRESUPUESTO  = 10
+PAGE_NOTAS        = 11
 
 
 class MainWindow(QMainWindow):
@@ -140,6 +142,7 @@ class MainWindow(QMainWindow):
             (PAGE_PRESTAMOS,  "🤝  Préstamos"),
             (PAGE_FACTURAS,    "🧾  Facturas"),
             (PAGE_PRESUPUESTO, "💰  Presupuesto"),
+            (PAGE_NOTAS,      "📝  Notas y Pendientes"),
             (PAGE_EXPORTAR,   "⬇⬆  Exportar / Importar"),
             (PAGE_CONFIG,     "⚙  Configuración"),
         ]
@@ -249,6 +252,10 @@ class MainWindow(QMainWindow):
         self._presupuesto = PresupuestoPanel()
         self._stack.addWidget(self._presupuesto)
 
+        # Página 11 — Notas y Pendientes
+        self._notas = NotasPanel()
+        self._stack.addWidget(self._notas)
+
         # Señales
         self._form_venta.venta_guardada.connect(self._on_venta_guardada)
         self._config.configuracion_guardada.connect(self._on_config_guardada)
@@ -281,8 +288,8 @@ class MainWindow(QMainWindow):
     # ------------------------------------------------------------------
 
     def _navegar(self, page_idx: int) -> None:
-        """Cambia la página visible; pide contraseña para Inventario y Configuración."""
-        _PAGINAS_PROTEGIDAS = {PAGE_INVENTARIO, PAGE_CONFIG}
+        """Cambia la página visible; pide contraseña solo para Configuración."""
+        _PAGINAS_PROTEGIDAS = {PAGE_CONFIG}
         if page_idx in _PAGINAS_PROTEGIDAS and page_idx not in self._paginas_desbloqueadas:
             from database.config_repo import obtener_configuracion
             clave_correcta = obtener_configuracion().clave_inventario

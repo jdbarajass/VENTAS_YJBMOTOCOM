@@ -24,6 +24,7 @@ def initialize_schema() -> None:
     _create_facturas(conn)
     _create_abonos_factura(conn)
     _create_presupuesto_mensual(conn)
+    _create_notas(conn)
     _seed_configuracion(conn)
     _migrate_ventas(conn)
     _migrate_ventas_numero_factura(conn)
@@ -210,6 +211,18 @@ def _migrate_configuracion_impresora(conn: sqlite3.Connection) -> None:
         )
     except sqlite3.OperationalError:
         pass  # La columna ya existe
+
+
+def _create_notas(conn: sqlite3.Connection) -> None:
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS notas (
+            id              INTEGER PRIMARY KEY AUTOINCREMENT,
+            texto           TEXT    NOT NULL,
+            tipo            TEXT    NOT NULL DEFAULT 'tarea',  -- resurtido | tarea
+            completado      INTEGER NOT NULL DEFAULT 0,
+            fecha_creacion  TEXT    NOT NULL
+        )
+    """)
 
 
 def _seed_configuracion(conn: sqlite3.Connection) -> None:

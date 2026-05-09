@@ -41,6 +41,15 @@ def marcar_nota(nota_id: int, completado: bool) -> None:
     conn.commit()
 
 
+def actualizar_nota(nota_id: int, nuevo_texto: str) -> None:
+    conn = DatabaseConnection.get()
+    conn.execute(
+        "UPDATE notas SET texto = ? WHERE id = ?",
+        (nuevo_texto.strip(), nota_id),
+    )
+    conn.commit()
+
+
 def eliminar_nota(nota_id: int) -> None:
     conn = DatabaseConnection.get()
     conn.execute("DELETE FROM notas WHERE id = ?", (nota_id,))

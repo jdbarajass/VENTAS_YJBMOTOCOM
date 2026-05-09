@@ -10,10 +10,10 @@ from PySide6.QtGui import QFont
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
     QLineEdit, QScrollArea, QFrame, QTabWidget, QCheckBox,
-    QSizePolicy,
+    QSizePolicy, QInputDialog,
 )
 
-from database.notas_repo import obtener_notas, insertar_nota, marcar_nota, eliminar_nota
+from database.notas_repo import obtener_notas, insertar_nota, marcar_nota, eliminar_nota, actualizar_nota
 from models.nota import Nota
 
 
@@ -22,7 +22,7 @@ from models.nota import Nota
 # ---------------------------------------------------------------------------
 
 class _FilaNota(QFrame):
-    def __init__(self, nota: Nota, on_toggle, on_delete, parent=None):
+    def __init__(self, nota: Nota, on_toggle, on_delete, on_edit, parent=None):
         super().__init__(parent)
         self._nota = nota
         self.setObjectName("filaNota")
@@ -60,11 +60,24 @@ class _FilaNota(QFrame):
         lbl_fecha.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
         lay.addWidget(lbl_fecha)
 
-        btn_del = QPushButton("✕")
-        btn_del.setFixedSize(22, 22)
+        btn_edit = QPushButton("✏ Editar")
+        btn_edit.setFixedHeight(24)
+        btn_edit.setToolTip("Editar nota")
+        btn_edit.setStyleSheet(
+            "QPushButton { border:1px solid #BFDBFE; color:#2563EB; font-size:10px;"
+            "background:#EFF6FF; border-radius:4px; padding:0 8px; font-weight:bold; }"
+            "QPushButton:hover { background:#DBEAFE; border-color:#60A5FA; }"
+        )
+        btn_edit.clicked.connect(lambda: on_edit(nota.id, nota.texto))
+        lay.addWidget(btn_edit)
+
+        btn_del = QPushButton("✕ Borrar")
+        btn_del.setFixedHeight(24)
+        btn_del.setToolTip("Eliminar nota")
         btn_del.setStyleSheet(
-            "QPushButton { border:none; color:#9CA3AF; font-size:12px; background:transparent; }"
-            "QPushButton:hover { color:#DC2626; }"
+            "QPushButton { border:1px solid #FECACA; color:#DC2626; font-size:10px;"
+            "background:#FEF2F2; border-radius:4px; padding:0 8px; font-weight:bold; }"
+            "QPushButton:hover { background:#FEE2E2; border-color:#FCA5A5; }"
         )
         btn_del.clicked.connect(lambda: on_delete(nota.id))
         lay.addWidget(btn_del)
@@ -156,7 +169,7 @@ class _TabNotas(QWidget):
 
         notas = obtener_notas(self._tipo)
         for nota in notas:
-            fila = _FilaNota(nota, self._on_toggle, self._on_delete)
+            fila = _FilaNota(nota, self._on_toggle, self._on_delete, self._on_edit)
             self._lista_lay.insertWidget(self._lista_lay.count() - 1, fila)
 
         pendientes = sum(1 for n in notas if not n.completado)
@@ -176,6 +189,14 @@ class _TabNotas(QWidget):
     def _on_toggle(self, nota_id: int, completado: bool):
         marcar_nota(nota_id, completado)
         self.refresh()
+
+    def _on_edit(self, nota_id: int, texto_actual: str):
+        nuevo, ok = QInputDialog.getText(
+            self, "Editar nota", "Texto:", text=texto_actual
+        )
+        if ok and nuevo.strip() and nuevo.strip() != texto_actual:
+            actualizar_nota(nota_id, nuevo.strip())
+            self.refresh()
 
     def _on_delete(self, nota_id: int):
         eliminar_nota(nota_id)

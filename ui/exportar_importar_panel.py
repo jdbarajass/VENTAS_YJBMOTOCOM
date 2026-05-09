@@ -50,8 +50,8 @@ class ExportarImportarPanel(QWidget):
         root.addWidget(titulo)
 
         sub = QLabel(
-            "Un único archivo Excel con hasta 6 pestañas: ventas, préstamos, inventario, "
-            "facturas, gastos y configuración."
+            "Un único archivo Excel con hasta 7 pestañas: ventas, préstamos, inventario, "
+            "facturas, gastos, notas y configuración."
         )
         sub.setStyleSheet("color:#6B7280; font-size:12px;")
         root.addWidget(sub)
@@ -152,10 +152,12 @@ class ExportarImportarPanel(QWidget):
         self._chk_inventario  = QCheckBox("Inventario")
         self._chk_facturas    = QCheckBox("Facturas")
         self._chk_gastos      = QCheckBox("Gastos operativos")
+        self._chk_notas       = QCheckBox("Notas y Pendientes")
         self._chk_config      = QCheckBox("Configuración")
 
         for chk in (self._chk_prestamos, self._chk_inventario,
-                    self._chk_facturas, self._chk_gastos, self._chk_config):
+                    self._chk_facturas, self._chk_gastos,
+                    self._chk_notas, self._chk_config):
             chk.setChecked(True)
             chk.setStyleSheet(chk_style)
             g_lay.addWidget(chk)
@@ -330,7 +332,8 @@ class ExportarImportarPanel(QWidget):
         if not any([
             self._chk_ventas.isChecked(), self._chk_prestamos.isChecked(),
             self._chk_inventario.isChecked(), self._chk_facturas.isChecked(),
-            self._chk_gastos.isChecked(), self._chk_config.isChecked(),
+            self._chk_gastos.isChecked(), self._chk_notas.isChecked(),
+            self._chk_config.isChecked(),
         ]):
             QMessageBox.warning(
                 self, "Sin selección",
@@ -354,6 +357,7 @@ class ExportarImportarPanel(QWidget):
             from database.facturas_repo import obtener_todas_facturas
             from database.gastos_dia_repo import obtener_todos_gastos
             from database.config_repo import obtener_configuracion
+            from database.notas_repo import obtener_notas
 
             # --- Ventas ---
             ventas = None
@@ -370,9 +374,13 @@ class ExportarImportarPanel(QWidget):
             facturas      = obtener_todas_facturas()      if self._chk_facturas.isChecked()   else None
             gastos        = obtener_todos_gastos()        if self._chk_gastos.isChecked()     else None
             configuracion = obtener_configuracion()       if self._chk_config.isChecked()     else None
+            notas = (
+                obtener_notas("resurtido") + obtener_notas("tarea")
+                if self._chk_notas.isChecked() else None
+            )
 
             exportar_todo(Path(ruta), ventas, prestamos, productos,
-                          facturas, gastos, configuracion)
+                          facturas, gastos, configuracion, notas)
 
             # Construir resumen para el mensaje
             lineas = []
@@ -387,6 +395,7 @@ class ExportarImportarPanel(QWidget):
             if productos  is not None: lineas.append(f"  • {len(productos)} producto(s) de inventario")
             if facturas   is not None: lineas.append(f"  • {len(facturas)} factura(s)")
             if gastos     is not None: lineas.append(f"  • {len(gastos)} gasto(s) operativo(s)")
+            if notas      is not None: lineas.append(f"  • {len(notas)} nota(s) y pendiente(s)")
             if configuracion is not None: lineas.append("  • Configuración incluida")
 
             QMessageBox.information(

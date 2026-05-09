@@ -180,8 +180,8 @@ def generar_plantilla_ventas_mes(ruta: Path, año: int, mes: int,
     wb.save(str(ruta))
 
 
-_HEADERS_PRESTAMOS = ["Fecha", "Producto", "Almacén", "Observaciones", "Estado"]
-_ANCHOS_PRESTAMOS  = [14, 34, 22, 40, 14]
+_HEADERS_PRESTAMOS = ["Fecha", "Hora", "Producto", "Almacén", "Observaciones", "Estado"]
+_ANCHOS_PRESTAMOS  = [14, 10, 34, 22, 40, 14]
 _ESTADOS_COLOR = {
     "pendiente": "FEF3C7",
     "devuelto":  "D1FAE5",
@@ -193,9 +193,10 @@ def _escribir_hoja_prestamos(ws, prestamos: list) -> None:
     """Escribe título, encabezados y datos de préstamos en el worksheet dado."""
     lado = Side(style="thin", color="CCCCCC")
     borde = Border(left=lado, right=lado, top=lado, bottom=lado)
+    ncols = len(_HEADERS_PRESTAMOS)
 
     # Título
-    ws.merge_cells("A1:E1")
+    ws.merge_cells(f"A1:{get_column_letter(ncols)}1")
     t = ws["A1"]
     t.value = "YJBMOTOCOM — Préstamos"
     t.font = Font(name="Calibri", bold=True, size=13, color="FFFFFF")
@@ -205,7 +206,7 @@ def _escribir_hoja_prestamos(ws, prestamos: list) -> None:
 
     # Encabezados
     ws.append(_HEADERS_PRESTAMOS)
-    for col_idx in range(1, 6):
+    for col_idx in range(1, ncols + 1):
         cell = ws.cell(row=2, column=col_idx)
         cell.font = Font(bold=True, color="FFFFFF", name="Calibri", size=10)
         cell.fill = PatternFill("solid", fgColor="334155")
@@ -217,6 +218,7 @@ def _escribir_hoja_prestamos(ws, prestamos: list) -> None:
     for p in prestamos:
         ws.append([
             p.fecha.strftime("%d/%m/%Y") if hasattr(p.fecha, "strftime") else str(p.fecha),
+            getattr(p, "hora", "") or "",
             p.producto,
             p.almacen,
             p.observaciones or "",
@@ -224,7 +226,7 @@ def _escribir_hoja_prestamos(ws, prestamos: list) -> None:
         ])
         row = ws.max_row
         color = _ESTADOS_COLOR.get(p.estado, "FFFFFF")
-        for col_idx in range(1, 6):
+        for col_idx in range(1, ncols + 1):
             c = ws.cell(row=row, column=col_idx)
             c.fill = PatternFill("solid", fgColor=color)
             c.border = borde
@@ -488,6 +490,54 @@ def _escribir_hoja_configuracion(ws, cfg) -> None:
         ws.column_dimensions[get_column_letter(i)].width = ancho
 
 
+_HEADERS_NOTAS = ["Tipo", "Texto", "Completado", "Fecha creación"]
+_ANCHOS_NOTAS  = [16, 52, 12, 18]
+_NOTAS_TIPO_LABEL = {"resurtido": "Por Pedir", "tarea": "Tarea"}
+
+
+def _escribir_hoja_notas(ws, notas: list) -> None:
+    """Escribe título, encabezados y datos de notas/pendientes."""
+    lado = Side(style="thin", color="CCCCCC")
+    borde = Border(left=lado, right=lado, top=lado, bottom=lado)
+    ncols = len(_HEADERS_NOTAS)
+
+    ws.merge_cells(f"A1:{get_column_letter(ncols)}1")
+    t = ws["A1"]
+    t.value = "YJBMOTOCOM — Notas y Pendientes"
+    t.font = Font(name="Calibri", bold=True, size=13, color="FFFFFF")
+    t.fill = PatternFill("solid", fgColor="92400E")
+    t.alignment = Alignment(horizontal="center", vertical="center")
+    ws.row_dimensions[1].height = 26
+
+    ws.append(_HEADERS_NOTAS)
+    for col_idx in range(1, ncols + 1):
+        cell = ws.cell(row=2, column=col_idx)
+        cell.font = Font(bold=True, color="FFFFFF", name="Calibri", size=10)
+        cell.fill = PatternFill("solid", fgColor="B45309")
+        cell.alignment = Alignment(horizontal="center", vertical="center")
+        cell.border = borde
+    ws.row_dimensions[2].height = 20
+
+    for i, n in enumerate(notas, start=1):
+        tipo_label = _NOTAS_TIPO_LABEL.get(n.tipo, n.tipo)
+        completado_str = "Sí" if n.completado else "No"
+        ws.append([tipo_label, n.texto, completado_str, n.fecha_creacion])
+        row = ws.max_row
+        fondo = "FEF3C7" if not n.completado else "F0FDF4"
+        for col_idx in range(1, ncols + 1):
+            c = ws.cell(row=row, column=col_idx)
+            c.fill = PatternFill("solid", fgColor=fondo)
+            c.border = borde
+            c.font = Font(name="Calibri", size=10,
+                          color="6B7280" if n.completado else "1E293B")
+            c.alignment = Alignment(vertical="center",
+                                    wrap_text=(col_idx == 2))
+        ws.row_dimensions[row].height = 18
+
+    for i, ancho in enumerate(_ANCHOS_NOTAS, start=1):
+        ws.column_dimensions[get_column_letter(i)].width = ancho
+
+
 def exportar_todo(
     ruta: Path,
     ventas: list | None = None,
@@ -496,6 +546,7 @@ def exportar_todo(
     facturas: list | None = None,
     gastos: list | None = None,
     configuracion=None,
+    notas: list | None = None,
 ) -> None:
     """
     Genera un .xlsx con las hojas que se pasen (None = omitir esa hoja).
@@ -620,6 +671,10 @@ def exportar_todo(
     # ── Hoja Configuración (opcional) ─────────────────────────────────────
     if configuracion is not None:
         _escribir_hoja_configuracion(_hoja("Configuración"), configuracion)
+
+    # ── Hoja Notas y Pendientes (opcional) ────────────────────────────────
+    if notas is not None:
+        _escribir_hoja_notas(_hoja("Notas"), notas)
 
     # Si ninguna hoja fue incluida, agregar una de aviso
     if not primera_hoja_usada:

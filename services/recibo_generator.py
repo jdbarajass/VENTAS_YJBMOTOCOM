@@ -46,10 +46,67 @@ FONT_SMALL  = 6.5
 LINE_H      = 9.5    # interlineado normal (pt)
 LINE_H_SM   = 8.5    # interlineado pequeño
 
+# ---------------------------------------------------------------------------
+# Escudo vectorial
+# ---------------------------------------------------------------------------
+ESCUDO_W = 11 * mm          # ancho del escudo (pequeño, lado izquierdo)
+ESCUDO_H = ESCUDO_W * 1.38  # alto del escudo (proporción heráldica)
+
 
 def _safe(t: str) -> str:
     """Reemplaza caracteres no-latin1 para ReportLab."""
     return t.encode("latin-1", errors="replace").decode("latin-1")
+
+
+def _dibujar_escudo(c, cx: float, y_top: float) -> None:
+    """
+    Dibuja el escudo vectorial YJB MOTOCOM centrado en cx, con borde superior en y_top.
+    Solo contorno (sin relleno), con YJB y MOTOCOM dentro.
+    """
+    W = ESCUDO_W
+    H = ESCUDO_H
+    x0 = cx - W / 2
+
+    # Fracción donde la parte rectangular termina y empieza la punta inferior
+    split = 0.52
+
+    # ── Contorno del escudo ──────────────────────────────────────────────
+    p = c.beginPath()
+    p.moveTo(x0, y_top)                              # esquina sup-izq
+    p.lineTo(x0 + W, y_top)                          # borde superior
+    p.lineTo(x0 + W, y_top - H * split)              # lado derecho recto
+    p.curveTo(                                        # curva der → punta
+        x0 + W,         y_top - H * 0.83,
+        cx + W * 0.05,  y_top - H,
+        cx,             y_top - H,
+    )
+    p.curveTo(                                        # curva punta → lado izq
+        cx - W * 0.05,  y_top - H,
+        x0,             y_top - H * 0.83,
+        x0,             y_top - H * split,
+    )
+    p.lineTo(x0, y_top)                              # lado izquierdo recto
+    p.close()
+
+    c.setStrokeColorRGB(0.08, 0.08, 0.10)
+    c.setLineWidth(1.1)
+    c.drawPath(p, stroke=1, fill=0)
+
+    # ── "YJB" ────────────────────────────────────────────────────────────
+    c.setFillColorRGB(0.05, 0.05, 0.05)
+    c.setFont(FONT_BOLD, W * 0.315)
+    c.drawCentredString(cx, y_top - H * 0.355, "YJB")
+
+    # ── Línea divisoria interior ─────────────────────────────────────────
+    c.setStrokeColorRGB(0.18, 0.18, 0.18)
+    c.setLineWidth(0.35)
+    c.line(x0 + W * 0.14, y_top - H * 0.50,
+           x0 + W * 0.86, y_top - H * 0.50)
+
+    # ── "MOTOCOM" ────────────────────────────────────────────────────────
+    c.setFont(FONT_BOLD, W * 0.158)
+    c.setFillColorRGB(0.05, 0.05, 0.05)
+    c.drawCentredString(cx, y_top - H * 0.655, "MOTOCOM")
 
 
 # ---------------------------------------------------------------------------
@@ -95,8 +152,9 @@ class _Recibo:
 
         # Cabecera empresa
         av(4 * mm)
-        av(LINE_H * 1.4)          # nombre (fuente grande)
-        av(LINE_H_SM * 4)         # NIT + dir + tel + email
+        av(LINE_H * 1.4)                              # título YJBMOTOCOM
+        av(2 * mm)                                    # gap
+        av(max(ESCUDO_H, LINE_H_SM * 4) + 3 * mm)    # escudo izq + info centrada
         av(2 * mm); av(1); av(2 * mm)   # gap + sep + gap
 
         # Cliente
@@ -182,16 +240,37 @@ class _Recibo:
         v0 = self._v0
         now = datetime.now()
 
-        # ── Cabecera del negocio ───────────────────────────────────────
+        # ── Cabecera del negocio ──────────────────────────────────────
         nl(4 * mm)
+
+        # Título "YJBMOTOCOM" centrado en toda la página
         c.setFont(FONT_BOLD, FONT_TITLE * 1.3)
-        c.drawCentredString(PAGE_W / 2, y(), _safe(NEGOCIO_NOMBRE))
+        c.setFillColorRGB(0, 0, 0)
+        c.drawCentredString(PAGE_W / 2, y(), "YJBMOTOCOM")
         nl(LINE_H * 1.4)
 
-        c.setFont(FONT_NORMAL, FONT_BODY)
+        nl(2 * mm)
+
+        # Bloque: escudo izquierda + info centrada en el espacio restante
+        header_h = max(ESCUDO_H, LINE_H_SM * 4)
+
+        v_off_s = (header_h - ESCUDO_H) / 2
+        _dibujar_escudo(c, MARGIN_X + ESCUDO_W / 2, y() - v_off_s)
+
+        # Centro del área a la derecha del escudo
+        area_left  = MARGIN_X + ESCUDO_W + 2 * mm
+        area_right = PAGE_W - MARGIN_R
+        text_cx    = (area_left + area_right) / 2
+
+        v_off_t = (header_h - LINE_H_SM * 4) / 2
+        text_y  = y() - v_off_t - FONT_SMALL * 0.85
+        c.setFont(FONT_NORMAL, FONT_SMALL)
+        c.setFillColorRGB(0, 0, 0)
         for linea in (NEGOCIO_NIT, NEGOCIO_DIR, NEGOCIO_TEL, NEGOCIO_EMAIL):
-            c.drawCentredString(PAGE_W / 2, y(), _safe(linea))
-            nl(LINE_H_SM)
+            c.drawCentredString(text_cx, text_y, _safe(linea))
+            text_y -= LINE_H_SM
+
+        nl(header_h + 3 * mm)
 
         nl(2 * mm); sep(); nl(2 * mm)
 

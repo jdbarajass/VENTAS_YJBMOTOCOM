@@ -5,7 +5,7 @@ No importa nada de base de datos ni UI.
 """
 
 from dataclasses import dataclass, field
-from datetime import date
+from datetime import date, datetime
 
 
 @dataclass
@@ -23,6 +23,7 @@ class Prestamo:
     fecha: date = field(default_factory=date.today)
     observaciones: str = ""
     estado: str = "pendiente"             # pendiente | devuelto | cobrado
+    hora: str = ""                        # HH:MM — hora de registro
     id: int | None = None
 
     def __post_init__(self) -> None:
@@ -32,3 +33,5 @@ class Prestamo:
             raise ValueError("El nombre del almacén no puede estar vacío.")
         if self.estado not in ("pendiente", "devuelto", "cobrado"):
             raise ValueError("Estado inválido. Use: pendiente, devuelto o cobrado.")
+        if not self.hora:
+            self.hora = datetime.now().strftime("%H:%M")

@@ -32,6 +32,7 @@ def initialize_schema() -> None:
     _migrate_gastos_dia(conn)
     _migrate_configuracion(conn)
     _migrate_configuracion_impresora(conn)
+    _migrate_prestamos_hora(conn)
     conn.commit()
 
 
@@ -211,6 +212,14 @@ def _migrate_configuracion_impresora(conn: sqlite3.Connection) -> None:
         )
     except sqlite3.OperationalError:
         pass  # La columna ya existe
+
+
+def _migrate_prestamos_hora(conn: sqlite3.Connection) -> None:
+    """Agrega columna hora a prestamos si no existe."""
+    try:
+        conn.execute("ALTER TABLE prestamos ADD COLUMN hora TEXT NOT NULL DEFAULT ''")
+    except sqlite3.OperationalError:
+        pass
 
 
 def _create_notas(conn: sqlite3.Connection) -> None:

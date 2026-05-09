@@ -32,6 +32,7 @@ class PrestamosController:
         almacen: str,
         fecha: date,
         observaciones: str = "",
+        hora: str = "",
     ) -> Prestamo:
         """Valida y persiste un nuevo préstamo. Retorna el préstamo con id asignado."""
         if not producto.strip():
@@ -45,6 +46,7 @@ class PrestamosController:
             fecha=fecha,
             observaciones=observaciones.strip(),
             estado="pendiente",
+            hora=hora,
         )
         p.id = insertar_prestamo(p)
         return p

@@ -19,6 +19,8 @@ def _parse_fecha(valor: str) -> date:
 
 
 def _row_to_prestamo(row: sqlite3.Row) -> Prestamo:
+    keys = row.keys()
+    hora = row["hora"] if "hora" in keys else ""
     return Prestamo(
         id=row["id"],
         fecha=_parse_fecha(row["fecha"]),
@@ -26,6 +28,7 @@ def _row_to_prestamo(row: sqlite3.Row) -> Prestamo:
         almacen=row["almacen"],
         observaciones=row["observaciones"] or "",
         estado=row["estado"],
+        hora=hora or "",
     )
 
 
@@ -34,10 +37,10 @@ def insertar_prestamo(p: Prestamo) -> int:
     conn = DatabaseConnection.get()
     cursor = conn.execute(
         """
-        INSERT INTO prestamos (fecha, producto, almacen, observaciones, estado)
-        VALUES (?, ?, ?, ?, ?)
+        INSERT INTO prestamos (fecha, hora, producto, almacen, observaciones, estado)
+        VALUES (?, ?, ?, ?, ?, ?)
         """,
-        (p.fecha.isoformat(), p.producto, p.almacen, p.observaciones, p.estado),
+        (p.fecha.isoformat(), p.hora, p.producto, p.almacen, p.observaciones, p.estado),
     )
     conn.commit()
     return cursor.lastrowid
@@ -79,9 +82,9 @@ def actualizar_prestamo(p: Prestamo) -> bool:
     conn = DatabaseConnection.get()
     cursor = conn.execute(
         """UPDATE prestamos
-           SET fecha=?, producto=?, almacen=?, observaciones=?, estado=?
+           SET fecha=?, hora=?, producto=?, almacen=?, observaciones=?, estado=?
            WHERE id=?""",
-        (p.fecha.isoformat(), p.producto.strip(), p.almacen.strip(),
+        (p.fecha.isoformat(), p.hora or "", p.producto.strip(), p.almacen.strip(),
          p.observaciones or "", p.estado, p.id),
     )
     conn.commit()

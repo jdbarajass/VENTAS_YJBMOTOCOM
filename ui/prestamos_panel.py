@@ -9,10 +9,10 @@ from datetime import date
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
     QTableWidget, QTableWidgetItem, QHeaderView, QAbstractItemView,
-    QFrame, QLineEdit, QDateEdit, QMessageBox, QCheckBox,
+    QFrame, QLineEdit, QDateEdit, QTimeEdit, QMessageBox, QCheckBox,
     QDialog, QComboBox, QDialogButtonBox,
 )
-from PySide6.QtCore import Qt, QDate, Signal
+from PySide6.QtCore import Qt, QDate, QTime, Signal
 from PySide6.QtGui import QFont
 
 from controllers.prestamos_controller import PrestamosController
@@ -48,7 +48,7 @@ class EditPrestamoDialog(QDialog):
         titulo.setFont(f)
         lay.addWidget(titulo)
 
-        # Fecha
+        # Fecha + Hora
         fila_fecha = QHBoxLayout()
         fila_fecha.addWidget(QLabel("Fecha:"))
         self.campo_fecha = QDateEdit()
@@ -60,6 +60,21 @@ class EditPrestamoDialog(QDialog):
         self.campo_fecha.setFixedHeight(32)
         self.campo_fecha.setStyleSheet(self._campo_style())
         fila_fecha.addWidget(self.campo_fecha)
+
+        fila_fecha.addSpacing(16)
+        fila_fecha.addWidget(QLabel("Hora:"))
+        self.campo_hora = QTimeEdit()
+        self.campo_hora.setDisplayFormat("HH:mm")
+        self.campo_hora.setFixedHeight(32)
+        self.campo_hora.setFixedWidth(80)
+        self.campo_hora.setStyleSheet(self._campo_style())
+        hora_str = self._p.hora or "00:00"
+        try:
+            h, m = hora_str.split(":")
+            self.campo_hora.setTime(QTime(int(h), int(m)))
+        except ValueError:
+            self.campo_hora.setTime(QTime(0, 0))
+        fila_fecha.addWidget(self.campo_hora)
         fila_fecha.addStretch()
         lay.addLayout(fila_fecha)
 
@@ -117,11 +132,13 @@ class EditPrestamoDialog(QDialog):
             return
 
         qd = self.campo_fecha.date()
-        self._p.fecha        = date(qd.year(), qd.month(), qd.day())
-        self._p.producto     = producto
-        self._p.almacen      = almacen
+        qt = self.campo_hora.time()
+        self._p.fecha         = date(qd.year(), qd.month(), qd.day())
+        self._p.hora          = f"{qt.hour():02d}:{qt.minute():02d}"
+        self._p.producto      = producto
+        self._p.almacen       = almacen
         self._p.observaciones = self.campo_obs.text().strip()
-        self._p.estado       = self.combo_estado.currentText()
+        self._p.estado        = self.combo_estado.currentText()
 
         try:
             self._ctrl.editar(self._p)
@@ -229,6 +246,16 @@ class PrestamosPanel(QWidget):
         self.campo_fecha.setFixedWidth(130)
         self.campo_fecha.setStyleSheet(self._estilo_campo())
 
+        # Hora (auto-completada con la hora actual)
+        lbl_h = QLabel("Hora:")
+        lbl_h.setStyleSheet("color:#374151; font-size:12px; background:transparent; border:none;")
+        self.campo_hora = QTimeEdit()
+        self.campo_hora.setDisplayFormat("HH:mm")
+        self.campo_hora.setTime(QTime.currentTime())
+        self.campo_hora.setFixedHeight(34)
+        self.campo_hora.setFixedWidth(80)
+        self.campo_hora.setStyleSheet(self._estilo_campo())
+
         # Producto
         lbl_p = QLabel("Producto:")
         lbl_p.setStyleSheet("color:#374151; font-size:12px; background:transparent; border:none;")
@@ -268,6 +295,8 @@ class PrestamosPanel(QWidget):
 
         fila.addWidget(lbl_f)
         fila.addWidget(self.campo_fecha)
+        fila.addWidget(lbl_h)
+        fila.addWidget(self.campo_hora)
         fila.addWidget(lbl_p)
         fila.addWidget(self.campo_producto, stretch=2)
         fila.addWidget(lbl_a)
@@ -339,7 +368,7 @@ class PrestamosPanel(QWidget):
 
         hh = self.tabla.horizontalHeader()
         hh.setMinimumSectionSize(60)
-        hh.setSectionResizeMode(1, QHeaderView.Fixed);        self.tabla.setColumnWidth(1, 90)
+        hh.setSectionResizeMode(1, QHeaderView.Fixed);        self.tabla.setColumnWidth(1, 130)
         hh.setSectionResizeMode(2, QHeaderView.Fixed);        self.tabla.setColumnWidth(2, 68)
         hh.setSectionResizeMode(3, QHeaderView.Interactive);  self.tabla.setColumnWidth(3, 200)
         hh.setSectionResizeMode(4, QHeaderView.Interactive);  self.tabla.setColumnWidth(4, 160)
@@ -373,7 +402,10 @@ class PrestamosPanel(QWidget):
             self.tabla.setRowHeight(row, 36)
 
             self.tabla.setItem(row, 0, QTableWidgetItem(str(p.id)))
-            self._celda(row, 1, fecha_corta(p.fecha), Qt.AlignCenter)
+            fecha_txt = fecha_corta(p.fecha)
+            if p.hora:
+                fecha_txt += f"  {p.hora}"
+            self._celda(row, 1, fecha_txt, Qt.AlignCenter)
 
             # Días transcurridos
             dias = max(0, (hoy - p.fecha).days)
@@ -520,7 +552,9 @@ class PrestamosPanel(QWidget):
         almacen  = self.campo_almacen.text().strip()
         obs      = self.campo_obs.text().strip()
         qd       = self.campo_fecha.date()
+        qt       = self.campo_hora.time()
         fecha    = date(qd.year(), qd.month(), qd.day())
+        hora     = f"{qt.hour():02d}:{qt.minute():02d}"
 
         if not producto:
             QMessageBox.warning(self, "Dato requerido", "Ingresa el nombre del producto.")
@@ -532,7 +566,7 @@ class PrestamosPanel(QWidget):
             return
 
         try:
-            p = self._ctrl.registrar(producto, almacen, fecha, obs)
+            p = self._ctrl.registrar(producto, almacen, fecha, obs, hora)
             # Limpiar campos de texto (no la fecha, es más útil mantenerla)
             self.campo_producto.clear()
             self.campo_almacen.clear()

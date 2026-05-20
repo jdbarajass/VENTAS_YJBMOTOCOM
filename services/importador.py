@@ -28,14 +28,19 @@ def _leer_prestamos(ws) -> list[Prestamo]:
     """
     Lee la hoja «Préstamos» generada por YJBMOTOCOM.
     Espera: fila 1 = título, fila 2 = encabezados, fila 3+ = datos.
-    Columnas: Fecha | Producto | Almacén | Observaciones | Estado
+    Formato nuevo (6 cols): Fecha | Hora | Producto | Almacén | Observaciones | Estado
+    Formato viejo (5 cols): Fecha | Producto | Almacén | Observaciones | Estado
     """
+    # Detectar formato por el encabezado de la col 2
+    header_col2 = str(ws.cell(2, 2).value or "").strip().lower()
+    of = 1 if "hora" in header_col2 else 0   # offset para columnas después de Fecha
+
     prestamos: list[Prestamo] = []
     for row_idx in range(3, ws.max_row + 1):
-        producto = str(ws.cell(row_idx, 2).value or "").strip()
+        producto = str(ws.cell(row_idx, 2 + of).value or "").strip()
         if not producto:
             continue
-        almacen = str(ws.cell(row_idx, 3).value or "").strip()
+        almacen = str(ws.cell(row_idx, 3 + of).value or "").strip()
         if not almacen:
             continue
 
@@ -51,8 +56,9 @@ def _leer_prestamos(ws) -> list[Prestamo]:
         except (ValueError, TypeError):
             p_fecha = date.today()
 
-        observaciones = str(ws.cell(row_idx, 4).value or "").strip()
-        estado_raw = str(ws.cell(row_idx, 5).value or "pendiente").strip().lower()
+        hora_val = str(ws.cell(row_idx, 2).value or "").strip() if of == 1 else ""
+        observaciones = str(ws.cell(row_idx, 4 + of).value or "").strip()
+        estado_raw = str(ws.cell(row_idx, 5 + of).value or "pendiente").strip().lower()
         if estado_raw not in ("pendiente", "devuelto", "cobrado"):
             estado_raw = "pendiente"
 
@@ -63,6 +69,7 @@ def _leer_prestamos(ws) -> list[Prestamo]:
                 fecha=p_fecha,
                 observaciones=observaciones,
                 estado=estado_raw,
+                hora=hora_val,
             ))
         except ValueError:
             pass

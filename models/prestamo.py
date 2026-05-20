@@ -5,7 +5,7 @@ No importa nada de base de datos ni UI.
 """
 
 from dataclasses import dataclass, field
-from datetime import date, datetime
+from datetime import date
 
 
 @dataclass
@@ -33,5 +33,3 @@ class Prestamo:
             raise ValueError("El nombre del almacén no puede estar vacío.")
         if self.estado not in ("pendiente", "devuelto", "cobrado"):
             raise ValueError("Estado inválido. Use: pendiente, devuelto o cobrado.")
-        if not self.hora:
-            self.hora = datetime.now().strftime("%H:%M")

@@ -414,8 +414,9 @@ class ExportarImportarPanel(QWidget):
         if not ruta:
             return
 
+        # 1. Parsear el archivo Excel
         try:
-            from services.importador import importar_todo
+            from services.importador import importar_todo, validar_resultado
             res = importar_todo(Path(ruta))
         except Exception as exc:
             QMessageBox.critical(self, "Error al leer el archivo", str(exc))
@@ -427,6 +428,62 @@ class ExportarImportarPanel(QWidget):
                 "Errores encontrados:\n" + "\n".join(res.errores[:5])
             )
             return
+
+        # 2. Validar coherencia antes de tocar la BD
+        errores_criticos, _ = validar_resultado(res)
+        if errores_criticos:
+            QMessageBox.critical(
+                self,
+                "Datos incoherentes — importación cancelada",
+                "Se detectaron datos que parecen incorrectos o transpuestos.\n"
+                "La importación fue cancelada para proteger tu base de datos.\n\n"
+                + "\n".join(errores_criticos),
+            )
+            return
+
+        # 3. Backup de seguridad con selección de destino
+        import shutil
+        from datetime import datetime as _datetime
+        from database.connection import get_db_path
+
+        db_path = get_db_path()
+        ts = _datetime.now().strftime("%Y-%m-%d_%H-%M")
+        nombre_bk = f"backup_antes_importar_{ts}.db"
+
+        QMessageBox.information(
+            self,
+            "Respaldo de seguridad",
+            "Antes de importar se guardará una copia de tu base de datos actual.\n\n"
+            "Elige dónde quieres guardar el respaldo. Si algo sale mal,\n"
+            "puedes restaurar ese archivo.",
+        )
+        ruta_bk, _ = QFileDialog.getSaveFileName(
+            self, "Guardar respaldo de base de datos", nombre_bk, "Base de datos (*.db)"
+        )
+        if not ruta_bk:
+            resp = QMessageBox.question(
+                self,
+                "Sin respaldo",
+                "No guardaste ningún respaldo.\n"
+                "¿Deseas continuar la importación de todas formas?\n"
+                "(no recomendado — si algo falla no podrás recuperar los datos)",
+                QMessageBox.Yes | QMessageBox.No,
+                QMessageBox.No,
+            )
+            if resp != QMessageBox.Yes:
+                return
+        else:
+            try:
+                shutil.copy2(str(db_path), ruta_bk)
+                QMessageBox.information(
+                    self,
+                    "Respaldo guardado",
+                    f"Respaldo guardado correctamente en:\n{ruta_bk}\n\n"
+                    "Puedes restaurarlo si algo sale mal.",
+                )
+            except Exception as exc:
+                QMessageBox.critical(self, "Error al guardar respaldo", str(exc))
+                return
 
         # Construir descripción de los meses afectados
         if res.meses_afectados:

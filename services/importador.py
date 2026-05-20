@@ -8,6 +8,7 @@ from dataclasses import dataclass, field
 from datetime import date, datetime
 from pathlib import Path
 import openpyxl
+import re
 
 import json as _json
 
@@ -330,6 +331,38 @@ def _leer_configuracion(ws) -> Configuracion | None:
         )
     except Exception:
         return None
+
+
+_RE_HORA = re.compile(r"^\d{1,2}:\d{2}(:\d{2})?$")
+
+
+def validar_resultado(res: "ResultadoImportacionTotal") -> tuple[list[str], list[str]]:
+    """
+    Verifica coherencia de los datos leídos del Excel antes de escribir en BD.
+    Retorna (errores_criticos, advertencias).
+    Un error crítico bloquea la importación; las advertencias solo informan.
+    """
+    errores: list[str] = []
+    advertencias: list[str] = []
+
+    # Préstamos: detectar columnas transpuestas (producto o almacén con formato HH:MM)
+    sospechosos = [
+        p for p in res.prestamos
+        if _RE_HORA.match(p.producto) or _RE_HORA.match(p.almacen)
+    ]
+    if sospechosos:
+        ejemplo = sospechosos[0].producto
+        errores.append(
+            f"Préstamos: {len(sospechosos)} fila(s) con datos transpuestos — "
+            f"el campo 'Producto' contiene '{ejemplo}' (parece una hora). "
+            "Exporta el archivo de nuevo con la versión actualizada del sistema."
+        )
+
+    # Ventas: advertir si vienen sin ningún mes detectado pero sí hay filas
+    if res.ventas and not res.meses_afectados:
+        advertencias.append("Ventas: no se detectaron meses válidos; las fechas podrían estar mal formateadas.")
+
+    return errores, advertencias
 
 
 def importar_todo(ruta: Path) -> ResultadoImportacionTotal:

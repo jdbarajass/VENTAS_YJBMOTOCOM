@@ -334,35 +334,101 @@ def _leer_configuracion(ws) -> Configuracion | None:
 
 
 _RE_HORA = re.compile(r"^\d{1,2}:\d{2}(:\d{2})?$")
+_RE_SOLO_NUM = re.compile(r"^\d+(\.\d+)?$")
+_METODOS_BASE = {"Efectivo", "Addi", "Transferencia", "Combinado", "Otro", "Bold"}
 
 
 def validar_resultado(res: "ResultadoImportacionTotal") -> tuple[list[str], list[str]]:
     """
     Verifica coherencia de los datos leídos del Excel antes de escribir en BD.
     Retorna (errores_criticos, advertencias).
-    Un error crítico bloquea la importación; las advertencias solo informan.
+    Errores críticos bloquean la importación; advertencias solo informan.
     """
     errores: list[str] = []
-    advertencias: list[str] = []
+    adv: list[str] = []
 
-    # Préstamos: detectar columnas transpuestas (producto o almacén con formato HH:MM)
-    sospechosos = [
+    # ── Préstamos ──────────────────────────────────────────────────────────
+    # Detectar columnas transpuestas: producto o almacén con formato HH:MM
+    sospechosos_p = [
         p for p in res.prestamos
         if _RE_HORA.match(p.producto) or _RE_HORA.match(p.almacen)
     ]
-    if sospechosos:
-        ejemplo = sospechosos[0].producto
+    if sospechosos_p:
+        ejemplo = sospechosos_p[0].producto
         errores.append(
-            f"Préstamos: {len(sospechosos)} fila(s) con datos transpuestos — "
-            f"el campo 'Producto' contiene '{ejemplo}' (parece una hora). "
-            "Exporta el archivo de nuevo con la versión actualizada del sistema."
+            f"Préstamos ({len(sospechosos_p)} fila(s)): el campo 'Producto' contiene "
+            f"'{ejemplo}' — parece una hora, columnas transpuestas. "
+            "Exporta de nuevo con la versión actualizada del sistema."
         )
 
-    # Ventas: advertir si vienen sin ningún mes detectado pero sí hay filas
-    if res.ventas and not res.meses_afectados:
-        advertencias.append("Ventas: no se detectaron meses válidos; las fechas podrían estar mal formateadas.")
+    # ── Ventas ─────────────────────────────────────────────────────────────
+    if res.ventas:
+        n = len(res.ventas)
 
-    return errores, advertencias
+        # Más del 50% con precio = 0 → probable desplazamiento de columnas
+        precio_cero = sum(1 for v in res.ventas if v.precio == 0)
+        if precio_cero > n * 0.5:
+            errores.append(
+                f"Ventas ({precio_cero}/{n} registros): el campo 'Precio' es 0 en la mayoría "
+                "de filas — posible desplazamiento de columnas."
+            )
+
+        # Más del 50% con costo = 0 (menos grave, puede ser deliberado, solo advierte)
+        costo_cero = sum(1 for v in res.ventas if v.costo == 0)
+        if costo_cero > n * 0.5:
+            adv.append(
+                f"Ventas ({costo_cero}/{n} registros): el campo 'Costo' es 0 en la mayoría "
+                "de filas — verifica que los costos estén correctos."
+            )
+
+        # Métodos de pago desconocidos (primera palabra)
+        metodos_inv = {
+            v.metodo_pago for v in res.ventas
+            if v.metodo_pago.split()[0] not in _METODOS_BASE
+        }
+        if metodos_inv:
+            adv.append(
+                f"Ventas: métodos de pago no reconocidos → "
+                + ", ".join(sorted(metodos_inv)[:4])
+            )
+
+        # Sin meses detectados cuando hay filas → fechas mal formateadas
+        if not res.meses_afectados:
+            adv.append("Ventas: no se detectaron meses válidos; las fechas podrían estar mal formateadas.")
+
+    # ── Inventario ─────────────────────────────────────────────────────────
+    if res.productos:
+        n = len(res.productos)
+
+        # Nombres de producto puramente numéricos → probable columna desplazada
+        prod_num = [p for p in res.productos if _RE_SOLO_NUM.match(p.producto)]
+        if len(prod_num) > n * 0.3:
+            errores.append(
+                f"Inventario ({len(prod_num)}/{n} productos): el campo 'Producto' "
+                f"contiene valores numéricos (ej: '{prod_num[0].producto}') — "
+                "posible desplazamiento de columnas."
+            )
+
+        # Todos los costos en cero
+        if all(p.costo_unitario == 0 for p in res.productos):
+            adv.append("Inventario: todos los productos tienen costo = 0.")
+
+    # ── Facturas ───────────────────────────────────────────────────────────
+    if res.facturas:
+        n = len(res.facturas)
+        monto_cero = sum(1 for f in res.facturas if f.monto == 0)
+        if monto_cero > n * 0.5:
+            adv.append(
+                f"Facturas ({monto_cero}/{n}): la mayoría tienen monto = 0 — "
+                "verifica que los montos estén en la columna correcta."
+            )
+
+    # ── Gastos ─────────────────────────────────────────────────────────────
+    negativos = [g for g in res.gastos if g.monto < 0]
+    if negativos:
+        adv.append(f"Gastos: {len(negativos)} registro(s) con monto negativo.")
+
+    return errores, adv
 
 
 def importar_todo(ruta: Path) -> ResultadoImportacionTotal:

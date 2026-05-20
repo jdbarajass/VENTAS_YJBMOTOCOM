@@ -430,7 +430,7 @@ class ExportarImportarPanel(QWidget):
             return
 
         # 2. Validar coherencia antes de tocar la BD
-        errores_criticos, _ = validar_resultado(res)
+        errores_criticos, advertencias_val = validar_resultado(res)
         if errores_criticos:
             QMessageBox.critical(
                 self,
@@ -506,8 +506,13 @@ class ExportarImportarPanel(QWidget):
             f"  • Configuración: {cfg_str}\n\n"
             f"Esta acción no se puede deshacer."
         )
-        if res.errores:
-            confirmacion += f"\n\nAdvertencias ({len(res.errores)}):\n" + "\n".join(res.errores[:3])
+        # Advertencias de validación de coherencia
+        todas_adv = list(advertencias_val) + res.errores[:3]
+        if todas_adv:
+            confirmacion += (
+                f"\n\n⚠ Advertencias ({len(todas_adv)}):\n"
+                + "\n".join(f"  • {a}" for a in todas_adv)
+            )
 
         resp = QMessageBox.question(
             self, "Confirmar importación", confirmacion,

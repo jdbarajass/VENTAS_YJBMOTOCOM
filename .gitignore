@@ -13,7 +13,11 @@ build/
 venv/
 ENV/
 *.db
+*.db-shm
+*.db-wal
 *.sqlite3
+*.pdf
+package-lock.json
 *.log
 .idea/
 .vscode/

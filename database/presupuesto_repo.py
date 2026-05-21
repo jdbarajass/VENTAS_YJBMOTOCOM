@@ -36,6 +36,31 @@ def guardar_presupuesto_categoria(anio: int, mes: int,
     conn.commit()
 
 
+def obtener_todos_presupuestos() -> list[dict]:
+    """Retorna todos los presupuestos como lista de dicts {anio, mes, categoria, monto_presupuestado}."""
+    conn = DatabaseConnection.get()
+    rows = conn.execute(
+        "SELECT anio, mes, categoria, monto_presupuestado "
+        "FROM presupuesto_mensual ORDER BY anio, mes, categoria"
+    ).fetchall()
+    return [
+        {
+            "anio": r["anio"],
+            "mes": r["mes"],
+            "categoria": r["categoria"],
+            "monto_presupuestado": r["monto_presupuestado"],
+        }
+        for r in rows
+    ]
+
+
+def eliminar_todos_presupuestos() -> None:
+    """Borra todos los registros de presupuesto_mensual."""
+    conn = DatabaseConnection.get()
+    conn.execute("DELETE FROM presupuesto_mensual")
+    conn.commit()
+
+
 def copiar_presupuesto_mes(anio_origen: int, mes_origen: int,
                            anio_dest: int, mes_dest: int) -> int:
     """

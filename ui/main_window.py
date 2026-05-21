@@ -31,8 +31,8 @@ from ui.notas_panel import NotasPanel
 
 
 # Índices de página en el QStackedWidget
-PAGE_CALCULADORA  = 0
-PAGE_REGISTRAR    = 1
+PAGE_REGISTRAR    = 0
+PAGE_CALCULADORA  = 1
 PAGE_VENTAS_DIA   = 2
 PAGE_DASHBOARD    = 3
 PAGE_HISTORIAL    = 4
@@ -63,7 +63,7 @@ class MainWindow(QMainWindow):
             self._paginas_desbloqueadas.update({PAGE_CONFIG, PAGE_EXPORTAR})
         self._setup_window()
         self._build_ui()
-        self._nav_buttons[PAGE_CALCULADORA].setChecked(True)
+        self._nav_buttons[PAGE_REGISTRAR].setChecked(True)
         self._actualizar_badge_stock()
         self._actualizar_badge_facturas()
         self._actualizar_badge_notas()
@@ -157,8 +157,8 @@ class MainWindow(QMainWindow):
 
         # Botones de navegación
         nav_items = [
-            (PAGE_CALCULADORA, "🧮  Calculadora"),
             (PAGE_REGISTRAR,  "＋  Registrar Venta"),
+            (PAGE_CALCULADORA, "🧮  Calculadora"),
             (PAGE_VENTAS_DIA, "📋  Ventas del Día"),
             (PAGE_DASHBOARD,  "📊  Dashboard"),
             (PAGE_HISTORIAL,  "📅  Historial Mensual"),
@@ -253,13 +253,13 @@ class MainWindow(QMainWindow):
 
         self._stack = QStackedWidget()
 
-        # Página 0 — Calculadora de Precios
-        self._calculadora = CalculadoraPanel()
-        self._stack.addWidget(self._calculadora)
-
-        # Página 1 — Registrar Venta
+        # Página 0 — Registrar Venta
         self._form_venta = VentaForm()
         self._stack.addWidget(self._form_venta)
+
+        # Página 1 — Calculadora de Precios
+        self._calculadora = CalculadoraPanel()
+        self._stack.addWidget(self._calculadora)
 
         # Página 2 — Ventas del Día
         self._ventas_dia = VentasDiaPanel()
@@ -481,7 +481,7 @@ class MainWindow(QMainWindow):
             _ocultas_vendedor = {PAGE_CONFIG, PAGE_EXPORTAR}
             for idx, btn in self._nav_buttons.items():
                 btn.setVisible(not (self._rol == "vendedor" and idx in _ocultas_vendedor))
-            self._navegar(PAGE_CALCULADORA)
+            self._navegar(PAGE_REGISTRAR)
             self._status.showMessage(f"Sesión iniciada como {self._usuario}")
         else:
             import sys
@@ -556,9 +556,9 @@ class MainWindow(QMainWindow):
         pagina_actual = self._stack.currentIndex()
         _PAGINAS_PROTEGIDAS = {PAGE_CONFIG, PAGE_EXPORTAR}
         if pagina_actual in _PAGINAS_PROTEGIDAS:
-            self._stack.setCurrentIndex(PAGE_CALCULADORA)
+            self._stack.setCurrentIndex(PAGE_REGISTRAR)
             for idx, btn in self._nav_buttons.items():
-                btn.setChecked(idx == PAGE_CALCULADORA)
+                btn.setChecked(idx == PAGE_REGISTRAR)
         self._status.showMessage(
             f"Sesión bloqueada por inactividad ({self._timeout_minutos} min)  •  Vuelve a autenticarte para acceder"
         )

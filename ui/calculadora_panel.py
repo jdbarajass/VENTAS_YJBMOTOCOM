@@ -9,7 +9,7 @@ from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
     QLineEdit, QFrame, QButtonGroup, QCheckBox, QCompleter,
     QTableWidget, QTableWidgetItem, QHeaderView,
-    QAbstractItemView,
+    QAbstractItemView, QSpinBox,
 )
 from PySide6.QtCore import Qt, QStringListModel
 from PySide6.QtGui import QFont, QColor
@@ -202,9 +202,31 @@ class CalculadoraPanel(QWidget):
         lbl_g = QLabel("% Ganancia deseada:")
         lbl_g.setStyleSheet("font-size:10px;color:#6B7280;font-weight:bold;")
         lay.addWidget(lbl_g)
-        self._chips_g = _ChipGroup(_GANANCIAS, self._recalcular)
-        self._chips_g.set_valor(30)
+        self._chips_g = _ChipGroup(_GANANCIAS, self._on_chip_ganancia)
+        self._chips_g.set_valor(35)
         lay.addWidget(self._chips_g)
+
+        fila_manual_g = QHBoxLayout()
+        fila_manual_g.setSpacing(6)
+        fila_manual_g.setContentsMargins(0, 0, 0, 0)
+        lbl_manual_g = QLabel("% manual:")
+        lbl_manual_g.setStyleSheet("font-size:10px;color:#6B7280;")
+        self._spin_g = QSpinBox()
+        self._spin_g.setRange(1, 300)
+        self._spin_g.setSuffix(" %")
+        self._spin_g.setValue(35)
+        self._spin_g.setFixedHeight(26)
+        self._spin_g.setFixedWidth(82)
+        self._spin_g.setStyleSheet(
+            "QSpinBox{border:1px solid #CBD5E1;border-radius:13px;"
+            "font-size:10px;font-weight:bold;padding:0 6px;}"
+            "QSpinBox:focus{border:2px solid #2563EB;}"
+        )
+        self._spin_g.valueChanged.connect(self._on_spin_ganancia)
+        fila_manual_g.addWidget(lbl_manual_g)
+        fila_manual_g.addWidget(self._spin_g)
+        fila_manual_g.addStretch()
+        lay.addLayout(fila_manual_g)
 
         # Resultado
         self._frame_res = QFrame()
@@ -438,10 +460,25 @@ class CalculadoraPanel(QWidget):
         except Exception:
             pass
 
+    def _on_chip_ganancia(self):
+        v = self._chips_g.valor()
+        if v is not None:
+            self._spin_g.blockSignals(True)
+            self._spin_g.setValue(v)
+            self._spin_g.blockSignals(False)
+        self._recalcular()
+
+    def _on_spin_ganancia(self, v: int):
+        if v in _GANANCIAS:
+            self._chips_g.set_valor(v)
+        else:
+            self._chips_g.limpiar()
+        self._recalcular()
+
     def _recalcular(self):
         costo = self._costo.valor_int()
-        pct   = self._chips_g.valor()
-        if not costo or not pct:
+        pct   = self._spin_g.value()
+        if not costo:
             self._lbl_pv.setText("Precio de venta:  —")
             self._lbl_g_pesos.setText("Ganancia:  —")
             self._lbl_margen.setText("Margen sobre precio de venta:  —")
@@ -459,9 +496,9 @@ class CalculadoraPanel(QWidget):
 
     def _recalcular_dcto(self):
         costo  = self._costo.valor_int()
-        pct_g  = self._chips_g.valor()
+        pct_g  = self._spin_g.value()
         pct_d  = self._chips_d.valor()
-        if not costo or not pct_g:
+        if not costo:
             self._frame_dcto.setVisible(False)
             return
         precio_base = round(costo * (1 + pct_g / 100))

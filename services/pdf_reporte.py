@@ -100,9 +100,10 @@ def _encabezado(resumen: ResumenMensual, nombre: str, estilos) -> list:
         f"Reporte Mensual — {mes_nombre} {resumen.año}",
         ParagraphStyle("sub", fontSize=13, textColor=_AZUL_MEDIO, alignment=TA_LEFT),
     )
-    return [titulo, Spacer(1, 0.15 * cm), subtitulo,
+    return [titulo, Spacer(1, 0.3 * cm), subtitulo,
+            Spacer(1, 0.35 * cm),
             HRFlowable(width="100%", color=_AZUL_MEDIO, thickness=2),
-            Spacer(1, 0.3 * cm)]
+            Spacer(1, 0.5 * cm)]
 
 
 def _titulo_seccion(texto: str, estilos) -> Paragraph:
@@ -155,6 +156,10 @@ def _tabla_resumen(resumen: ResumenMensual) -> Table:
         ("TEXTCOLOR",    (2, 1), (2,  1), _VERDE if resumen.ganancia_neta >= 0 else _ROJO),
         ("TEXTCOLOR",    (3, 1), (3,  1), color_util),
         ("BACKGROUND",   (3, 0), (3, -1), fondo_util),
+        # UTILIDAD REAL: mayor tamaño y padding para destacar
+        ("FONTSIZE",     (3, 1), (3,  1), 17),
+        ("TOPPADDING",   (3, 1), (3,  1), 8),
+        ("BOTTOMPADDING",(3, 1), (3,  1), 8),
         ("BOTTOMPADDING",(0, 1), (-1, 1), 4),
         ("TOPPADDING",   (0, 1), (-1, 1), 6),
         # Subtítulos

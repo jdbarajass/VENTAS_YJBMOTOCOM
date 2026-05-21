@@ -452,9 +452,10 @@ def _escribir_hoja_gastos(ws, gastos: list) -> None:
 
 _HEADERS_CONFIG = [
     "Arriendo", "Sueldo", "Servicios", "Otros gastos",
-    "Días mes", "Comisión Bold (%)", "Comisión Addi (%)", "Comisión Transf. (%)"
+    "Días mes", "Comisión Bold (%)", "Comisión Addi (%)", "Comisión Transf. (%)",
+    "Modo oscuro", "Inactividad (min)", "Impresora",
 ]
-_ANCHOS_CONFIG = [16, 16, 16, 16, 11, 18, 18, 20]
+_ANCHOS_CONFIG = [16, 16, 16, 16, 11, 18, 18, 20, 14, 18, 26]
 
 
 def _escribir_hoja_configuracion(ws, cfg) -> None:
@@ -481,11 +482,12 @@ def _escribir_hoja_configuracion(ws, cfg) -> None:
     ws.row_dimensions[2].height = 20
 
     if cfg is None:
-        valores = [0, 0, 0, 0, 30, 0, 0, 0]
+        valores = [0, 0, 0, 0, 30, 0, 0, 0, "No", 10, ""]
     else:
         valores = [
             cfg.arriendo, cfg.sueldo, cfg.servicios, cfg.otros_gastos,
             cfg.dias_mes, cfg.comision_bold, cfg.comision_addi, cfg.comision_transferencia,
+            "Sí" if cfg.modo_oscuro else "No", cfg.timeout_minutos, cfg.nombre_impresora or "",
         ]
     ws.append(valores)
     row = ws.max_row
@@ -603,6 +605,124 @@ def _escribir_hoja_notas(ws, notas: list) -> None:
         ws.column_dimensions[get_column_letter(i)].width = ancho
 
 
+_HEADERS_USUARIOS = ["Nombre", "Rol"]
+_ANCHOS_USUARIOS  = [28, 16]
+_ROLES_COLOR = {"admin": "DBEAFE", "vendedor": "F0FDF4"}
+
+
+def _escribir_hoja_usuarios(ws, usuarios: list) -> None:
+    """Escribe título, encabezados y datos de usuarios (nombre + rol, sin contraseñas)."""
+    lado = Side(style="thin", color="CCCCCC")
+    borde = Border(left=lado, right=lado, top=lado, bottom=lado)
+    ncols = len(_HEADERS_USUARIOS)
+
+    ws.merge_cells(f"A1:{get_column_letter(ncols)}1")
+    t = ws["A1"]
+    t.value = "YJBMOTOCOM — Usuarios"
+    t.font = Font(name="Calibri", bold=True, size=13, color="FFFFFF")
+    t.fill = PatternFill("solid", fgColor="1E3A5F")
+    t.alignment = Alignment(horizontal="center", vertical="center")
+    ws.row_dimensions[1].height = 26
+
+    ws.append(_HEADERS_USUARIOS)
+    for col_idx in range(1, ncols + 1):
+        cell = ws.cell(row=2, column=col_idx)
+        cell.font = Font(bold=True, color="FFFFFF", name="Calibri", size=10)
+        cell.fill = PatternFill("solid", fgColor="2563EB")
+        cell.alignment = Alignment(horizontal="center", vertical="center")
+        cell.border = borde
+    ws.row_dimensions[2].height = 20
+
+    for u in usuarios:
+        if isinstance(u, dict):
+            nombre = str(u.get("nombre", "") or "")
+            rol    = str(u.get("rol", "vendedor") or "vendedor")
+        else:
+            nombre = u.nombre
+            rol    = u.rol
+        ws.append([nombre, rol])
+        row = ws.max_row
+        color = _ROLES_COLOR.get(rol, "FFFFFF")
+        for col_idx in range(1, ncols + 1):
+            c = ws.cell(row=row, column=col_idx)
+            c.fill = PatternFill("solid", fgColor=color)
+            c.border = borde
+            c.font = Font(name="Calibri", size=10, bold=(rol == "admin"))
+            c.alignment = Alignment(vertical="center")
+        ws.row_dimensions[row].height = 18
+
+    ws.merge_cells(f"A{ws.max_row + 1}:{get_column_letter(ncols)}{ws.max_row + 1}")
+    nota = ws.cell(ws.max_row, 1)
+    nota.value = (
+        "Roles válidos: admin | vendedor   •   "
+        "Las contraseñas NO se exportan por seguridad   •   "
+        "Nuevos usuarios importados recibirán clave temporal '1234' — cámbiala en Configuración."
+    )
+    nota.font = Font(name="Calibri", size=9, italic=True, color="6B7280")
+    nota.fill = PatternFill("solid", fgColor="FFFBEB")
+    nota.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+    ws.row_dimensions[ws.max_row].height = 28
+
+    for i, ancho in enumerate(_ANCHOS_USUARIOS, start=1):
+        ws.column_dimensions[get_column_letter(i)].width = ancho
+
+
+_HEADERS_PRESUPUESTO = ["Año", "Mes", "Categoría", "Monto Presupuestado"]
+_ANCHOS_PRESUPUESTO  = [8, 8, 28, 22]
+
+
+def _escribir_hoja_presupuesto(ws, presupuestos: list) -> None:
+    """Escribe título, encabezados y datos de presupuesto mensual por categoría."""
+    lado = Side(style="thin", color="CCCCCC")
+    borde = Border(left=lado, right=lado, top=lado, bottom=lado)
+    ncols = len(_HEADERS_PRESUPUESTO)
+
+    ws.merge_cells(f"A1:{get_column_letter(ncols)}1")
+    t = ws["A1"]
+    t.value = "YJBMOTOCOM — Presupuesto Mensual"
+    t.font = Font(name="Calibri", bold=True, size=13, color="FFFFFF")
+    t.fill = PatternFill("solid", fgColor="0E7490")
+    t.alignment = Alignment(horizontal="center", vertical="center")
+    ws.row_dimensions[1].height = 26
+
+    ws.append(_HEADERS_PRESUPUESTO)
+    for col_idx in range(1, ncols + 1):
+        cell = ws.cell(row=2, column=col_idx)
+        cell.font = Font(bold=True, color="FFFFFF", name="Calibri", size=10)
+        cell.fill = PatternFill("solid", fgColor="0891B2")
+        cell.alignment = Alignment(horizontal="center", vertical="center")
+        cell.border = borde
+    ws.row_dimensions[2].height = 20
+
+    for i, p in enumerate(presupuestos, start=1):
+        if isinstance(p, dict):
+            anio  = p.get("anio", "")
+            mes   = p.get("mes", "")
+            cat   = p.get("categoria", "")
+            monto = p.get("monto_presupuestado", 0)
+        else:
+            anio  = getattr(p, "anio", "")
+            mes   = getattr(p, "mes", "")
+            cat   = getattr(p, "categoria", "")
+            monto = getattr(p, "monto_presupuestado", 0)
+        ws.append([anio, mes, cat, monto])
+        row = ws.max_row
+        fondo = "ECFEFF" if i % 2 == 0 else "FFFFFF"
+        for col_idx in range(1, ncols + 1):
+            c = ws.cell(row=row, column=col_idx)
+            c.fill = PatternFill("solid", fgColor=fondo)
+            c.border = borde
+            c.font = Font(name="Calibri", size=10)
+            c.alignment = Alignment(
+                vertical="center",
+                horizontal="right" if col_idx in (1, 2, 4) else "left",
+            )
+        ws.row_dimensions[row].height = 18
+
+    for i, ancho in enumerate(_ANCHOS_PRESUPUESTO, start=1):
+        ws.column_dimensions[get_column_letter(i)].width = ancho
+
+
 def exportar_todo(
     ruta: Path,
     ventas: list | None = None,
@@ -613,6 +733,8 @@ def exportar_todo(
     configuracion=None,
     notas: list | None = None,
     abonos: list | None = None,
+    usuarios: list | None = None,
+    presupuestos: list | None = None,
 ) -> None:
     """
     Genera un .xlsx con las hojas que se pasen (None = omitir esa hoja).
@@ -749,6 +871,14 @@ def exportar_todo(
     # ── Hoja Abonos de Facturas (opcional) ────────────────────────────────
     if abonos is not None:
         _escribir_hoja_abonos(_hoja("Abonos"), abonos)
+
+    # ── Hoja Usuarios (opcional, junto con configuración) ─────────────────
+    if usuarios is not None:
+        _escribir_hoja_usuarios(_hoja("Usuarios"), usuarios)
+
+    # ── Hoja Presupuesto Mensual (opcional) ───────────────────────────────
+    if presupuestos is not None:
+        _escribir_hoja_presupuesto(_hoja("Presupuesto"), presupuestos)
 
     # Si ninguna hoja fue incluida, agregar una de aviso
     if not primera_hoja_usada:
@@ -983,7 +1113,7 @@ def generar_plantilla_todo(ruta: Path) -> None:
     nota_n.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
     ws_n.row_dimensions[ws_n.max_row].height = 24
 
-    # ── Hoja Configuración (con valores por defecto del negocio) ─────��────
+    # ── Hoja Configuración (con valores por defecto del negocio) ─────────
     ws_c = wb.create_sheet("Configuración")
     cfg_defecto = Configuracion(
         arriendo=3_000_000,
@@ -994,6 +1124,9 @@ def generar_plantilla_todo(ruta: Path) -> None:
         comision_bold=0,
         comision_addi=0,
         comision_transferencia=0,
+        modo_oscuro=False,
+        timeout_minutos=10,
+        nombre_impresora="",
     )
     _escribir_hoja_configuracion(ws_c, cfg_defecto)
 
@@ -1001,12 +1134,52 @@ def generar_plantilla_todo(ruta: Path) -> None:
     nota_c = ws_c.cell(ws_c.max_row, 1)
     nota_c.value = (
         "Edita los valores de la fila 3. "
-        "Las comisiones son porcentajes (ej: 3.49 para 3.49%)."
+        "Comisiones: porcentaje (ej: 3.49).  "
+        "Modo oscuro: Sí | No.  "
+        "Inactividad: minutos (ej: 10).  "
+        "Impresora: nombre exacto de Windows (puede dejarse vacío)."
     )
     nota_c.font = Font(name="Calibri", size=9, italic=True, color="6B7280")
     nota_c.fill = PatternFill("solid", fgColor="FFFBEB")
-    nota_c.alignment = Alignment(horizontal="center", vertical="center")
-    ws_c.row_dimensions[ws_c.max_row].height = 20
+    nota_c.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+    ws_c.row_dimensions[ws_c.max_row].height = 28
+
+    # ── Hoja Usuarios ─────────────────────────────────────────────────────
+    ws_u = wb.create_sheet("Usuarios")
+    _EJEMPLOS_USUARIOS = [
+        {"nombre": "Admin",    "rol": "admin"},
+        {"nombre": "Vendedor1","rol": "vendedor"},
+    ]
+    _escribir_hoja_usuarios(ws_u, _EJEMPLOS_USUARIOS)
+
+    # ── Hoja Presupuesto Mensual ───────────────────────────────────────────
+    ws_pr = wb.create_sheet("Presupuesto")
+    _EJEMPLOS_PRESUPUESTO = [
+        {"anio": 2026, "mes": 5, "categoria": "Arriendo",   "monto_presupuestado": 3_000_000},
+        {"anio": 2026, "mes": 5, "categoria": "Transporte", "monto_presupuestado": 200_000},
+        {"anio": 2026, "mes": 5, "categoria": "Alimentación","monto_presupuestado": 400_000},
+    ]
+    _escribir_hoja_presupuesto(ws_pr, _EJEMPLOS_PRESUPUESTO)
+
+    lado7 = Side(style="thin", color="CCCCCC")
+    borde7 = Border(left=lado7, right=lado7, top=lado7, bottom=lado7)
+    for row in ws_pr.iter_rows(min_row=3, max_row=ws_pr.max_row):
+        for cell in row:
+            if cell.row == ws_pr.max_row:
+                break
+            cell.fill = PatternFill("solid", fgColor="F1F5F9")
+            cell.font = Font(name="Calibri", size=10, italic=True, color="94A3B8")
+            cell.border = borde7
+
+    ws_pr.merge_cells(f"A{ws_pr.max_row + 1}:D{ws_pr.max_row + 1}")
+    nota_pr = ws_pr.cell(ws_pr.max_row, 1)
+    nota_pr.value = (
+        "↑ Borra los ejemplos. Año: AAAA   Mes: 1-12   Categoría: texto libre   Monto: número."
+    )
+    nota_pr.font = Font(name="Calibri", size=9, italic=True, color="6B7280")
+    nota_pr.fill = PatternFill("solid", fgColor="FFFBEB")
+    nota_pr.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+    ws_pr.row_dimensions[ws_pr.max_row].height = 20
 
     wb.save(str(ruta))
 

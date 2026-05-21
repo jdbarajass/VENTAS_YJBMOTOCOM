@@ -90,6 +90,8 @@ class ResultadoImportacionTotal:
     configuracion: Configuracion | None = None
     notas: list | None = None        # None = hoja ausente; [] = hoja vacía; [...] = con datos
     abonos_raw: list | None = None   # None = hoja ausente; [] = hoja vacía; [...] = con datos
+    usuarios: list | None = None     # None = hoja ausente; lista de dicts {nombre, rol}
+    presupuestos: list | None = None # None = hoja ausente; lista de dicts {anio, mes, categoria, monto_presupuestado}
     errores: list[str] = field(default_factory=list)
 
     @property
@@ -302,8 +304,9 @@ def _leer_configuracion(ws) -> Configuracion | None:
     """
     Lee la hoja «Configuración».
     Fila 1 = título, fila 2 = encabezados, fila 3 = valores.
-    Columnas: Arriendo | Sueldo | Servicios | Otros gastos |
-              Días mes | Comisión Bold | Comisión Addi | Comisión Transf.
+    Formato base (8 cols): Arriendo | Sueldo | Servicios | Otros gastos |
+        Días mes | Comisión Bold | Comisión Addi | Comisión Transf.
+    Formato extendido (11 cols): + Modo oscuro | Inactividad (min) | Impresora
     """
     if ws.max_row < 3:
         return None
@@ -320,7 +323,20 @@ def _leer_configuracion(ws) -> Configuracion | None:
         except (ValueError, TypeError):
             return default
 
+    # Detectar formato extendido: columna 9 tiene encabezado
+    header_9 = str(ws.cell(2, 9).value or "").strip()
+    tiene_extendido = bool(header_9)
+
     try:
+        modo_oscuro = False
+        timeout_minutos = 10
+        nombre_impresora = ""
+        if tiene_extendido:
+            modo_raw = str(ws.cell(3, 9).value or "no").strip().lower()
+            modo_oscuro = modo_raw in ("sí", "si", "yes", "1", "true")
+            timeout_minutos = _int(ws.cell(3, 10).value, 10)
+            nombre_impresora = str(ws.cell(3, 11).value or "").strip()
+
         return Configuracion(
             arriendo=_num(ws.cell(3, 1).value),
             sueldo=_num(ws.cell(3, 2).value),
@@ -330,9 +346,68 @@ def _leer_configuracion(ws) -> Configuracion | None:
             comision_bold=_num(ws.cell(3, 6).value),
             comision_addi=_num(ws.cell(3, 7).value),
             comision_transferencia=_num(ws.cell(3, 8).value),
+            modo_oscuro=modo_oscuro,
+            timeout_minutos=timeout_minutos,
+            nombre_impresora=nombre_impresora,
         )
     except Exception:
         return None
+
+
+def _leer_usuarios(ws) -> list[dict]:
+    """
+    Lee la hoja «Usuarios».
+    Fila 1 = título, fila 2 = encabezados, fila 3+ = datos.
+    Columnas: Nombre | Rol
+    Retorna lista de dicts {nombre, rol}.
+    """
+    usuarios: list[dict] = []
+    for row_idx in range(3, ws.max_row + 1):
+        nombre = str(ws.cell(row_idx, 1).value or "").strip()
+        if not nombre:
+            continue
+        rol_raw = str(ws.cell(row_idx, 2).value or "vendedor").strip().lower()
+        rol = "admin" if rol_raw == "admin" else "vendedor"
+        usuarios.append({"nombre": nombre, "rol": rol})
+    return usuarios
+
+
+def _leer_presupuesto(ws) -> list[dict]:
+    """
+    Lee la hoja «Presupuesto» generada por exportar_todo() / generar_plantilla_todo().
+    Fila 1 = título, fila 2 = encabezados, fila 3+ = datos.
+    Columnas: Año | Mes | Categoría | Monto Presupuestado
+    """
+    presupuestos: list[dict] = []
+    for row_idx in range(3, ws.max_row + 1):
+        anio_val = ws.cell(row_idx, 1).value
+        if anio_val is None:
+            continue
+        try:
+            anio = int(anio_val)
+        except (ValueError, TypeError):
+            continue
+        mes_val = ws.cell(row_idx, 2).value
+        try:
+            mes = int(mes_val)
+        except (ValueError, TypeError):
+            continue
+        if not (1 <= mes <= 12):
+            continue
+        categoria = str(ws.cell(row_idx, 3).value or "").strip()
+        if not categoria:
+            continue
+        try:
+            monto = float(ws.cell(row_idx, 4).value or 0)
+        except (ValueError, TypeError):
+            monto = 0.0
+        presupuestos.append({
+            "anio": anio,
+            "mes": mes,
+            "categoria": categoria,
+            "monto_presupuestado": monto,
+        })
+    return presupuestos
 
 
 def _leer_abonos(ws) -> list[dict]:
@@ -663,5 +738,21 @@ def importar_todo(ruta: Path) -> ResultadoImportacionTotal:
     )
     if ws_ab is not None:
         resultado.abonos_raw = _leer_abonos(ws_ab)
+
+    # ── Hoja Usuarios ──────────────────────────────────────────────────────
+    ws_u = next(
+        (wb[s] for s in wb.sheetnames if s.lower() in ("usuarios", "users")),
+        None,
+    )
+    if ws_u is not None:
+        resultado.usuarios = _leer_usuarios(ws_u)
+
+    # ── Hoja Presupuesto Mensual ────────────────────────────────────────────
+    ws_pr = next(
+        (wb[s] for s in wb.sheetnames if s.lower() in ("presupuesto", "presupuesto mensual")),
+        None,
+    )
+    if ws_pr is not None:
+        resultado.presupuestos = _leer_presupuesto(ws_pr)
 
     return resultado

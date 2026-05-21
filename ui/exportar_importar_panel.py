@@ -18,6 +18,7 @@ from PySide6.QtGui import QFont
 
 from utils.formatters import nombre_mes
 from utils.logger import log
+from ui.loading_modal import CargandoModal
 
 
 _MESES_NOMBRES = [
@@ -51,8 +52,8 @@ class ExportarImportarPanel(QWidget):
         root.addWidget(titulo)
 
         sub = QLabel(
-            "Un único archivo Excel con hasta 8 pestañas: ventas, préstamos, inventario, "
-            "facturas, abonos, gastos, notas y configuración."
+            "Un único archivo Excel con hasta 10 pestañas: ventas, préstamos, inventario, "
+            "facturas, abonos, gastos, notas, configuración, usuarios y presupuesto."
         )
         sub.setStyleSheet("color:#6B7280; font-size:12px;")
         root.addWidget(sub)
@@ -154,10 +155,12 @@ class ExportarImportarPanel(QWidget):
         self._chk_notas       = QCheckBox("Notas y Pendientes")
         self._chk_abonos      = QCheckBox("Abonos de facturas")
         self._chk_config      = QCheckBox("Configuración")
+        self._chk_presupuesto = QCheckBox("Presupuesto mensual")
 
         for chk in (self._chk_prestamos, self._chk_inventario,
                     self._chk_facturas, self._chk_gastos,
-                    self._chk_notas, self._chk_abonos, self._chk_config):
+                    self._chk_notas, self._chk_abonos, self._chk_config,
+                    self._chk_presupuesto):
             chk.setChecked(True)
             chk.setStyleSheet(chk_style)
             g_lay.addWidget(chk)
@@ -235,6 +238,8 @@ class ExportarImportarPanel(QWidget):
             "  • Los gastos de los meses del archivo se REEMPLAZARÁN",
             "  • Todas las notas y pendientes se REEMPLAZARÁN",
             "  • La configuración se ACTUALIZARÁ (si viene en el archivo)",
+            "  • Los usuarios NUEVOS se CREARÁN con clave temporal '1234'",
+            "  • El presupuesto mensual se REEMPLAZARÁ (si viene en el archivo)",
         ):
             l = QLabel(linea)
             l.setStyleSheet("color:#374151; font-size:12px; background:transparent; border:none;")
@@ -311,12 +316,13 @@ class ExportarImportarPanel(QWidget):
             return
         try:
             from services.exportador import generar_plantilla_todo
-            generar_plantilla_todo(Path(ruta))
+            with CargandoModal(self, "Generando plantilla…"):
+                generar_plantilla_todo(Path(ruta))
             QMessageBox.information(
                 self,
                 "Plantilla guardada",
                 f"Plantilla guardada en:\n{ruta}\n\n"
-                "El archivo tiene 8 hojas:\n"
+                "El archivo tiene 10 hojas:\n"
                 "  • Ventas — historial de ventas\n"
                 "  • Préstamos — préstamos a locales\n"
                 "  • Inventario — productos en stock\n"
@@ -324,8 +330,11 @@ class ExportarImportarPanel(QWidget):
                 "  • Abonos — pagos parciales a facturas\n"
                 "  • Gastos — gastos operativos diarios\n"
                 "  • Notas — Por Pedir / Resurtido y Tareas\n"
-                "  • Configuración — arriendo, sueldo, etc.\n\n"
-                "Borra las filas de ejemplo (en gris) antes de importar.",
+                "  • Configuración — arriendo, sueldo, tema, inactividad…\n"
+                "  • Usuarios — nombre y rol de cada usuario\n"
+                "  • Presupuesto — metas por categoría y mes\n\n"
+                "Borra las filas de ejemplo (en gris) antes de importar.\n"
+                "Los nuevos usuarios importados reciben clave temporal '1234'.",
             )
         except Exception as exc:
             QMessageBox.critical(self, "Error al guardar", str(exc))
@@ -337,6 +346,7 @@ class ExportarImportarPanel(QWidget):
             self._chk_inventario.isChecked(), self._chk_facturas.isChecked(),
             self._chk_gastos.isChecked(), self._chk_notas.isChecked(),
             self._chk_abonos.isChecked(), self._chk_config.isChecked(),
+            self._chk_presupuesto.isChecked(),
         ]):
             QMessageBox.warning(
                 self, "Sin selección",
@@ -387,8 +397,21 @@ class ExportarImportarPanel(QWidget):
                 from database.abonos_factura_repo import obtener_todos_abonos_con_factura
                 abonos = obtener_todos_abonos_con_factura()
 
-            exportar_todo(Path(ruta), ventas, prestamos, productos,
-                          facturas, gastos, configuracion, notas, abonos)
+            # Usuarios: siempre junto a Configuración
+            usuarios_export = None
+            if self._chk_config.isChecked():
+                from database.usuarios_repo import obtener_todos_usuarios
+                usuarios_export = obtener_todos_usuarios()
+
+            presupuestos_export = None
+            if self._chk_presupuesto.isChecked():
+                from database.presupuesto_repo import obtener_todos_presupuestos
+                presupuestos_export = obtener_todos_presupuestos()
+
+            with CargandoModal(self, "Exportando datos…"):
+                exportar_todo(Path(ruta), ventas, prestamos, productos,
+                              facturas, gastos, configuracion, notas, abonos,
+                              usuarios_export, presupuestos_export)
 
             # Construir resumen para el mensaje
             lineas = []
@@ -405,7 +428,12 @@ class ExportarImportarPanel(QWidget):
             if gastos     is not None: lineas.append(f"  • {len(gastos)} gasto(s) operativo(s)")
             if notas      is not None: lineas.append(f"  • {len(notas)} nota(s) y pendiente(s)")
             if abonos     is not None: lineas.append(f"  • {len(abonos)} abono(s) de facturas")
-            if configuracion is not None: lineas.append("  • Configuración incluida")
+            if configuracion is not None:
+                lineas.append("  • Configuración incluida")
+            if usuarios_export is not None:
+                lineas.append(f"  • {len(usuarios_export)} usuario(s)")
+            if presupuestos_export is not None:
+                lineas.append(f"  • {len(presupuestos_export)} registro(s) de presupuesto")
 
             QMessageBox.information(
                 self,
@@ -427,7 +455,8 @@ class ExportarImportarPanel(QWidget):
         # 1. Parsear el archivo Excel
         try:
             from services.importador import importar_todo, validar_resultado
-            res = importar_todo(Path(ruta))
+            with CargandoModal(self, "Leyendo archivo…"):
+                res = importar_todo(Path(ruta))
         except Exception as exc:
             log.error("Error al leer archivo de importación: %s", ruta, exc_info=True)
             QMessageBox.critical(self, "Error al leer el archivo", str(exc))
@@ -491,18 +520,23 @@ class ExportarImportarPanel(QWidget):
                 from database.config_repo import obtener_configuracion as _get_cfg
                 from database.notas_repo import obtener_notas as _get_notas
                 from database.abonos_factura_repo import obtener_todos_abonos_con_factura as _get_abonos
+                from database.usuarios_repo import obtener_todos_usuarios as _get_usuarios
+                from database.presupuesto_repo import obtener_todos_presupuestos as _get_presupuestos
 
-                _exportar_todo(
-                    Path(ruta_bk),
-                    ventas=_get_ventas(),
-                    prestamos=_get_prestamos(),
-                    productos=_get_productos(),
-                    facturas=_get_facturas(),
-                    gastos=_get_gastos(),
-                    configuracion=_get_cfg(),
-                    notas=_get_notas("resurtido") + _get_notas("tarea"),
-                    abonos=_get_abonos(),
-                )
+                with CargandoModal(self, "Guardando respaldo…"):
+                    _exportar_todo(
+                        Path(ruta_bk),
+                        ventas=_get_ventas(),
+                        prestamos=_get_prestamos(),
+                        productos=_get_productos(),
+                        facturas=_get_facturas(),
+                        gastos=_get_gastos(),
+                        configuracion=_get_cfg(),
+                        notas=_get_notas("resurtido") + _get_notas("tarea"),
+                        abonos=_get_abonos(),
+                        usuarios=_get_usuarios(),
+                        presupuestos=_get_presupuestos(),
+                    )
                 QMessageBox.information(
                     self,
                     "Respaldo guardado",
@@ -530,6 +564,10 @@ class ExportarImportarPanel(QWidget):
             return f"  • {n} {label}"
 
         cfg_str = "Sí" if res.configuracion else "No incluida"
+        usuarios_str = (
+            f"{len(res.usuarios)} usuario(s) en archivo"
+            if res.usuarios is not None else "No incluida"
+        )
         confirmacion = (
             f"¿Confirmar importación?\n\n"
             f"Ventas: meses afectados → {meses_str}\n\n"
@@ -541,7 +579,9 @@ class ExportarImportarPanel(QWidget):
             f"  • {len(res.gastos)} gasto(s) operativo(s)\n"
             + _conteo(res.notas, "nota(s) y pendiente(s)") + "\n"
             + _conteo(res.abonos_raw, "abono(s) de facturas") + "\n"
-            + f"  • Configuración: {cfg_str}\n\n"
+            + f"  • Configuración: {cfg_str}\n"
+            + f"  • Usuarios: {usuarios_str}\n"
+            + f"  • Presupuesto: {'Sí (' + str(len(res.presupuestos)) + ' registros)' if res.presupuestos is not None else 'No incluido'}\n\n"
             f"Esta acción no se puede deshacer."
         )
         # Advertencias de validación de coherencia
@@ -560,7 +600,8 @@ class ExportarImportarPanel(QWidget):
             return
 
         try:
-            advertencias_import = self._ejecutar_importacion(res)
+            with CargandoModal(self, "Importando datos…"):
+                advertencias_import = self._ejecutar_importacion(res)
             msg = (
                 f"Datos importados correctamente:\n"
                 f"  • {len(res.ventas)} venta(s)\n"
@@ -570,7 +611,9 @@ class ExportarImportarPanel(QWidget):
                 f"  • {len(res.gastos)} gasto(s) operativo(s)\n"
                 + (f"  • {len(res.notas)} nota(s) y pendiente(s)\n" if res.notas is not None else "")
                 + (f"  • {len(res.abonos_raw)} abono(s) de facturas\n" if res.abonos_raw is not None else "")
-                + ("  • Configuración actualizada" if res.configuracion else "")
+                + ("  • Configuración actualizada\n" if res.configuracion else "")
+                + (f"  • {len(res.usuarios)} usuario(s) procesado(s)\n" if res.usuarios is not None else "")
+                + (f"  • {len(res.presupuestos)} registro(s) de presupuesto" if res.presupuestos is not None else "")
             )
             if advertencias_import:
                 msg += "\n\n⚠ Advertencias:\n" + "\n".join(f"  • {a}" for a in advertencias_import)
@@ -680,6 +723,37 @@ class ExportarImportarPanel(QWidget):
             for n in res.notas:
                 insertar_nota(n)
 
+        # Presupuesto mensual — reemplazar todo si viene la hoja
+        if res.presupuestos is not None:
+            from database.presupuesto_repo import (
+                eliminar_todos_presupuestos, guardar_presupuesto_categoria,
+            )
+            eliminar_todos_presupuestos()
+            for p in res.presupuestos:
+                guardar_presupuesto_categoria(
+                    p["anio"], p["mes"], p["categoria"], p["monto_presupuestado"]
+                )
+
+        # Usuarios — agrega los nuevos; los existentes (por nombre) no se tocan
+        if res.usuarios:
+            from database.usuarios_repo import obtener_usuario_por_nombre, insertar_usuario
+            from database.usuarios_repo import Usuario
+            from utils.security import hashear_clave
+            nuevos = 0
+            for u_data in res.usuarios:
+                if not obtener_usuario_por_nombre(u_data["nombre"]):
+                    insertar_usuario(Usuario(
+                        nombre=u_data["nombre"],
+                        rol=u_data["rol"],
+                        clave_hash=hashear_clave("1234"),
+                    ))
+                    nuevos += 1
+            if nuevos:
+                advertencias.append(
+                    f"{nuevos} usuario(s) creado(s) con contraseña temporal '1234' — "
+                    "cámbiala en Configuración → Gestión de Usuarios."
+                )
+
         return advertencias
 
     # ---- Zona de peligro ----
@@ -762,7 +836,8 @@ class ExportarImportarPanel(QWidget):
 
         try:
             from database.schema import resetear_base_datos
-            resetear_base_datos()
+            with CargandoModal(self, "Borrando base de datos…"):
+                resetear_base_datos()
             QMessageBox.information(
                 self,
                 "Base de datos borrada",

@@ -318,12 +318,14 @@ class ExportarImportarPanel(QWidget):
                 self,
                 "Plantilla guardada",
                 f"Plantilla guardada en:\n{ruta}\n\n"
-                "El archivo tiene hojas:\n"
-                "  • Ventas — tus ventas (cualquier mes o año)\n"
+                "El archivo tiene 8 hojas:\n"
+                "  • Ventas — historial de ventas\n"
                 "  • Préstamos — préstamos a locales\n"
                 "  • Inventario — productos en stock\n"
-                "  • Facturas — facturas y recibos\n"
+                "  • Facturas — facturas a proveedores\n"
+                "  • Abonos — pagos parciales a facturas\n"
                 "  • Gastos — gastos operativos diarios\n"
+                "  • Notas — Por Pedir / Resurtido y Tareas\n"
                 "  • Configuración — arriendo, sueldo, etc.\n\n"
                 "Borra las filas de ejemplo (en gris) antes de importar.",
             )
@@ -560,9 +562,8 @@ class ExportarImportarPanel(QWidget):
             return
 
         try:
-            self._ejecutar_importacion(res)
-            QMessageBox.information(
-                self, "Importación exitosa",
+            advertencias_import = self._ejecutar_importacion(res)
+            msg = (
                 f"Datos importados correctamente:\n"
                 f"  • {len(res.ventas)} venta(s)\n"
                 f"  • {len(res.prestamos)} préstamo(s)\n"
@@ -571,15 +572,19 @@ class ExportarImportarPanel(QWidget):
                 f"  • {len(res.gastos)} gasto(s) operativo(s)\n"
                 + (f"  • {len(res.notas)} nota(s) y pendiente(s)\n" if res.notas is not None else "")
                 + (f"  • {len(res.abonos_raw)} abono(s) de facturas\n" if res.abonos_raw is not None else "")
-                + ("  • Configuración actualizada" if res.configuracion else ""),
+                + ("  • Configuración actualizada" if res.configuracion else "")
             )
+            if advertencias_import:
+                msg += "\n\n⚠ Advertencias:\n" + "\n".join(f"  • {a}" for a in advertencias_import)
+            QMessageBox.information(self, "Importación exitosa", msg)
             self.datos_importados.emit()
         except Exception as exc:
             log.error("Error durante la importación", exc_info=True)
             QMessageBox.critical(self, "Error durante la importación", str(exc))
 
-    def _ejecutar_importacion(self, res) -> None:
-        """Reemplaza ventas, préstamos, inventario, facturas, abonos, gastos, notas y config."""
+    def _ejecutar_importacion(self, res) -> list[str]:
+        """Reemplaza ventas, préstamos, inventario, facturas, abonos, gastos, notas y config.
+        Retorna lista de advertencias (puede estar vacía)."""
         from database.ventas_repo import (
             eliminar_ventas_por_mes, insertar_venta,
         )
@@ -598,6 +603,7 @@ class ExportarImportarPanel(QWidget):
         from database.config_repo import guardar_configuracion, obtener_configuracion
         from services.calculator import completar_venta
 
+        advertencias: list[str] = []
         cfg_actual = obtener_configuracion()
 
         # Ventas: eliminar los meses del archivo y reinsertar
@@ -634,10 +640,14 @@ class ExportarImportarPanel(QWidget):
         # Abonos — vincular a las facturas recién insertadas
         if res.abonos_raw:
             from models.abono_factura import AbonoFactura
+            abonos_omitidos = 0
             for ab in res.abonos_raw:
                 key = (ab["factura_desc"].strip().lower(), ab["factura_prov"].strip().lower())
                 factura_id = factura_id_map.get(key)
                 if factura_id is None:
+                    abonos_omitidos += 1
+                    log.warning("Abono omitido: factura '%s' / '%s' no encontrada",
+                                ab["factura_desc"], ab["factura_prov"])
                     continue
                 try:
                     insertar_abono(AbonoFactura(
@@ -646,8 +656,14 @@ class ExportarImportarPanel(QWidget):
                         fecha=ab["fecha"],
                         notas=ab["notas"],
                     ))
-                except (ValueError, Exception):
-                    pass
+                except (ValueError, Exception) as exc:
+                    abonos_omitidos += 1
+                    log.warning("Abono omitido por error: %s", exc)
+            if abonos_omitidos:
+                advertencias.append(
+                    f"{abonos_omitidos} abono(s) no se importaron porque su factura "
+                    "no coincide exactamente con ninguna factura del archivo."
+                )
 
         # Gastos operativos
         for año_m, mes_m in res.meses_gastos_afectados:
@@ -665,6 +681,8 @@ class ExportarImportarPanel(QWidget):
             eliminar_todas_notas()
             for n in res.notas:
                 insertar_nota(n)
+
+        return advertencias
 
     # ---- Zona de peligro ----
 

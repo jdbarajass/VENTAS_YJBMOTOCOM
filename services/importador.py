@@ -390,8 +390,9 @@ def _leer_notas(ws):
     """
     Lee la hoja «Notas» generada por exportar_todo().
     Fila 1 = título, fila 2 = encabezados, fila 3+ = datos.
-    Columnas: Tipo | Texto | Completado | Fecha creación
+    Columnas: Tipo | Texto | Completado | Fecha creación | Fecha límite (opcional)
     """
+    from datetime import datetime
     from models.nota import Nota
     notas: list[Nota] = []
     for row_idx in range(3, ws.max_row + 1):
@@ -405,11 +406,16 @@ def _leer_notas(ws):
         completado_raw = str(ws.cell(row_idx, 3).value or "No").strip().lower()
         completado = completado_raw in ("sí", "si", "yes", "1", "true")
         fecha_creacion = str(ws.cell(row_idx, 4).value or "").strip()
+        if not fecha_creacion:
+            fecha_creacion = datetime.now().strftime("%Y-%m-%d %H:%M")
+        fecha_limite_raw = str(ws.cell(row_idx, 5).value or "").strip()
+        fecha_limite = fecha_limite_raw if fecha_limite_raw else None
         notas.append(Nota(
             texto=texto,
             tipo=tipo,
             completado=completado,
-            fecha_creacion=fecha_creacion or None,
+            fecha_creacion=fecha_creacion,
+            fecha_limite=fecha_limite,
         ))
     return notas
 _RE_SOLO_NUM = re.compile(r"^\d+(\.\d+)?$")

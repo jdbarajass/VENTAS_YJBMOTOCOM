@@ -555,8 +555,8 @@ def _escribir_hoja_abonos(ws, abonos: list) -> None:
         ws.column_dimensions[get_column_letter(i)].width = ancho
 
 
-_HEADERS_NOTAS = ["Tipo", "Texto", "Completado", "Fecha creación"]
-_ANCHOS_NOTAS  = [16, 52, 12, 18]
+_HEADERS_NOTAS = ["Tipo", "Texto", "Completado", "Fecha creación", "Fecha límite"]
+_ANCHOS_NOTAS  = [16, 52, 12, 18, 14]
 _NOTAS_TIPO_LABEL = {"resurtido": "Por Pedir", "tarea": "Tarea"}
 
 
@@ -586,7 +586,7 @@ def _escribir_hoja_notas(ws, notas: list) -> None:
     for i, n in enumerate(notas, start=1):
         tipo_label = _NOTAS_TIPO_LABEL.get(n.tipo, n.tipo)
         completado_str = "Sí" if n.completado else "No"
-        ws.append([tipo_label, n.texto, completado_str, n.fecha_creacion])
+        ws.append([tipo_label, n.texto, completado_str, n.fecha_creacion, n.fecha_limite or ""])
         row = ws.max_row
         fondo = "FEF3C7" if not n.completado else "F0FDF4"
         for col_idx in range(1, ncols + 1):
@@ -914,6 +914,42 @@ def generar_plantilla_todo(ruta: Path) -> None:
     nota_g.fill = PatternFill("solid", fgColor="FFFBEB")
     nota_g.alignment = Alignment(horizontal="center", vertical="center")
     ws_g.row_dimensions[ws_g.max_row].height = 20
+
+    # ── Hoja Notas y Pendientes ───────────────────────────────────────────
+    ws_n = wb.create_sheet("Notas")
+    _escribir_hoja_notas(ws_n, [])   # encabezados y título sin datos
+
+    lado5 = Side(style="thin", color="CCCCCC")
+    borde5 = Border(left=lado5, right=lado5, top=lado5, bottom=lado5)
+    _EJEMPLOS_NOTAS = [
+        ("Por Pedir", "Ej: Cascos XTR-M70 talla M × 5",    "No", "", ""),
+        ("Por Pedir", "Ej: Aceite 10W-40 litro × 12",       "Sí", "", ""),
+        ("Tarea",     "Ej: Hacer inventario del local",      "No", "", "2026-06-30"),
+        ("Tarea",     "Ej: Llamar a proveedor de cascos",    "No", "", ""),
+    ]
+    for ej in _EJEMPLOS_NOTAS:
+        ws_n.append(list(ej))
+        row = ws_n.max_row
+        for col_idx in range(1, 6):
+            c = ws_n.cell(row=row, column=col_idx)
+            c.fill = PatternFill("solid", fgColor="F1F5F9")
+            c.font = Font(name="Calibri", size=10, italic=True, color="94A3B8")
+            c.border = borde5
+            c.alignment = Alignment(vertical="center")
+        ws_n.row_dimensions[row].height = 18
+
+    ws_n.merge_cells(f"A{ws_n.max_row + 1}:E{ws_n.max_row + 1}")
+    nota_n = ws_n.cell(ws_n.max_row, 1)
+    nota_n.value = (
+        "↑ Borra los ejemplos.  "
+        "Tipos válidos: Por Pedir | Tarea   •   "
+        "Completado: Sí | No   •   "
+        "Fecha límite (opcional): AAAA-MM-DD"
+    )
+    nota_n.font = Font(name="Calibri", size=9, italic=True, color="6B7280")
+    nota_n.fill = PatternFill("solid", fgColor="FFFBEB")
+    nota_n.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+    ws_n.row_dimensions[ws_n.max_row].height = 24
 
     # ── Hoja Configuración (con valores por defecto del negocio) ─────��────
     ws_c = wb.create_sheet("Configuración")

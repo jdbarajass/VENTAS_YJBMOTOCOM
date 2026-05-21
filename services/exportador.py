@@ -915,6 +915,38 @@ def generar_plantilla_todo(ruta: Path) -> None:
     nota_g.alignment = Alignment(horizontal="center", vertical="center")
     ws_g.row_dimensions[ws_g.max_row].height = 20
 
+    # ── Hoja Abonos de Facturas ───────────────────────────────────────────
+    ws_a = wb.create_sheet("Abonos")
+    _escribir_hoja_abonos(ws_a, [])   # encabezados y título sin datos
+
+    lado6 = Side(style="thin", color="CCCCCC")
+    borde6 = Border(left=lado6, right=lado6, top=lado6, bottom=lado6)
+    _EJEMPLOS_ABONOS = [
+        ("Arriendo local",          "Propietario Norte", 500000,  "01/04/2026", "Primer cuota"),
+        ("Proveedor cascos Bogotá", "MotoPartes S.A.S",  250000,  "15/04/2026", ""),
+    ]
+    for ej in _EJEMPLOS_ABONOS:
+        ws_a.append(list(ej))
+        row = ws_a.max_row
+        for col_idx in range(1, 6):
+            c = ws_a.cell(row=row, column=col_idx)
+            c.fill = PatternFill("solid", fgColor="F1F5F9")
+            c.font = Font(name="Calibri", size=10, italic=True, color="94A3B8")
+            c.border = borde6
+            c.alignment = Alignment(vertical="center")
+        ws_a.row_dimensions[row].height = 18
+
+    ws_a.merge_cells(f"A{ws_a.max_row + 1}:E{ws_a.max_row + 1}")
+    nota_a = ws_a.cell(ws_a.max_row, 1)
+    nota_a.value = (
+        "↑ Borra los ejemplos.  "
+        "Factura y Proveedor deben coincidir exactamente con los datos de la hoja Facturas."
+    )
+    nota_a.font = Font(name="Calibri", size=9, italic=True, color="6B7280")
+    nota_a.fill = PatternFill("solid", fgColor="FFFBEB")
+    nota_a.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+    ws_a.row_dimensions[ws_a.max_row].height = 24
+
     # ── Hoja Notas y Pendientes ───────────────────────────────────────────
     ws_n = wb.create_sheet("Notas")
     _escribir_hoja_notas(ws_n, [])   # encabezados y título sin datos

@@ -23,15 +23,9 @@ from utils.formatters import cop, porcentaje
 
 # Estilo compartido para QComboBox (evita fondo negro del sistema)
 _COMBO_STYLE = (
-    "QComboBox { background:white; color:#1E293B; border:1px solid #D1D5DB;"
-    "  border-radius:5px; padding:0 10px; font-size:12px; }"
+    "QComboBox { border-radius:5px; padding:0 10px; font-size:12px; }"
     "QComboBox:focus { border:2px solid #3B82F6; }"
     "QComboBox::drop-down { border:none; width:20px; }"
-    "QComboBox QAbstractItemView {"
-    "  background:white; color:#1E293B;"
-    "  selection-background-color:#DBEAFE; selection-color:#1E3A5F;"
-    "  border:1px solid #BFDBFE; border-radius:4px; padding:2px; font-size:12px;"
-    "}"
 )
 
 # Métodos de pago disponibles (orden de ComboBox)
@@ -137,8 +131,8 @@ class _LineaProducto:
         self.campo_producto.setPlaceholderText("Buscar producto en inventario...")
         self.campo_producto.setFixedHeight(32)
         self.campo_producto.setStyleSheet(
-            "QLineEdit { background:white; border:1px solid #D1D5DB; border-radius:5px;"
-            "padding:0 10px; font-size:12px; } QLineEdit:focus { border:2px solid #3B82F6; }"
+            "QLineEdit { border-radius:5px; font-size:12px; padding:0 10px; }"
+            "QLineEdit:focus { border:2px solid #3B82F6; }"
         )
 
         self._combo_talla = QComboBox()
@@ -148,14 +142,9 @@ class _LineaProducto:
         self._combo_talla.setVisible(False)
         self._combo_talla.setToolTip("Talla del producto")
         self._combo_talla.setStyleSheet(
-            "QComboBox { border:1px solid #D1D5DB; border-radius:5px;"
-            "  padding:0 4px; background:white; color:#1E293B; font-size:11px; }"
+            "QComboBox { border-radius:5px; padding:0 4px; font-size:11px; }"
             "QComboBox:focus { border:2px solid #3B82F6; }"
             "QComboBox::drop-down { border:none; width:16px; }"
-            "QComboBox QAbstractItemView {"
-            "  background:white; color:#1E293B;"
-            "  selection-background-color:#DBEAFE; selection-color:#1E3A5F;"
-            "  border:1px solid #BFDBFE; font-size:11px; }"
         )
 
         btn_del = QPushButton("✕")
@@ -179,8 +168,8 @@ class _LineaProducto:
         fila2.setSpacing(6)
 
         _campo_style = (
-            "QLineEdit { background:white; border:1px solid #D1D5DB; border-radius:5px;"
-            "padding:0 6px; font-size:11px; } QLineEdit:focus { border:2px solid #3B82F6; }"
+            "QLineEdit { border-radius:5px; font-size:11px; padding:0 6px; }"
+            "QLineEdit:focus { border:2px solid #3B82F6; }"
         )
 
         self.campo_costo = MoneyLineEdit()
@@ -527,8 +516,7 @@ class VentaForm(QWidget):
         self._campo_scan.setPlaceholderText("Escanea un código de barras o escríbelo y presiona Enter...")
         self._campo_scan.setFixedHeight(30)
         self._campo_scan.setStyleSheet(
-            "QLineEdit { border:1px solid #7DD3FC; border-radius:5px; padding:0 8px;"
-            "background:white; font-size:11px; }"
+            "QLineEdit { border:1px solid #7DD3FC; border-radius:5px; padding:0 8px; font-size:11px; }"
             "QLineEdit:focus { border:2px solid #0284C7; }"
         )
         self._campo_scan.returnPressed.connect(self._on_scan_codigo)
@@ -570,9 +558,7 @@ class VentaForm(QWidget):
             "Activar cuando el cliente paga con más de un método"
         )
         self._btn_combinado.setStyleSheet(
-            "QPushButton { border:1px solid #D1D5DB; border-radius:5px;"
-            "padding:0 10px; font-size:12px; background:white; color:#374151; }"
-            "QPushButton:hover { background:#F3F4F6; }"
+            "QPushButton { border-radius:5px; padding:0 10px; font-size:12px; }"
             "QPushButton:checked { background:#DBEAFE; color:#1D4ED8;"
             "border-color:#93C5FD; font-weight:bold; }"
         )
@@ -820,18 +806,10 @@ class VentaForm(QWidget):
 
     def _agregar_fila_pago(self, metodo: str = "Efectivo", monto: int = 0) -> None:
         """Agrega una fila de pago al panel combinado."""
-        _combo_style = """
-            QComboBox {
-                background: white; color: #1E293B;
-                border: 1px solid #D1D5DB; border-radius: 4px; padding: 0 8px;
-            }
-            QComboBox::drop-down { border: none; width: 18px; }
-            QComboBox QAbstractItemView {
-                background: white; color: #1E293B;
-                selection-background-color: #DBEAFE; selection-color: #1E3A5F;
-                border: 1px solid #BFDBFE;
-            }
-        """
+        _combo_style = (
+            "QComboBox { border-radius:4px; padding:0 8px; }"
+            "QComboBox::drop-down { border:none; width:18px; }"
+        )
 
         row_w = QWidget()
         row_w.setStyleSheet("background:transparent;")
@@ -862,8 +840,7 @@ class VentaForm(QWidget):
         monto_edit.setPlaceholderText("0")
         monto_edit.setFixedHeight(28)
         monto_edit.setStyleSheet(
-            "QLineEdit { background:white; color:#1E293B; border:1px solid #D1D5DB;"
-            "border-radius:4px; padding:0 6px; }"
+            "QLineEdit { border-radius:4px; padding:0 6px; }"
             "QLineEdit:focus { border:2px solid #93C5FD; }"
         )
         if monto:

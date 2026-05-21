@@ -95,8 +95,7 @@ class PresupuestoPanel(QWidget):
 
         for w in (self._combo_mes, self._spin_anio):
             w.setStyleSheet(
-                "QComboBox, QSpinBox { border:1px solid #D1D5DB; border-radius:5px;"
-                "background:white; padding:0 8px; }"
+                "QComboBox, QSpinBox { border-radius:5px; padding:0 8px; }"
             )
 
         self._combo_mes.currentIndexChanged.connect(lambda _: self.refresh())
@@ -114,9 +113,7 @@ class PresupuestoPanel(QWidget):
         btn_copiar = QPushButton("Copiar mes anterior")
         btn_copiar.setFixedHeight(34)
         btn_copiar.setStyleSheet(
-            "QPushButton { border:1px solid #D1D5DB; border-radius:5px; background:white;"
-            "padding:0 12px; font-size:12px; color:#374151; }"
-            "QPushButton:hover { background:#F3F4F6; }"
+            "QPushButton { border-radius:5px; padding:0 12px; font-size:12px; }"
         )
         btn_copiar.setToolTip(
             "Copia los valores presupuestados del mes anterior a este mes"
@@ -268,9 +265,8 @@ class PresupuestoPanel(QWidget):
         campo.setPlaceholderText("0")
         campo.setFixedHeight(32)
         campo.setStyleSheet(
-            "QLineEdit { border:1px solid #D1D5DB; border-radius:5px;"
-            "padding:0 8px; background:#F8FAFC; font-size:12px; }"
-            "QLineEdit:focus { border:2px solid #2563EB; background:white; }"
+            "QLineEdit { border-radius:5px; padding:0 8px; font-size:12px; }"
+            "QLineEdit:focus { border:2px solid #2563EB; }"
         )
         campo.textChanged.connect(self._actualizar_totales)
         lay.addWidget(campo, stretch=2)

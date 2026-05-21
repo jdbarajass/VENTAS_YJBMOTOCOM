@@ -81,9 +81,7 @@ class VentasDiaPanel(QWidget):
         self.date_selector.dateChanged.connect(lambda _: self._cargar_datos())
 
         _nav_style = (
-            "QPushButton { border:1px solid #D1D5DB; border-radius:5px;"
-            "padding:0 12px; background:white; color:#374151; }"
-            "QPushButton:hover { background:#F3F4F6; }"
+            "QPushButton { border-radius:5px; padding:0 12px; }"
         )
         btn_prev = QPushButton("< Anterior")
         btn_prev.setFixedHeight(34)
@@ -189,9 +187,8 @@ class VentasDiaPanel(QWidget):
         self.campo_gasto_desc.setPlaceholderText("Descripción (ej: Aceite motor, Repuesto freno…)")
         self.campo_gasto_desc.setFixedHeight(32)
         self.campo_gasto_desc.setStyleSheet(
-            "QLineEdit { border: 1px solid #D1D5DB; border-radius: 5px;"
-            "padding: 0 8px; background: white; }"
-            "QLineEdit:focus { border: 2px solid #F59E0B; }"
+            "QLineEdit { border-radius:5px; padding:0 8px; }"
+            "QLineEdit:focus { border:2px solid #F59E0B; }"
         )
 
         self.combo_gasto_cat = QComboBox()
@@ -199,9 +196,8 @@ class VentasDiaPanel(QWidget):
         self.combo_gasto_cat.setFixedHeight(32)
         self.combo_gasto_cat.setFixedWidth(130)
         self.combo_gasto_cat.setStyleSheet(
-            "QComboBox { border: 1px solid #D1D5DB; border-radius: 5px;"
-            "padding: 0 8px; background: white; }"
-            "QComboBox:focus { border: 2px solid #F59E0B; }"
+            "QComboBox { border-radius:5px; padding:0 8px; }"
+            "QComboBox:focus { border:2px solid #F59E0B; }"
         )
 
         self.campo_gasto_monto = MoneyLineEdit()
@@ -209,9 +205,8 @@ class VentasDiaPanel(QWidget):
         self.campo_gasto_monto.setFixedHeight(32)
         self.campo_gasto_monto.setFixedWidth(130)
         self.campo_gasto_monto.setStyleSheet(
-            "QLineEdit { border: 1px solid #D1D5DB; border-radius: 5px;"
-            "padding: 0 8px; background: white; }"
-            "QLineEdit:focus { border: 2px solid #F59E0B; }"
+            "QLineEdit { border-radius:5px; padding:0 8px; }"
+            "QLineEdit:focus { border:2px solid #F59E0B; }"
         )
 
         btn_agregar = QPushButton("+ Agregar")
@@ -445,7 +440,7 @@ class VentasDiaPanel(QWidget):
         for g in self._gastos:
             fila = QWidget()
             fila.setStyleSheet(
-                "QWidget { background: white; border-radius: 4px; border: none; }"
+                "QWidget { border-radius: 4px; border: none; }"
             )
             lay = QHBoxLayout(fila)
             lay.setContentsMargins(8, 3, 8, 3)

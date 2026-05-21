@@ -114,10 +114,8 @@ class HistorialPanel(QWidget):
         self._btn_modo_rango.setCheckable(True)
         self._btn_modo_rango.setFixedHeight(32)
         self._btn_modo_rango.setStyleSheet(
-            "QPushButton { border:1px solid #D1D5DB; border-radius:5px;"
-            "background:white; color:#374151; padding:0 10px; font-size:11px; }"
+            "QPushButton { border-radius:5px; padding:0 10px; font-size:11px; }"
             "QPushButton:checked { background:#2563EB; color:white; border-color:#2563EB; font-weight:bold; }"
-            "QPushButton:hover:!checked { background:#F3F4F6; }"
         )
         self._btn_modo_rango.toggled.connect(self._on_toggle_modo_rango)
 
@@ -141,8 +139,7 @@ class HistorialPanel(QWidget):
         fila2.setSpacing(8)
 
         _estilo_date = (
-            "QDateEdit { border:1px solid #D1D5DB; border-radius:5px; padding:0 8px;"
-            "background:white; font-size:11px; height:30px; }"
+            "QDateEdit { border-radius:5px; padding:0 8px; font-size:11px; height:30px; }"
             "QDateEdit:focus { border:2px solid #2563EB; }"
         )
         lbl_desde = QLabel("Desde:")
@@ -184,9 +181,7 @@ class HistorialPanel(QWidget):
         btn = QPushButton(texto)
         btn.setFixedHeight(34)
         btn.setStyleSheet(
-            "QPushButton { border:1px solid #D1D5DB; border-radius:5px;"
-            "background:white; color:#374151; padding:0 10px; }"
-            "QPushButton:hover { background:#F3F4F6; }"
+            "QPushButton { border-radius:5px; padding:0 10px; }"
         )
         return btn
 
@@ -368,8 +363,7 @@ class HistorialPanel(QWidget):
         self._campo_busqueda_hist.setFixedHeight(28)
         self._campo_busqueda_hist.setFixedWidth(230)
         self._campo_busqueda_hist.setStyleSheet(
-            "QLineEdit { border:1px solid #D1D5DB; border-radius:5px;"
-            "padding:0 8px; background:white; font-size:11px; }"
+            "QLineEdit { border-radius:5px; padding:0 8px; font-size:11px; }"
             "QLineEdit:focus { border:2px solid #2563EB; }"
         )
         self._campo_busqueda_hist.textChanged.connect(self._on_busqueda_hist)
@@ -377,9 +371,7 @@ class HistorialPanel(QWidget):
         self._btn_cerrar_detalle = QPushButton("X Cerrar")
         self._btn_cerrar_detalle.setFixedHeight(26)
         self._btn_cerrar_detalle.setStyleSheet(
-            "QPushButton { border:1px solid #D1D5DB; border-radius:4px;"
-            "background:white; color:#6B7280; padding:0 10px; font-size:11px; }"
-            "QPushButton:hover { background:#F3F4F6; }"
+            "QPushButton { border-radius:4px; padding:0 10px; font-size:11px; }"
         )
         self._btn_cerrar_detalle.clicked.connect(self._cerrar_detalle)
         self._btn_cerrar_detalle.setVisible(False)

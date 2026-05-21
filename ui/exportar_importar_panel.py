@@ -129,8 +129,7 @@ class ExportarImportarPanel(QWidget):
         self._combo_mes.setCurrentIndex(0)
         self._combo_mes.setFixedWidth(150)
         self._combo_mes.setStyleSheet(
-            "QComboBox { font-size:11px; padding:2px 6px; border:1px solid #BBF7D0;"
-            "border-radius:4px; background:white; color:#374151; }"
+            "QComboBox { font-size:11px; padding:2px 6px; border:1px solid #BBF7D0; border-radius:4px; }"
         )
         fila_ventas.addWidget(self._combo_mes)
 
@@ -140,8 +139,7 @@ class ExportarImportarPanel(QWidget):
         self._spin_año.setValue(_date.today().year)
         self._spin_año.setFixedWidth(70)
         self._spin_año.setStyleSheet(
-            "QSpinBox { font-size:11px; padding:2px 4px; border:1px solid #BBF7D0;"
-            "border-radius:4px; background:white; color:#374151; }"
+            "QSpinBox { font-size:11px; padding:2px 4px; border:1px solid #BBF7D0; border-radius:4px; }"
         )
         fila_ventas.addWidget(self._spin_año)
         fila_ventas.addStretch()

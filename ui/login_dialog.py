@@ -11,6 +11,7 @@ from PySide6.QtGui import QFont
 
 from database.usuarios_repo import obtener_todos_usuarios, Usuario
 from utils.security import verificar_clave
+from ui.styles import es_modo_oscuro
 import utils.auditoria as auditoria
 
 
@@ -81,10 +82,9 @@ class LoginDialog(QDialog):
         self._campo_clave.setPlaceholderText("Contraseña")
         self._campo_clave.setFixedHeight(42)
         self._campo_clave.setStyleSheet(
-            "QLineEdit { border:1px solid #D1D5DB; border-radius:8px;"
-            "padding:0 14px; font-size:14px; background:white; }"
+            "QLineEdit { border-radius:8px; padding:0 14px; font-size:14px; }"
             "QLineEdit:focus { border:2px solid #2563EB; }"
-            "QLineEdit:disabled { background:#F3F4F6; color:#9CA3AF; }"
+            "QLineEdit:disabled { color:#9CA3AF; }"
         )
         self._campo_clave.setEnabled(False)
         self._campo_clave.returnPressed.connect(self._on_ingresar)
@@ -126,8 +126,10 @@ class LoginDialog(QDialog):
         frame.setObjectName(f"tarjeta_{u.nombre}")
         frame._usuario = u
         frame._seleccionada = False
+        _bg = "#1E293B" if es_modo_oscuro() else "#FFFFFF"
+        _border = "#475569" if es_modo_oscuro() else "#E5E7EB"
         frame.setStyleSheet(
-            "QFrame { background:white; border:2px solid #E5E7EB; border-radius:12px; }"
+            f"QFrame {{ background:{_bg}; border:2px solid {_border}; border-radius:12px; }}"
         )
 
         lay = QVBoxLayout(frame)
@@ -162,10 +164,12 @@ class LoginDialog(QDialog):
 
     def _seleccionar(self, frame: QFrame, usuario: Usuario) -> None:
         # Des-seleccionar cualquier tarjeta previa
+        _bg = "#1E293B" if es_modo_oscuro() else "#FFFFFF"
+        _border = "#475569" if es_modo_oscuro() else "#E5E7EB"
         for child in self.findChildren(QFrame):
             if hasattr(child, "_usuario"):
                 child.setStyleSheet(
-                    "QFrame { background:white; border:2px solid #E5E7EB; border-radius:12px; }"
+                    f"QFrame {{ background:{_bg}; border:2px solid {_border}; border-radius:12px; }}"
                 )
 
         frame.setStyleSheet(

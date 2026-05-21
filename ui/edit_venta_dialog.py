@@ -110,9 +110,7 @@ class EditVentaDialog(QDialog):
         self._btn_combinado.setCheckable(True)
         self._btn_combinado.setFixedHeight(32)
         self._btn_combinado.setStyleSheet(
-            "QPushButton { border:1px solid #D1D5DB; border-radius:5px;"
-            "padding:0 10px; font-size:12px; background:white; color:#374151; }"
-            "QPushButton:hover { background:#F3F4F6; }"
+            "QPushButton { border-radius:5px; padding:0 10px; font-size:12px; }"
             "QPushButton:checked { background:#DBEAFE; color:#1D4ED8;"
             "border-color:#93C5FD; font-weight:bold; }"
         )
@@ -219,18 +217,10 @@ class EditVentaDialog(QDialog):
         return w
 
     def _agregar_fila_pago(self, metodo: str = "Efectivo", monto: int = 0) -> None:
-        _combo_style = """
-            QComboBox {
-                background: white; color: #1E293B;
-                border: 1px solid #D1D5DB; border-radius: 4px; padding: 0 8px;
-            }
-            QComboBox::drop-down { border: none; width: 18px; }
-            QComboBox QAbstractItemView {
-                background: white; color: #1E293B;
-                selection-background-color: #DBEAFE; selection-color: #1E3A5F;
-                border: 1px solid #BFDBFE;
-            }
-        """
+        _combo_style = (
+            "QComboBox { border-radius:4px; padding:0 8px; }"
+            "QComboBox::drop-down { border:none; width:18px; }"
+        )
         row_w = QWidget()
         row_w.setStyleSheet("background:transparent;")
         lay = QHBoxLayout(row_w)

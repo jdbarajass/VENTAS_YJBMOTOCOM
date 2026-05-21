@@ -342,9 +342,7 @@ class DashboardPanel(QWidget):
         for b in (btn_ant, btn_sig):
             b.setFixedHeight(34)
             b.setStyleSheet(
-                "QPushButton { border:1px solid #D1D5DB; border-radius:5px;"
-                "padding:0 12px; font-size:12px; background:white; }"
-                "QPushButton:hover { background:#F3F4F6; }"
+                "QPushButton { border-radius:5px; padding:0 12px; font-size:12px; }"
             )
         btn_ant.clicked.connect(self._dia_anterior)
         btn_sig.clicked.connect(self._dia_siguiente)
@@ -356,8 +354,7 @@ class DashboardPanel(QWidget):
         self.date_selector.setFixedHeight(34)
         self.date_selector.setFixedWidth(130)
         self.date_selector.setStyleSheet(
-            "QDateEdit { border:1px solid #D1D5DB; border-radius:5px;"
-            "padding:0 8px; background:white; }"
+            "QDateEdit { border-radius:5px; padding:0 8px; }"
         )
         self.date_selector.dateChanged.connect(lambda _: self.refresh())
 
@@ -365,8 +362,7 @@ class DashboardPanel(QWidget):
         btn_hoy.setFixedHeight(34)
         btn_hoy.setFixedWidth(55)
         btn_hoy.setStyleSheet(
-            "QPushButton { border:1px solid #D1D5DB; border-radius:5px; background:white; }"
-            "QPushButton:hover { background:#F3F4F6; }"
+            "QPushButton { border-radius:5px; }"
         )
         btn_hoy.clicked.connect(lambda: self.date_selector.setDate(QDate.currentDate()))
 

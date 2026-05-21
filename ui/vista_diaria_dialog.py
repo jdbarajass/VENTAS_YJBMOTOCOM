@@ -91,9 +91,7 @@ class VistaDiariaDialog(QDialog):
         btn_cerrar = QPushButton("Cerrar")
         btn_cerrar.setFixedHeight(36)
         btn_cerrar.setStyleSheet(
-            "QPushButton { border:1px solid #D1D5DB; border-radius:5px;"
-            "background:white; color:#374151; padding:0 24px; font-size:13px; }"
-            "QPushButton:hover { background:#F3F4F6; }"
+            "QPushButton { border-radius:5px; padding:0 24px; font-size:13px; }"
         )
         btn_cerrar.clicked.connect(self.accept)
         footer = QHBoxLayout()
@@ -180,7 +178,7 @@ class VistaDiariaDialog(QDialog):
         tabla.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
         tabla.setHorizontalScrollMode(QAbstractItemView.ScrollPerPixel)
         tabla.setStyleSheet("""
-            QTableWidget { border:none; font-size:12px; background:white; }
+            QTableWidget { border:none; font-size:12px; }
             QTableWidget::item { padding:4px 8px; }
             QHeaderView::section {
                 background:#1E293B; color:white; font-weight:bold;
@@ -359,7 +357,7 @@ class VistaDiariaDialog(QDialog):
         tabla.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
         tabla.setHorizontalScrollMode(QAbstractItemView.ScrollPerPixel)
         tabla.setStyleSheet("""
-            QTableWidget { border:none; font-size:11px; background:white; }
+            QTableWidget { border:none; font-size:11px; }
             QTableWidget::item { padding:3px 6px; }
             QHeaderView::section {
                 background:#1E293B; color:white; font-weight:bold;
@@ -445,7 +443,7 @@ class VistaDiariaDialog(QDialog):
         tabla.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
         tabla.setHorizontalScrollMode(QAbstractItemView.ScrollPerPixel)
         tabla.setStyleSheet("""
-            QTableWidget { border:none; font-size:11px; background:white; }
+            QTableWidget { border:none; font-size:11px; }
             QTableWidget::item { padding:3px 6px; }
             QHeaderView::section {
                 background:#1E293B; color:white; font-weight:bold;

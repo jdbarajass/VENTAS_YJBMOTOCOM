@@ -65,8 +65,7 @@ class _ChipGroup(QWidget):
             btn.setMinimumWidth(52)
             btn.setStyleSheet(
                 "QPushButton{border:1px solid #CBD5E1;border-radius:13px;"
-                "background:white;color:#374151;font-size:10px;font-weight:bold;}"
-                "QPushButton:hover{background:#F1F5F9;}"
+                "font-size:10px;font-weight:bold;}"
                 "QPushButton:checked{background:#2563EB;color:white;border:1px solid #2563EB;}"
             )
             self._group.addButton(btn)
@@ -148,9 +147,8 @@ class CalculadoraPanel(QWidget):
             btn.setFixedHeight(28); btn.setFixedWidth(148)
             btn.setStyleSheet(
                 "QPushButton{border:1px solid #CBD5E1;border-radius:5px;"
-                "background:white;color:#374151;font-size:11px;font-weight:bold;}"
-                "QPushButton:checked{background:#1E293B;color:white;border:1px solid #1E293B;}"
-                "QPushButton:hover:!checked{background:#F1F5F9;}"
+                "font-size:11px;font-weight:bold;}"
+                "QPushButton:checked{background:#2563EB;color:white;border:1px solid #2563EB;}"
             )
         grp = QButtonGroup(self); grp.setExclusive(True)
         grp.addButton(self._btn_inv); grp.addButton(self._btn_manual)
@@ -178,9 +176,7 @@ class CalculadoraPanel(QWidget):
         self._completer.setFilterMode(Qt.MatchContains)
         self._campo_buscar.setCompleter(self._completer)
         self._completer.popup().setStyleSheet(
-            "QListView{background:white;color:#1E293B;border:1px solid #CBD5E1;"
-            "border-radius:4px;font-size:11px;padding:2px;}"
-            "QListView::item:selected{background:#DBEAFE;color:#1E40AF;}"
+            "QListView{border-radius:4px;font-size:11px;}"
         )
         self._campo_buscar.textEdited.connect(self._on_buscar)
         self._completer.activated.connect(self._on_seleccionado)

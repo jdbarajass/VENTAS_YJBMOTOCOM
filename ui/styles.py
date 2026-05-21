@@ -383,12 +383,73 @@ QScrollArea > QWidget > QWidget {
 }
 
 /* ==========================================================
+   LISTVIEW (autocompletado, popups)
+   ========================================================== */
+
+QListView {
+    border: 1px solid #E5E7EB;
+    border-radius: 6px;
+    background: #FFFFFF;
+    color: #111827;
+    padding: 2px;
+    font-size: 12px;
+}
+QListView::item:selected {
+    background: #DBEAFE;
+    color: #1D4ED8;
+}
+QListView::item:hover {
+    background: #F3F4F6;
+}
+
+/* ==========================================================
+   TABS
+   ========================================================== */
+
+QTabWidget::pane {
+    border: 1px solid #E2E8F0;
+    border-radius: 8px;
+    background: #F8FAFC;
+    padding: 12px;
+}
+QTabBar::tab {
+    background: #F1F5F9;
+    color: #475569;
+    border: 1px solid #E2E8F0;
+    border-bottom: none;
+    border-top-left-radius: 6px;
+    border-top-right-radius: 6px;
+    padding: 8px 20px;
+    font-size: 12px;
+    font-weight: bold;
+    min-width: 120px;
+}
+QTabBar::tab:selected {
+    background: #FFFFFF;
+    color: #1E293B;
+    border-bottom: 2px solid #2563EB;
+}
+QTabBar::tab:hover:!selected {
+    background: #E2E8F0;
+}
+
+/* ==========================================================
    SEPARADORES
    ========================================================== */
 
 QFrame[frameShape="4"],
 QFrame[frameShape="5"] {
     color: #E5E7EB;
+}
+
+/* ==========================================================
+   TARJETAS ESPECIALES (objectName-based)
+   ========================================================== */
+
+QFrame#formFrame {
+    background: #F0F9FF;
+    border: 1px solid #BAE6FD;
+    border-radius: 8px;
 }
 
 """
@@ -764,6 +825,57 @@ QScrollArea > QWidget > QWidget {
 }
 
 /* ==========================================================
+   LISTVIEW (autocompletado, popups)
+   ========================================================== */
+
+QListView {
+    border: 1px solid #334155;
+    border-radius: 6px;
+    background: #1E293B;
+    color: #F1F5F9;
+    padding: 2px;
+    font-size: 12px;
+}
+QListView::item:selected {
+    background: #1E3A5F;
+    color: #93C5FD;
+}
+QListView::item:hover {
+    background: #334155;
+}
+
+/* ==========================================================
+   TABS
+   ========================================================== */
+
+QTabWidget::pane {
+    border: 1px solid #334155;
+    border-radius: 8px;
+    background: #0F172A;
+    padding: 12px;
+}
+QTabBar::tab {
+    background: #1E293B;
+    color: #94A3B8;
+    border: 1px solid #334155;
+    border-bottom: none;
+    border-top-left-radius: 6px;
+    border-top-right-radius: 6px;
+    padding: 8px 20px;
+    font-size: 12px;
+    font-weight: bold;
+    min-width: 120px;
+}
+QTabBar::tab:selected {
+    background: #0F172A;
+    color: #F1F5F9;
+    border-bottom: 2px solid #3B82F6;
+}
+QTabBar::tab:hover:!selected {
+    background: #334155;
+}
+
+/* ==========================================================
    SEPARADORES
    ========================================================== */
 
@@ -772,11 +884,31 @@ QFrame[frameShape="5"] {
     color: #334155;
 }
 
+/* ==========================================================
+   TARJETAS ESPECIALES (objectName-based)
+   ========================================================== */
+
+QFrame#formFrame {
+    background: #162032;
+    border: 1px solid #1E3A5F;
+    border-radius: 8px;
+}
+
 """
+
+
+_modo_oscuro_activo: bool = False
+
+
+def es_modo_oscuro() -> bool:
+    """Retorna True si el tema oscuro está activo."""
+    return _modo_oscuro_activo
 
 
 def aplicar_tema(modo_oscuro: bool) -> None:
     """Aplica el tema claro u oscuro a la QApplication activa."""
+    global _modo_oscuro_activo
+    _modo_oscuro_activo = modo_oscuro
     from PySide6.QtWidgets import QApplication
     app = QApplication.instance()
     if app is not None:

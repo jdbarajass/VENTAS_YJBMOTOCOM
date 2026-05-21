@@ -128,9 +128,7 @@ class AbonosDialog(QDialog):
         btn_cerrar = QPushButton("Cerrar")
         btn_cerrar.setFixedHeight(30)
         btn_cerrar.setStyleSheet(
-            "QPushButton { border:1px solid #D1D5DB; border-radius:4px;"
-            "padding:0 14px; background:white; }"
-            "QPushButton:hover { background:#F3F4F6; }"
+            "QPushButton { border-radius:4px; padding:0 14px; }"
         )
         btn_cerrar.clicked.connect(self.accept)
         lay.addWidget(btn_cerrar)
@@ -256,7 +254,7 @@ class _FacturasPorPagarPanel(QWidget):
         btn_nuevo.setFixedHeight(34)
         btn_nuevo.setStyleSheet(
             "QPushButton { border:1px solid #2563EB; border-radius:5px; padding:0 14px;"
-            "color:#2563EB; background:white; font-weight:bold; }"
+            "color:#2563EB; font-weight:bold; }"
             "QPushButton:hover { background:#EFF6FF; }"
         )
         btn_nuevo.clicked.connect(self._on_nuevo)
@@ -340,8 +338,7 @@ class _FacturasPorPagarPanel(QWidget):
             if w:
                 fe.setFixedWidth(w)
             fe.setStyleSheet(
-                "QLineEdit { border:1px solid #D1D5DB; border-radius:4px;"
-                "padding:0 8px; background:white; }"
+                "QLineEdit { border-radius:4px; padding:0 8px; }"
                 "QLineEdit:focus { border:2px solid #F59E0B; }"
             )
             return fe
@@ -354,8 +351,7 @@ class _FacturasPorPagarPanel(QWidget):
         self._f_monto.setPlaceholderText("Monto a pagar")
         self._f_monto.setFixedHeight(30); self._f_monto.setFixedWidth(150)
         self._f_monto.setStyleSheet(
-            "QLineEdit { border:1px solid #D1D5DB; border-radius:4px;"
-            "padding:0 8px; background:white; }"
+            "QLineEdit { border-radius:4px; padding:0 8px; }"
             "QLineEdit:focus { border:2px solid #F59E0B; }"
         )
 
@@ -375,8 +371,7 @@ class _FacturasPorPagarPanel(QWidget):
         self._f_fecha.setFixedHeight(30); self._f_fecha.setFixedWidth(140)
         self._f_fecha.setDisplayFormat("dd/MM/yyyy")
         self._f_fecha.setStyleSheet(
-            "QDateEdit { border:1px solid #D1D5DB; border-radius:4px;"
-            "padding:0 8px; background:white; }"
+            "QDateEdit { border-radius:4px; padding:0 8px; }"
             "QDateEdit:focus { border:2px solid #F59E0B; }"
         )
 
@@ -393,10 +388,9 @@ class _FacturasPorPagarPanel(QWidget):
         self._f_vence.setDisplayFormat("dd/MM/yyyy")
         self._f_vence.setEnabled(False)
         self._f_vence.setStyleSheet(
-            "QDateEdit { border:1px solid #D1D5DB; border-radius:4px;"
-            "padding:0 8px; background:white; }"
+            "QDateEdit { border-radius:4px; padding:0 8px; }"
             "QDateEdit:focus { border:2px solid #F59E0B; }"
-            "QDateEdit:disabled { background:#F3F4F6; color:#9CA3AF; }"
+            "QDateEdit:disabled { color:#9CA3AF; }"
         )
         self._chk_vence.toggled.connect(self._f_vence.setEnabled)
 
@@ -415,9 +409,7 @@ class _FacturasPorPagarPanel(QWidget):
         btn_cancelar = QPushButton("Cancelar")
         btn_cancelar.setFixedHeight(30)
         btn_cancelar.setStyleSheet(
-            "QPushButton { border:1px solid #D1D5DB; border-radius:4px;"
-            "padding:0 14px; background:white; }"
-            "QPushButton:hover { background:#F3F4F6; }"
+            "QPushButton { border-radius:4px; padding:0 14px; }"
         )
         btn_cancelar.clicked.connect(self._on_cancelar_form)
 
@@ -860,9 +852,7 @@ class _FacturasPorPagarPanel(QWidget):
         btn_cancel = QPushButton("Cancelar")
         btn_cancel.setFixedHeight(30)
         btn_cancel.setStyleSheet(
-            "QPushButton { border:1px solid #D1D5DB; border-radius:4px;"
-            "padding:0 14px; background:white; }"
-            "QPushButton:hover { background:#F3F4F6; }"
+            "QPushButton { border-radius:4px; padding:0 14px; }"
         )
         btn_ok.clicked.connect(dlg.accept)
         btn_cancel.clicked.connect(dlg.reject)

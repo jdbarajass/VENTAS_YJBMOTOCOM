@@ -75,7 +75,7 @@ class InventarioPanel(QWidget):
         btn_nuevo.setFixedHeight(34)
         btn_nuevo.setStyleSheet(
             "QPushButton { border:1px solid #2563EB; border-radius:5px; padding:0 14px;"
-            "color:#2563EB; background:white; font-weight:bold; }"
+            "color:#2563EB; font-weight:bold; }"
             "QPushButton:hover { background:#EFF6FF; }"
         )
         btn_nuevo.clicked.connect(self._on_nuevo)
@@ -93,10 +93,7 @@ class InventarioPanel(QWidget):
         """Formulario colapsable para agregar / editar un producto."""
         self._frame_form = QFrame()
         self._frame_form.setObjectName("formFrame")
-        self._frame_form.setStyleSheet(
-            "QFrame#formFrame { background:#F0F9FF; border:1px solid #BAE6FD;"
-            "border-radius:8px; }"
-        )
+        # El color del frame se define en GLOBAL_STYLESHEET / DARK_STYLESHEET via QFrame#formFrame
         self._frame_form.setVisible(False)
 
         lay = QVBoxLayout(self._frame_form)
@@ -126,8 +123,7 @@ class InventarioPanel(QWidget):
             if w:
                 f.setFixedWidth(w)
             f.setStyleSheet(
-                "QLineEdit { border:1px solid #D1D5DB; border-radius:4px;"
-                "padding:0 8px; background:white; }"
+                "QLineEdit { border-radius:4px; padding:0 8px; }"
                 "QLineEdit:focus { border:2px solid #0EA5E9; }"
             )
             return f
@@ -140,8 +136,7 @@ class InventarioPanel(QWidget):
         self._f_costo.setPlaceholderText("Costo unitario")
         self._f_costo.setFixedHeight(30); self._f_costo.setFixedWidth(140)
         self._f_costo.setStyleSheet(
-            "QLineEdit { border:1px solid #D1D5DB; border-radius:4px;"
-            "padding:0 8px; background:white; }"
+            "QLineEdit { border-radius:4px; padding:0 8px; }"
             "QLineEdit:focus { border:2px solid #0EA5E9; }"
         )
 
@@ -159,8 +154,7 @@ class InventarioPanel(QWidget):
         self._f_cantidad.setMinimum(0); self._f_cantidad.setMaximum(99999)
         self._f_cantidad.setFixedHeight(30); self._f_cantidad.setFixedWidth(100)
         self._f_cantidad.setStyleSheet(
-            "QSpinBox { border:1px solid #D1D5DB; border-radius:4px;"
-            "padding:0 6px; background:white; }"
+            "QSpinBox { border-radius:4px; padding:0 6px; }"
         )
 
         self._f_barras = _field("Código de barras", 180)
@@ -177,9 +171,7 @@ class InventarioPanel(QWidget):
         btn_cancelar = QPushButton("Cancelar")
         btn_cancelar.setFixedHeight(30)
         btn_cancelar.setStyleSheet(
-            "QPushButton { border:1px solid #D1D5DB; border-radius:4px;"
-            "padding:0 14px; background:white; }"
-            "QPushButton:hover { background:#F3F4F6; }"
+            "QPushButton { border-radius:4px; padding:0 14px; }"
         )
         btn_cancelar.clicked.connect(self._on_cancelar_form)
 

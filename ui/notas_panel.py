@@ -21,6 +21,7 @@ from database.notas_repo import (
     eliminar_nota, actualizar_nota,
 )
 from models.nota import Nota
+from ui.styles import es_modo_oscuro
 
 
 # ---------------------------------------------------------------------------
@@ -44,8 +45,7 @@ class _DialogoNota(QDialog):
         form.setLabelAlignment(Qt.AlignRight | Qt.AlignVCenter)
 
         _estilo = (
-            "QLineEdit, QDateEdit { border:1px solid #D1D5DB; border-radius:6px;"
-            "  padding:0 10px; background:white; font-size:12px; height:32px; }"
+            "QLineEdit, QDateEdit { border-radius:6px; padding:0 10px; font-size:12px; height:32px; }"
             "QLineEdit:focus, QDateEdit:focus { border:2px solid #2563EB; }"
         )
 
@@ -200,21 +200,20 @@ class _FilaNota(QFrame):
         lay.addWidget(btn_del)
 
     def _aplicar_estilo(self):
+        dark = es_modo_oscuro()
         if self._nota.vencida:
-            self.setStyleSheet(
-                "QFrame#filaNota { background:#FFF5F5; border:1px solid #FECACA;"
-                "border-radius:6px; }"
-            )
+            bg = "#2D0808" if dark else "#FFF5F5"
+            border = "#7F1D1D" if dark else "#FECACA"
         elif self._nota.completado:
-            self.setStyleSheet(
-                "QFrame#filaNota { background:#F9FAFB; border:1px solid #E5E7EB;"
-                "border-radius:6px; }"
-            )
+            bg = "#1E293B" if dark else "#F9FAFB"
+            border = "#334155" if dark else "#E5E7EB"
         else:
-            self.setStyleSheet(
-                "QFrame#filaNota { background:white; border:1px solid #E2E8F0;"
-                "border-radius:6px; }"
-            )
+            bg = "#162032" if dark else "#FFFFFF"
+            border = "#2D3748" if dark else "#E2E8F0"
+        self.setStyleSheet(
+            f"QFrame#filaNota {{ background:{bg}; border:1px solid {border};"
+            "border-radius:6px; }"
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -242,8 +241,7 @@ class _TabNotas(QWidget):
         self._campo.setPlaceholderText(self._placeholder)
         self._campo.setFixedHeight(36)
         self._campo.setStyleSheet(
-            "QLineEdit { border:1px solid #CBD5E1; border-radius:6px; padding:0 12px;"
-            "font-size:12px; background:white; }"
+            "QLineEdit { border-radius:6px; padding:0 12px; font-size:12px; }"
             "QLineEdit:focus { border:2px solid #2563EB; }"
         )
         self._campo.returnPressed.connect(self._on_agregar_rapido)
@@ -371,24 +369,6 @@ class NotasPanel(QWidget):
         root.addWidget(titulo)
 
         tabs = QTabWidget()
-        tabs.setStyleSheet("""
-            QTabWidget::pane {
-                border: 1px solid #E2E8F0;
-                border-radius: 8px;
-                background: #F8FAFC;
-                padding: 12px;
-            }
-            QTabBar::tab {
-                background: #F1F5F9; color: #475569;
-                border: 1px solid #E2E8F0; border-bottom: none;
-                border-top-left-radius: 6px; border-top-right-radius: 6px;
-                padding: 8px 20px; font-size: 12px; font-weight: bold;
-                min-width: 160px;
-            }
-            QTabBar::tab:selected { background: white; color: #1E293B;
-                border-bottom: 2px solid white; }
-            QTabBar::tab:hover:!selected { background: #E2E8F0; }
-        """)
 
         self._tab_resurtido = _TabNotas(
             tipo="resurtido",

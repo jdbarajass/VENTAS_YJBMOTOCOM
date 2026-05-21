@@ -101,8 +101,7 @@ class CarguesPedidosWidget(QWidget):
         ])
         self._combo_proveedor.setFixedHeight(32)
         self._combo_proveedor.setStyleSheet(
-            "QComboBox{border:1px solid #D1D5DB;border-radius:6px;"
-            "padding:0 10px;font-size:12px;background:white;}"
+            "QComboBox{border-radius:6px;padding:0 10px;font-size:12px;}"
             "QComboBox::drop-down{border:none;}"
         )
         prov_row.addWidget(lbl_prov)
@@ -197,9 +196,7 @@ class CarguesPedidosWidget(QWidget):
         self._btn_limpiar.setFixedHeight(36)
         self._btn_limpiar.setEnabled(False)
         self._btn_limpiar.setStyleSheet(
-            "QPushButton{border:1px solid #D1D5DB;border-radius:6px;"
-            "background:white;padding:0 16px;font-size:12px;}"
-            "QPushButton:hover{background:#F3F4F6;}"
+            "QPushButton{border-radius:6px;padding:0 16px;font-size:12px;}"
             "QPushButton:disabled{color:#9CA3AF;}"
         )
         self._btn_limpiar.clicked.connect(self._limpiar)

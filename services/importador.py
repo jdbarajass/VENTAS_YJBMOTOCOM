@@ -89,6 +89,7 @@ class ResultadoImportacionTotal:
     meses_gastos_afectados: set = field(default_factory=set)
     configuracion: Configuracion | None = None
     notas: list = field(default_factory=list)
+    abonos_raw: list = field(default_factory=list)   # list[dict] con factura_desc/prov + monto/fecha/notas
     errores: list[str] = field(default_factory=list)
 
     @property
@@ -332,6 +333,47 @@ def _leer_configuracion(ws) -> Configuracion | None:
         )
     except Exception:
         return None
+
+
+def _leer_abonos(ws) -> list[dict]:
+    """
+    Lee la hoja «Abonos» generada por exportar_todo().
+    Fila 1 = título, fila 2 = encabezados, fila 3+ = datos.
+    Columnas: Factura | Proveedor | Monto abono | Fecha | Notas
+    Retorna lista de dicts con claves: factura_desc, factura_prov, monto, fecha, notas.
+    El factura_id se resuelve durante _ejecutar_importacion() por matching.
+    """
+    abonos: list[dict] = []
+    for row_idx in range(3, ws.max_row + 1):
+        factura_desc = str(ws.cell(row_idx, 1).value or "").strip()
+        if not factura_desc:
+            continue
+        factura_prov = str(ws.cell(row_idx, 2).value or "").strip()
+        try:
+            monto = float(ws.cell(row_idx, 3).value or 0)
+        except (ValueError, TypeError):
+            monto = 0.0
+        if monto <= 0:
+            continue
+        fecha_val = ws.cell(row_idx, 4).value
+        try:
+            if isinstance(fecha_val, datetime):
+                fecha_obj = fecha_val.date()
+            elif isinstance(fecha_val, date):
+                fecha_obj = fecha_val
+            else:
+                fecha_obj = datetime.strptime(str(fecha_val).strip(), "%d/%m/%Y").date()
+        except (ValueError, TypeError):
+            fecha_obj = date.today()
+        notas = str(ws.cell(row_idx, 5).value or "").strip()
+        abonos.append({
+            "factura_desc": factura_desc,
+            "factura_prov": factura_prov,
+            "monto": monto,
+            "fecha": fecha_obj,
+            "notas": notas,
+        })
+    return abonos
 
 
 _RE_HORA = re.compile(r"^\d{1,2}:\d{2}(:\d{2})?$")
@@ -607,5 +649,13 @@ def importar_todo(ruta: Path) -> ResultadoImportacionTotal:
     )
     if ws_n:
         resultado.notas = _leer_notas(ws_n)
+
+    # ── Hoja Abonos de Facturas ────────────────────────────────────────────
+    ws_ab = next(
+        (wb[s] for s in wb.sheetnames if s.lower() in ("abonos", "abonos de facturas")),
+        None,
+    )
+    if ws_ab:
+        resultado.abonos_raw = _leer_abonos(ws_ab)
 
     return resultado

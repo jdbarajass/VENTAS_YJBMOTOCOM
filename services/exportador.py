@@ -490,6 +490,60 @@ def _escribir_hoja_configuracion(ws, cfg) -> None:
         ws.column_dimensions[get_column_letter(i)].width = ancho
 
 
+_HEADERS_ABONOS = ["Factura", "Proveedor", "Monto abono", "Fecha", "Notas"]
+_ANCHOS_ABONOS  = [38, 24, 16, 14, 34]
+
+
+def _escribir_hoja_abonos(ws, abonos: list) -> None:
+    """Escribe título, encabezados y datos de abonos de facturas."""
+    lado = Side(style="thin", color="CCCCCC")
+    borde = Border(left=lado, right=lado, top=lado, bottom=lado)
+    ncols = len(_HEADERS_ABONOS)
+
+    ws.merge_cells(f"A1:{get_column_letter(ncols)}1")
+    t = ws["A1"]
+    t.value = "YJBMOTOCOM — Abonos de Facturas"
+    t.font = Font(name="Calibri", bold=True, size=13, color="FFFFFF")
+    t.fill = PatternFill("solid", fgColor="92400E")
+    t.alignment = Alignment(horizontal="center", vertical="center")
+    ws.row_dimensions[1].height = 26
+
+    ws.append(_HEADERS_ABONOS)
+    for col_idx in range(1, ncols + 1):
+        cell = ws.cell(row=2, column=col_idx)
+        cell.font = Font(bold=True, color="FFFFFF", name="Calibri", size=10)
+        cell.fill = PatternFill("solid", fgColor="B45309")
+        cell.alignment = Alignment(horizontal="center", vertical="center")
+        cell.border = borde
+    ws.row_dimensions[2].height = 20
+
+    for i, a in enumerate(abonos, start=1):
+        fecha_str = (
+            a["fecha"].strftime("%d/%m/%Y")
+            if hasattr(a["fecha"], "strftime")
+            else str(a["fecha"])
+        )
+        ws.append([
+            a["factura_desc"],
+            a["factura_prov"],
+            a["monto"],
+            fecha_str,
+            a["notas"],
+        ])
+        row = ws.max_row
+        fondo = "FEF3C7" if i % 2 == 0 else "FFFBEB"
+        for col_idx in range(1, ncols + 1):
+            c = ws.cell(row=row, column=col_idx)
+            c.fill = PatternFill("solid", fgColor=fondo)
+            c.border = borde
+            c.font = Font(name="Calibri", size=10)
+            c.alignment = Alignment(vertical="center")
+        ws.row_dimensions[row].height = 18
+
+    for i, ancho in enumerate(_ANCHOS_ABONOS, start=1):
+        ws.column_dimensions[get_column_letter(i)].width = ancho
+
+
 _HEADERS_NOTAS = ["Tipo", "Texto", "Completado", "Fecha creación"]
 _ANCHOS_NOTAS  = [16, 52, 12, 18]
 _NOTAS_TIPO_LABEL = {"resurtido": "Por Pedir", "tarea": "Tarea"}
@@ -547,6 +601,7 @@ def exportar_todo(
     gastos: list | None = None,
     configuracion=None,
     notas: list | None = None,
+    abonos: list | None = None,
 ) -> None:
     """
     Genera un .xlsx con las hojas que se pasen (None = omitir esa hoja).
@@ -675,6 +730,10 @@ def exportar_todo(
     # ── Hoja Notas y Pendientes (opcional) ────────────────────────────────
     if notas is not None:
         _escribir_hoja_notas(_hoja("Notas"), notas)
+
+    # ── Hoja Abonos de Facturas (opcional) ────────────────────────────────
+    if abonos is not None:
+        _escribir_hoja_abonos(_hoja("Abonos"), abonos)
 
     # Si ninguna hoja fue incluida, agregar una de aviso
     if not primera_hoja_usada:

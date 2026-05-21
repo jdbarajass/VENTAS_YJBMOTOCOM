@@ -50,8 +50,8 @@ class ExportarImportarPanel(QWidget):
         root.addWidget(titulo)
 
         sub = QLabel(
-            "Un único archivo Excel con hasta 7 pestañas: ventas, préstamos, inventario, "
-            "facturas, gastos, notas y configuración."
+            "Un único archivo Excel con hasta 8 pestañas: ventas, préstamos, inventario, "
+            "facturas, abonos, gastos, notas y configuración."
         )
         sub.setStyleSheet("color:#6B7280; font-size:12px;")
         root.addWidget(sub)
@@ -153,11 +153,12 @@ class ExportarImportarPanel(QWidget):
         self._chk_facturas    = QCheckBox("Facturas")
         self._chk_gastos      = QCheckBox("Gastos operativos")
         self._chk_notas       = QCheckBox("Notas y Pendientes")
+        self._chk_abonos      = QCheckBox("Abonos de facturas")
         self._chk_config      = QCheckBox("Configuración")
 
         for chk in (self._chk_prestamos, self._chk_inventario,
                     self._chk_facturas, self._chk_gastos,
-                    self._chk_notas, self._chk_config):
+                    self._chk_notas, self._chk_abonos, self._chk_config):
             chk.setChecked(True)
             chk.setStyleSheet(chk_style)
             g_lay.addWidget(chk)
@@ -333,7 +334,7 @@ class ExportarImportarPanel(QWidget):
             self._chk_ventas.isChecked(), self._chk_prestamos.isChecked(),
             self._chk_inventario.isChecked(), self._chk_facturas.isChecked(),
             self._chk_gastos.isChecked(), self._chk_notas.isChecked(),
-            self._chk_config.isChecked(),
+            self._chk_abonos.isChecked(), self._chk_config.isChecked(),
         ]):
             QMessageBox.warning(
                 self, "Sin selección",
@@ -379,8 +380,13 @@ class ExportarImportarPanel(QWidget):
                 if self._chk_notas.isChecked() else None
             )
 
+            abonos = None
+            if self._chk_abonos.isChecked():
+                from database.abonos_factura_repo import obtener_todos_abonos_con_factura
+                abonos = obtener_todos_abonos_con_factura()
+
             exportar_todo(Path(ruta), ventas, prestamos, productos,
-                          facturas, gastos, configuracion, notas)
+                          facturas, gastos, configuracion, notas, abonos)
 
             # Construir resumen para el mensaje
             lineas = []
@@ -396,6 +402,7 @@ class ExportarImportarPanel(QWidget):
             if facturas   is not None: lineas.append(f"  • {len(facturas)} factura(s)")
             if gastos     is not None: lineas.append(f"  • {len(gastos)} gasto(s) operativo(s)")
             if notas      is not None: lineas.append(f"  • {len(notas)} nota(s) y pendiente(s)")
+            if abonos     is not None: lineas.append(f"  • {len(abonos)} abono(s) de facturas")
             if configuracion is not None: lineas.append("  • Configuración incluida")
 
             QMessageBox.information(
@@ -504,6 +511,7 @@ class ExportarImportarPanel(QWidget):
             f"  • {len(res.facturas)} factura(s)\n"
             f"  • {len(res.gastos)} gasto(s) operativo(s)\n"
             f"  • {len(res.notas)} nota(s) y pendiente(s)\n"
+            f"  • {len(res.abonos_raw)} abono(s) de facturas\n"
             f"  • Configuración: {cfg_str}\n\n"
             f"Esta acción no se puede deshacer."
         )
@@ -533,6 +541,7 @@ class ExportarImportarPanel(QWidget):
                 f"  • {len(res.facturas)} factura(s)\n"
                 f"  • {len(res.gastos)} gasto(s) operativo(s)\n"
                 f"  • {len(res.notas)} nota(s) y pendiente(s)\n"
+                f"  • {len(res.abonos_raw)} abono(s) de facturas\n"
                 + ("  • Configuración actualizada" if res.configuracion else ""),
             )
             self.datos_importados.emit()
@@ -580,10 +589,35 @@ class ExportarImportarPanel(QWidget):
         for prod in res.productos:
             insertar_producto(prod)
 
+        # Abonos primero (antes de borrar facturas para evitar FK issues)
+        from database.abonos_factura_repo import eliminar_todos_abonos, insertar_abono
+        eliminar_todos_abonos()
+
         # Facturas
         eliminar_todas_facturas()
+        factura_id_map: dict[tuple, int] = {}
         for f in res.facturas:
-            insertar_factura_directa(f)
+            new_id = insertar_factura_directa(f)
+            key = (f.descripcion.strip().lower(), f.proveedor.strip().lower())
+            factura_id_map[key] = new_id
+
+        # Abonos — vincular a las facturas recién insertadas
+        if res.abonos_raw:
+            from models.abono_factura import AbonoFactura
+            for ab in res.abonos_raw:
+                key = (ab["factura_desc"].strip().lower(), ab["factura_prov"].strip().lower())
+                factura_id = factura_id_map.get(key)
+                if factura_id is None:
+                    continue
+                try:
+                    insertar_abono(AbonoFactura(
+                        factura_id=factura_id,
+                        monto=ab["monto"],
+                        fecha=ab["fecha"],
+                        notas=ab["notas"],
+                    ))
+                except (ValueError, Exception):
+                    pass
 
         # Gastos operativos
         for año_m, mes_m in res.meses_gastos_afectados:

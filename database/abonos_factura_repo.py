@@ -70,3 +70,44 @@ def eliminar_abonos_por_factura(factura_id: int) -> None:
     conn = DatabaseConnection.get()
     conn.execute("DELETE FROM abonos_factura WHERE factura_id = ?", (factura_id,))
     conn.commit()
+
+
+def eliminar_todos_abonos() -> None:
+    conn = DatabaseConnection.get()
+    conn.execute("DELETE FROM abonos_factura")
+    conn.commit()
+
+
+def obtener_todos_abonos_con_factura() -> list[dict]:
+    """
+    Retorna todos los abonos junto con descripción y proveedor de su factura.
+    Cada elemento: {factura_desc, factura_prov, monto, fecha, notas}
+    """
+    conn = DatabaseConnection.get()
+    rows = conn.execute(
+        """SELECT a.monto, a.fecha, a.notas,
+                  f.descripcion AS factura_desc, f.proveedor AS factura_prov
+           FROM abonos_factura a
+           JOIN facturas f ON f.id = a.factura_id
+           ORDER BY f.id, a.fecha, a.id"""
+    ).fetchall()
+    result = []
+    for r in rows:
+        fecha_val = r["fecha"]
+        if isinstance(fecha_val, str):
+            from datetime import datetime as _dt
+            try:
+                fecha_obj = _dt.strptime(fecha_val, "%Y-%m-%d").date()
+            except ValueError:
+                from datetime import date as _d
+                fecha_obj = _d.today()
+        else:
+            fecha_obj = fecha_val
+        result.append({
+            "factura_desc": r["factura_desc"],
+            "factura_prov": r["factura_prov"],
+            "monto": float(r["monto"]),
+            "fecha": fecha_obj,
+            "notas": r["notas"] or "",
+        })
+    return result

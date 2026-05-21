@@ -88,6 +88,7 @@ class ResultadoImportacionTotal:
     gastos: list[GastoDia] = field(default_factory=list)
     meses_gastos_afectados: set = field(default_factory=set)
     configuracion: Configuracion | None = None
+    notas: list = field(default_factory=list)
     errores: list[str] = field(default_factory=list)
 
     @property
@@ -334,6 +335,41 @@ def _leer_configuracion(ws) -> Configuracion | None:
 
 
 _RE_HORA = re.compile(r"^\d{1,2}:\d{2}(:\d{2})?$")
+
+# Mapeo inverso: etiqueta legible del Excel → tipo interno en BD
+_NOTAS_LABEL_A_TIPO = {
+    "por pedir": "resurtido",
+    "resurtido": "resurtido",
+    "tarea":     "tarea",
+}
+
+
+def _leer_notas(ws):
+    """
+    Lee la hoja «Notas» generada por exportar_todo().
+    Fila 1 = título, fila 2 = encabezados, fila 3+ = datos.
+    Columnas: Tipo | Texto | Completado | Fecha creación
+    """
+    from models.nota import Nota
+    notas: list[Nota] = []
+    for row_idx in range(3, ws.max_row + 1):
+        tipo_raw = str(ws.cell(row_idx, 1).value or "").strip().lower()
+        tipo = _NOTAS_LABEL_A_TIPO.get(tipo_raw)
+        if tipo is None:
+            continue
+        texto = str(ws.cell(row_idx, 2).value or "").strip()
+        if not texto:
+            continue
+        completado_raw = str(ws.cell(row_idx, 3).value or "No").strip().lower()
+        completado = completado_raw in ("sí", "si", "yes", "1", "true")
+        fecha_creacion = str(ws.cell(row_idx, 4).value or "").strip()
+        notas.append(Nota(
+            texto=texto,
+            tipo=tipo,
+            completado=completado,
+            fecha_creacion=fecha_creacion or None,
+        ))
+    return notas
 _RE_SOLO_NUM = re.compile(r"^\d+(\.\d+)?$")
 _METODOS_BASE = {"Efectivo", "Addi", "Transferencia", "Combinado", "Otro", "Bold"}
 
@@ -563,5 +599,13 @@ def importar_todo(ruta: Path) -> ResultadoImportacionTotal:
     )
     if ws_c:
         resultado.configuracion = _leer_configuracion(ws_c)
+
+    # ── Hoja Notas y Pendientes ────────────────────────────────────────────
+    ws_n = next(
+        (wb[s] for s in wb.sheetnames if s.lower() in ("notas", "notas y pendientes")),
+        None,
+    )
+    if ws_n:
+        resultado.notas = _leer_notas(ws_n)
 
     return resultado

@@ -54,3 +54,9 @@ def eliminar_nota(nota_id: int) -> None:
     conn = DatabaseConnection.get()
     conn.execute("DELETE FROM notas WHERE id = ?", (nota_id,))
     conn.commit()
+
+
+def eliminar_todas_notas() -> None:
+    conn = DatabaseConnection.get()
+    conn.execute("DELETE FROM notas")
+    conn.commit()

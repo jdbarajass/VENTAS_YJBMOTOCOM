@@ -503,6 +503,7 @@ class ExportarImportarPanel(QWidget):
             f"  • {len(res.productos)} producto(s) de inventario\n"
             f"  • {len(res.facturas)} factura(s)\n"
             f"  • {len(res.gastos)} gasto(s) operativo(s)\n"
+            f"  • {len(res.notas)} nota(s) y pendiente(s)\n"
             f"  • Configuración: {cfg_str}\n\n"
             f"Esta acción no se puede deshacer."
         )
@@ -531,6 +532,7 @@ class ExportarImportarPanel(QWidget):
                 f"  • {len(res.productos)} producto(s)\n"
                 f"  • {len(res.facturas)} factura(s)\n"
                 f"  • {len(res.gastos)} gasto(s) operativo(s)\n"
+                f"  • {len(res.notas)} nota(s) y pendiente(s)\n"
                 + ("  • Configuración actualizada" if res.configuracion else ""),
             )
             self.datos_importados.emit()
@@ -592,6 +594,13 @@ class ExportarImportarPanel(QWidget):
         # Configuración (si viene en el archivo)
         if res.configuracion:
             guardar_configuracion(res.configuracion)
+
+        # Notas y Pendientes
+        if res.notas:
+            from database.notas_repo import eliminar_todas_notas, insertar_nota
+            eliminar_todas_notas()
+            for n in res.notas:
+                insertar_nota(n)
 
     # ---- Zona de peligro ----
 

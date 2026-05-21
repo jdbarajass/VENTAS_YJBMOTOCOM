@@ -449,24 +449,21 @@ class ExportarImportarPanel(QWidget):
             )
             return
 
-        # 3. Backup de seguridad con selección de destino
-        import shutil
+        # 3. Backup de seguridad — exportar todo como Excel antes de importar
         from datetime import datetime as _datetime
-        from database.connection import get_db_path
 
-        db_path = get_db_path()
         ts = _datetime.now().strftime("%Y-%m-%d_%H-%M")
-        nombre_bk = f"backup_antes_importar_{ts}.db"
+        nombre_bk = f"backup_antes_importar_{ts}.xlsx"
 
         QMessageBox.information(
             self,
             "Respaldo de seguridad",
-            "Antes de importar se guardará una copia de tu base de datos actual.\n\n"
-            "Elige dónde quieres guardar el respaldo. Si algo sale mal,\n"
-            "puedes restaurar ese archivo.",
+            "Antes de importar se exportará una copia completa de tu base de datos actual.\n\n"
+            "Elige dónde quieres guardar el respaldo.\n"
+            "Si algo sale mal, podrás importar ese archivo para recuperar todo.",
         )
         ruta_bk, _ = QFileDialog.getSaveFileName(
-            self, "Guardar respaldo de base de datos", nombre_bk, "Base de datos (*.db)"
+            self, "Guardar respaldo como Excel", nombre_bk, "Excel (*.xlsx)"
         )
         if not ruta_bk:
             resp = QMessageBox.question(
@@ -482,12 +479,32 @@ class ExportarImportarPanel(QWidget):
                 return
         else:
             try:
-                shutil.copy2(str(db_path), ruta_bk)
+                from services.exportador import exportar_todo as _exportar_todo
+                from database.ventas_repo import obtener_todas_las_ventas as _get_ventas
+                from database.prestamos_repo import obtener_todos_prestamos as _get_prestamos
+                from database.inventario_repo import obtener_todos_productos as _get_productos
+                from database.facturas_repo import obtener_todas_facturas as _get_facturas
+                from database.gastos_dia_repo import obtener_todos_gastos as _get_gastos
+                from database.config_repo import obtener_configuracion as _get_cfg
+                from database.notas_repo import obtener_notas as _get_notas
+                from database.abonos_factura_repo import obtener_todos_abonos_con_factura as _get_abonos
+
+                _exportar_todo(
+                    Path(ruta_bk),
+                    ventas=_get_ventas(),
+                    prestamos=_get_prestamos(),
+                    productos=_get_productos(),
+                    facturas=_get_facturas(),
+                    gastos=_get_gastos(),
+                    configuracion=_get_cfg(),
+                    notas=_get_notas("resurtido") + _get_notas("tarea"),
+                    abonos=_get_abonos(),
+                )
                 QMessageBox.information(
                     self,
                     "Respaldo guardado",
-                    f"Respaldo guardado correctamente en:\n{ruta_bk}\n\n"
-                    "Puedes restaurarlo si algo sale mal.",
+                    f"Respaldo guardado en:\n{ruta_bk}\n\n"
+                    "Si algo sale mal, importa ese archivo para recuperar todo.",
                 )
             except Exception as exc:
                 QMessageBox.critical(self, "Error al guardar respaldo", str(exc))

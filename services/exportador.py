@@ -44,6 +44,17 @@ def _borde_fino() -> Border:
     return Border(left=lado, right=lado, top=lado, bottom=lado)
 
 
+def _proteger_hoja(ws) -> None:
+    """Marca la hoja como protegida (solo lectura) en Excel. Requiere contraseña para editar."""
+    from openpyxl.worksheet.protection import SheetProtection
+    ws.protection = SheetProtection(
+        sheet=True,
+        selectLockedCells=False,
+        selectUnlockedCells=False,
+        password="YJBMOTOCOM",
+    )
+
+
 # ── Encabezados comunes de ventas ──────────────────────────────────────────
 # Col 11 "Pagos JSON" es datos internos — no editar manualmente
 _HEADERS_VENTAS = [
@@ -713,7 +724,9 @@ def exportar_todo(
 
     # ── Hoja Inventario (opcional) ────────────────────────────────────────
     if productos is not None:
-        _escribir_hoja_inventario(_hoja("Inventario"), productos)
+        ws_inv = _hoja("Inventario")
+        _escribir_hoja_inventario(ws_inv, productos)
+        _proteger_hoja(ws_inv)
 
     # ── Hoja Facturas (opcional) ──────────────────────────────────────────
     if facturas is not None:
@@ -725,7 +738,9 @@ def exportar_todo(
 
     # ── Hoja Configuración (opcional) ─────────────────────────────────────
     if configuracion is not None:
-        _escribir_hoja_configuracion(_hoja("Configuración"), configuracion)
+        ws_cfg = _hoja("Configuración")
+        _escribir_hoja_configuracion(ws_cfg, configuracion)
+        _proteger_hoja(ws_cfg)
 
     # ── Hoja Notas y Pendientes (opcional) ────────────────────────────────
     if notas is not None:

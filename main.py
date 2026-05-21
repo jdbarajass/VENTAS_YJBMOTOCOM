@@ -10,16 +10,56 @@ NO contiene lógica de negocio ni acceso a datos.
 """
 
 import sys
-from PySide6.QtWidgets import QApplication
+from PySide6.QtWidgets import QApplication, QMessageBox
 from database.schema import initialize_schema
 from database.connection import DatabaseConnection
 from ui.main_window import MainWindow
 from ui.styles import GLOBAL_STYLESHEET
 from utils.backup import hacer_backup
+from utils.logger import log
+
+
+def _migrar_clave_a_hash() -> None:
+    """Si la contraseña guardada es plain-text, la convierte a SHA-256 al arrancar."""
+    from database.config_repo import obtener_configuracion, guardar_configuracion
+    from utils.security import es_hash, hashear_clave
+    cfg = obtener_configuracion()
+    if not es_hash(cfg.clave_inventario):
+        cfg.clave_inventario = hashear_clave(cfg.clave_inventario)
+        guardar_configuracion(cfg)
+
+
+def _sembrar_admin_si_vacio() -> None:
+    """Si la tabla usuarios está vacía, crea un usuario Admin con la contraseña existente."""
+    from database.usuarios_repo import contar_usuarios, insertar_usuario, Usuario
+    from database.config_repo import obtener_configuracion
+    if contar_usuarios() == 0:
+        cfg = obtener_configuracion()
+        insertar_usuario(Usuario(
+            nombre="Admin",
+            rol="admin",
+            clave_hash=cfg.clave_inventario,
+        ))
+        log.info("Usuario Admin creado con la contraseña existente")
+
+
+def _instalar_manejador_excepciones() -> None:
+    """Captura excepciones no manejadas y las escribe en errors.log antes de mostrarlas."""
+    _orig = sys.excepthook
+
+    def _manejador(tipo, valor, tb):
+        log.critical("Excepción no capturada", exc_info=(tipo, valor, tb))
+        _orig(tipo, valor, tb)
+
+    sys.excepthook = _manejador
 
 
 def main() -> None:
     """Punto de entrada principal."""
+    _instalar_manejador_excepciones()
+    log.info("=" * 60)
+    log.info("YJBMOTOCOM v2.0 — iniciando")
+
     # Qt6 habilita DPI scaling automáticamente — no se necesitan atributos manuales.
     # Compatible con Windows 10 y Windows 11.
     app = QApplication(sys.argv)
@@ -34,10 +74,27 @@ def main() -> None:
     # Inicializar base de datos antes de mostrar la ventana
     initialize_schema()
 
+    # Migrar contraseña plain-text → SHA-256 si viene de versión anterior
+    _migrar_clave_a_hash()
+
+    # Aplicar tema guardado (puede ser oscuro desde sesión anterior)
+    from database.config_repo import obtener_configuracion as _get_cfg
+    from ui.styles import aplicar_tema
+    aplicar_tema(_get_cfg().modo_oscuro)
+
+    # Crear usuario Admin si la tabla está vacía (primera vez con multi-usuario)
+    _sembrar_admin_si_vacio()
+
     # Backup automático al arrancar (guarda hasta 7 copias en backups/)
     hacer_backup()
 
-    window = MainWindow()
+    # Login multi-usuario
+    from ui.login_dialog import LoginDialog
+    login = LoginDialog()
+    if login.exec() != LoginDialog.Accepted:
+        sys.exit(0)
+
+    window = MainWindow(usuario=login.usuario_nombre, rol=login.usuario_rol)
     window.showMaximized()
 
     # Cerrar BD limpiamente al salir

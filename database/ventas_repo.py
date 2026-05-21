@@ -143,6 +143,17 @@ def obtener_ventas_por_mes(año: int, mes: int) -> list[Venta]:
     return [_row_to_venta(r) for r in rows]
 
 
+def obtener_ventas_por_rango(fecha_desde: "date", fecha_hasta: "date") -> list["Venta"]:
+    """Retorna ventas entre fecha_desde y fecha_hasta (ambas inclusive)."""
+    from datetime import date as _date
+    conn = DatabaseConnection.get()
+    rows = conn.execute(
+        "SELECT * FROM ventas WHERE fecha BETWEEN ? AND ? ORDER BY fecha ASC, id ASC",
+        (fecha_desde.strftime("%Y-%m-%d"), fecha_hasta.strftime("%Y-%m-%d")),
+    ).fetchall()
+    return [_row_to_venta(r) for r in rows]
+
+
 def obtener_todas_las_ventas() -> list[Venta]:
     """Retorna el histórico completo ordenado por fecha descendente."""
     conn = DatabaseConnection.get()

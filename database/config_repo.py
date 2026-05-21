@@ -21,6 +21,8 @@ def _row_to_config(row: sqlite3.Row) -> Configuracion:
         comision_transferencia=row["comision_transferencia"],
         clave_inventario=row["clave_inventario"] if "clave_inventario" in keys else "YJB2026_*",
         nombre_impresora=row["nombre_impresora"] if "nombre_impresora" in keys else "",
+        modo_oscuro=bool(row["modo_oscuro"]) if "modo_oscuro" in keys else False,
+        timeout_minutos=int(row["timeout_minutos"]) if "timeout_minutos" in keys else 10,
     )
 
 
@@ -48,7 +50,9 @@ def guardar_configuracion(cfg: Configuracion) -> None:
             comision_addi          = ?,
             comision_transferencia = ?,
             clave_inventario       = ?,
-            nombre_impresora       = ?
+            nombre_impresora       = ?,
+            modo_oscuro            = ?,
+            timeout_minutos        = ?
         WHERE id = 1
         """,
         (
@@ -62,6 +66,8 @@ def guardar_configuracion(cfg: Configuracion) -> None:
             cfg.comision_transferencia,
             cfg.clave_inventario,
             cfg.nombre_impresora,
+            int(cfg.modo_oscuro),
+            cfg.timeout_minutos,
         ),
     )
     conn.commit()

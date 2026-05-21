@@ -8,15 +8,17 @@ from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QFormLayout,
     QLabel, QDoubleSpinBox, QSpinBox, QLineEdit,
     QPushButton, QFrame, QMessageBox, QScrollArea,
-    QGroupBox, QComboBox,
+    QGroupBox, QComboBox, QTableWidget, QTableWidgetItem,
+    QHeaderView, QAbstractItemView,
 )
 from PySide6.QtCore import Qt, Signal
-from PySide6.QtGui import QFont
+from PySide6.QtGui import QFont, QColor
 
 from models.configuracion import Configuracion
 from controllers.config_controller import ConfigController
 from ui.venta_form import MoneyLineEdit
 from utils.formatters import cop
+from utils.logger import log
 
 
 class ConfigPanel(QWidget):
@@ -26,6 +28,7 @@ class ConfigPanel(QWidget):
     """
 
     configuracion_guardada = Signal()
+    tema_cambiado = Signal(bool)  # emitida al toggle dark mode (True = oscuro)
 
     def __init__(self, parent=None) -> None:
         super().__init__(parent)
@@ -80,8 +83,17 @@ class ConfigPanel(QWidget):
         # Sección impresora térmica POS
         root.addWidget(self._seccion_impresora())
 
+        # Apariencia y sesión (modo oscuro + timeout)
+        root.addWidget(self._seccion_apariencia())
+
         # Sección de seguridad (cambio de contraseña)
         root.addWidget(self._seccion_seguridad())
+
+        # Gestión de usuarios
+        root.addWidget(self._seccion_usuarios())
+
+        # Registro de auditoría
+        root.addWidget(self._seccion_auditoria())
         root.addStretch()
 
         scroll.setWidget(contenido)
@@ -264,6 +276,72 @@ class ConfigPanel(QWidget):
         elif actual:
             self._combo_impresora.setEditText(actual)
 
+    # ---- Sección apariencia ----
+
+    def _seccion_apariencia(self) -> QGroupBox:
+        box = QGroupBox("Apariencia y Sesión")
+        box.setStyleSheet(self._estilo_groupbox())
+        lay = QVBoxLayout(box)
+        lay.setSpacing(14)
+
+        # Modo oscuro
+        fila_tema = QHBoxLayout()
+        fila_tema.setSpacing(12)
+        lbl_tema = QLabel("Tema de la aplicación:")
+        lbl_tema.setStyleSheet("font-size:12px;")
+        lbl_tema.setFixedWidth(180)
+
+        self._btn_modo_oscuro = QPushButton("☀  Modo Claro")
+        self._btn_modo_oscuro.setCheckable(True)
+        self._btn_modo_oscuro.setFixedHeight(34)
+        self._btn_modo_oscuro.setFixedWidth(160)
+        self._btn_modo_oscuro.setCursor(Qt.PointingHandCursor)
+        self._btn_modo_oscuro.setStyleSheet(
+            "QPushButton { background:#F1F5F9; color:#374151; border:1px solid #D1D5DB;"
+            "  border-radius:6px; font-size:12px; }"
+            "QPushButton:hover { background:#E2E8F0; }"
+            "QPushButton:checked { background:#1E293B; color:#F8FAFC; border-color:#0F172A; }"
+            "QPushButton:checked:hover { background:#334155; }"
+        )
+        self._btn_modo_oscuro.clicked.connect(self._on_toggle_modo_oscuro)
+
+        fila_tema.addWidget(lbl_tema)
+        fila_tema.addWidget(self._btn_modo_oscuro)
+        fila_tema.addStretch()
+        lay.addLayout(fila_tema)
+
+        # Timeout de sesión
+        fila_timeout = QHBoxLayout()
+        fila_timeout.setSpacing(12)
+        lbl_timeout = QLabel("Bloquear sesión tras:")
+        lbl_timeout.setStyleSheet("font-size:12px;")
+        lbl_timeout.setFixedWidth(180)
+
+        self._spin_timeout = QSpinBox()
+        self._spin_timeout.setRange(1, 60)
+        self._spin_timeout.setValue(10)
+        self._spin_timeout.setSuffix(" min")
+        self._spin_timeout.setFixedHeight(34)
+        self._spin_timeout.setFixedWidth(100)
+        self._spin_timeout.setStyleSheet(self._estilo_campo())
+
+        lbl_hint = QLabel("de inactividad (1-60 min)")
+        lbl_hint.setStyleSheet("color:#6B7280; font-size:11px;")
+
+        fila_timeout.addWidget(lbl_timeout)
+        fila_timeout.addWidget(self._spin_timeout)
+        fila_timeout.addWidget(lbl_hint)
+        fila_timeout.addStretch()
+        lay.addLayout(fila_timeout)
+
+        return box
+
+    def _on_toggle_modo_oscuro(self, checked: bool) -> None:
+        from ui.styles import aplicar_tema
+        aplicar_tema(checked)
+        self._btn_modo_oscuro.setText("☾  Modo Oscuro" if checked else "☀  Modo Claro")
+        self.tema_cambiado.emit(checked)
+
     # ---- Sección seguridad ----
 
     def _seccion_seguridad(self) -> QGroupBox:
@@ -322,6 +400,208 @@ class ConfigPanel(QWidget):
         form.addRow(info)
 
         return box
+
+    # ---- Sección gestión de usuarios ----
+
+    def _seccion_usuarios(self) -> QGroupBox:
+        box = QGroupBox("Gestión de Usuarios")
+        box.setStyleSheet(self._estilo_groupbox())
+        lay = QVBoxLayout(box)
+        lay.setSpacing(10)
+
+        desc = QLabel(
+            "Administra los usuarios que pueden iniciar sesión. "
+            "El usuario Admin siempre existe. Los vendedores no tienen acceso a Configuración ni Exportar."
+        )
+        desc.setWordWrap(True)
+        desc.setStyleSheet("color:#6B7280; font-size:11px;")
+        lay.addWidget(desc)
+
+        # Tabla de usuarios
+        self._tabla_usuarios = QTableWidget()
+        self._tabla_usuarios.setColumnCount(3)
+        self._tabla_usuarios.setHorizontalHeaderLabels(["Nombre", "Rol", "Acciones"])
+        self._tabla_usuarios.setEditTriggers(QAbstractItemView.NoEditTriggers)
+        self._tabla_usuarios.setSelectionBehavior(QAbstractItemView.SelectRows)
+        self._tabla_usuarios.verticalHeader().setVisible(False)
+        self._tabla_usuarios.setShowGrid(False)
+        self._tabla_usuarios.setAlternatingRowColors(True)
+        self._tabla_usuarios.setMaximumHeight(140)
+        self._tabla_usuarios.setStyleSheet(
+            "QTableWidget { border:1px solid #E5E7EB; border-radius:6px; font-size:11px; }"
+            "QHeaderView::section { background:#F1F5F9; color:#374151; font-weight:bold;"
+            "  border:none; padding:5px; font-size:10px; }"
+        )
+        hh = self._tabla_usuarios.horizontalHeader()
+        hh.setSectionResizeMode(0, QHeaderView.Stretch)
+        hh.setSectionResizeMode(1, QHeaderView.Interactive)
+        self._tabla_usuarios.setColumnWidth(1, 90)
+        hh.setSectionResizeMode(2, QHeaderView.Fixed)
+        self._tabla_usuarios.setColumnWidth(2, 80)
+        lay.addWidget(self._tabla_usuarios)
+
+        # Formulario para nuevo usuario
+        fila_nuevo = QHBoxLayout()
+        fila_nuevo.setSpacing(8)
+
+        self._campo_nuevo_usuario = QLineEdit()
+        self._campo_nuevo_usuario.setPlaceholderText("Nombre del nuevo usuario")
+        self._campo_nuevo_usuario.setFixedHeight(32)
+        self._campo_nuevo_usuario.setStyleSheet(self._estilo_campo())
+
+        self._combo_rol_nuevo = QComboBox()
+        self._combo_rol_nuevo.addItems(["vendedor", "admin"])
+        self._combo_rol_nuevo.setFixedHeight(32)
+        self._combo_rol_nuevo.setFixedWidth(100)
+
+        self._campo_clave_nuevo = QLineEdit()
+        self._campo_clave_nuevo.setEchoMode(QLineEdit.Password)
+        self._campo_clave_nuevo.setPlaceholderText("Contraseña")
+        self._campo_clave_nuevo.setFixedHeight(32)
+        self._campo_clave_nuevo.setStyleSheet(self._estilo_campo())
+
+        btn_crear = QPushButton("+ Crear")
+        btn_crear.setFixedHeight(32)
+        btn_crear.setFixedWidth(75)
+        btn_crear.setStyleSheet(
+            "QPushButton { background:#2563EB; color:white; border-radius:5px; font-size:11px; }"
+            "QPushButton:hover { background:#1D4ED8; }"
+        )
+        btn_crear.clicked.connect(self._on_crear_usuario)
+
+        fila_nuevo.addWidget(self._campo_nuevo_usuario, stretch=2)
+        fila_nuevo.addWidget(self._combo_rol_nuevo)
+        fila_nuevo.addWidget(self._campo_clave_nuevo, stretch=1)
+        fila_nuevo.addWidget(btn_crear)
+        lay.addLayout(fila_nuevo)
+
+        self._lbl_usuarios_feedback = QLabel("")
+        self._lbl_usuarios_feedback.setStyleSheet("font-size:11px;")
+        lay.addWidget(self._lbl_usuarios_feedback)
+
+        self._cargar_tabla_usuarios()
+        return box
+
+    def _cargar_tabla_usuarios(self) -> None:
+        from database.usuarios_repo import obtener_todos_usuarios
+        usuarios = obtener_todos_usuarios()
+        self._tabla_usuarios.setRowCount(len(usuarios))
+        for row, u in enumerate(usuarios):
+            self._tabla_usuarios.setRowHeight(row, 28)
+            self._tabla_usuarios.setItem(row, 0, QTableWidgetItem(u.nombre))
+            item_rol = QTableWidgetItem("Admin" if u.rol == "admin" else "Vendedor")
+            item_rol.setForeground(QColor("#1D4ED8") if u.rol == "admin" else QColor("#374151"))
+            self._tabla_usuarios.setItem(row, 1, item_rol)
+            if u.nombre != "Admin":
+                btn_del = QPushButton("Borrar")
+                btn_del.setFixedHeight(22)
+                btn_del.setStyleSheet(
+                    "QPushButton { background:#FEE2E2; color:#DC2626; border:none;"
+                    "border-radius:3px; font-size:10px; }"
+                    "QPushButton:hover { background:#FECACA; }"
+                )
+                btn_del.clicked.connect(lambda _, uid=u.id: self._on_eliminar_usuario(uid))
+                self._tabla_usuarios.setCellWidget(row, 2, btn_del)
+
+    def _on_crear_usuario(self) -> None:
+        nombre = self._campo_nuevo_usuario.text().strip()
+        rol = self._combo_rol_nuevo.currentText()
+        clave = self._campo_clave_nuevo.text()
+        if not nombre or not clave:
+            self._lbl_usuarios_feedback.setText("Completa nombre y contraseña.")
+            self._lbl_usuarios_feedback.setStyleSheet("font-size:11px; color:#DC2626;")
+            return
+        if len(clave) < 4:
+            self._lbl_usuarios_feedback.setText("La contraseña debe tener mínimo 4 caracteres.")
+            self._lbl_usuarios_feedback.setStyleSheet("font-size:11px; color:#DC2626;")
+            return
+        try:
+            from database.usuarios_repo import insertar_usuario, Usuario
+            from utils.security import hashear_clave
+            insertar_usuario(Usuario(nombre=nombre, rol=rol, clave_hash=hashear_clave(clave)))
+            self._campo_nuevo_usuario.clear()
+            self._campo_clave_nuevo.clear()
+            self._lbl_usuarios_feedback.setText(f"✔ Usuario '{nombre}' creado.")
+            self._lbl_usuarios_feedback.setStyleSheet("font-size:11px; color:#15803D;")
+            self._cargar_tabla_usuarios()
+            import utils.auditoria as auditoria
+            auditoria.registrar("Usuario creado", f"{nombre} ({rol})")
+        except Exception as exc:
+            self._lbl_usuarios_feedback.setText(f"Error: {exc}")
+            self._lbl_usuarios_feedback.setStyleSheet("font-size:11px; color:#DC2626;")
+
+    def _on_eliminar_usuario(self, usuario_id: int) -> None:
+        resp = QMessageBox.question(
+            self, "Eliminar usuario", "¿Eliminar este usuario?",
+            QMessageBox.Yes | QMessageBox.No, QMessageBox.No,
+        )
+        if resp == QMessageBox.Yes:
+            from database.usuarios_repo import eliminar_usuario
+            eliminar_usuario(usuario_id)
+            self._cargar_tabla_usuarios()
+            import utils.auditoria as auditoria
+            auditoria.registrar("Usuario eliminado", f"id={usuario_id}")
+
+    # ---- Sección auditoría ----
+
+    def _seccion_auditoria(self) -> QGroupBox:
+        box = QGroupBox("Registro de Auditoría")
+        box.setStyleSheet(self._estilo_groupbox())
+        lay = QVBoxLayout(box)
+        lay.setSpacing(8)
+
+        desc = QLabel("Últimas 50 acciones registradas en el sistema.")
+        desc.setStyleSheet("color:#6B7280; font-size:11px;")
+        lay.addWidget(desc)
+
+        fila_btn = QHBoxLayout()
+        btn_refrescar = QPushButton("↻ Actualizar")
+        btn_refrescar.setFixedHeight(28)
+        btn_refrescar.setFixedWidth(110)
+        btn_refrescar.setStyleSheet(
+            "QPushButton { background:#F1F5F9; color:#374151; border:1px solid #D1D5DB;"
+            "border-radius:5px; font-size:11px; }"
+            "QPushButton:hover { background:#E2E8F0; }"
+        )
+        btn_refrescar.clicked.connect(self._cargar_tabla_auditoria)
+        fila_btn.addWidget(btn_refrescar)
+        fila_btn.addStretch()
+        lay.addLayout(fila_btn)
+
+        self._tabla_auditoria = QTableWidget()
+        self._tabla_auditoria.setColumnCount(5)
+        self._tabla_auditoria.setHorizontalHeaderLabels(["Fecha", "Hora", "Usuario", "Acción", "Detalle"])
+        self._tabla_auditoria.setEditTriggers(QAbstractItemView.NoEditTriggers)
+        self._tabla_auditoria.setSelectionBehavior(QAbstractItemView.SelectRows)
+        self._tabla_auditoria.verticalHeader().setVisible(False)
+        self._tabla_auditoria.setShowGrid(False)
+        self._tabla_auditoria.setAlternatingRowColors(True)
+        self._tabla_auditoria.setMaximumHeight(220)
+        self._tabla_auditoria.setStyleSheet(
+            "QTableWidget { border:1px solid #E5E7EB; border-radius:6px; font-size:11px; }"
+            "QHeaderView::section { background:#1E293B; color:white; font-weight:bold;"
+            "  border:none; padding:5px; font-size:10px; }"
+            "QTableWidget::item:selected { background:#DBEAFE; color:#1E3A5F; }"
+        )
+        hh = self._tabla_auditoria.horizontalHeader()
+        hh.setSectionResizeMode(0, QHeaderView.Interactive); self._tabla_auditoria.setColumnWidth(0, 90)
+        hh.setSectionResizeMode(1, QHeaderView.Interactive); self._tabla_auditoria.setColumnWidth(1, 70)
+        hh.setSectionResizeMode(2, QHeaderView.Interactive); self._tabla_auditoria.setColumnWidth(2, 100)
+        hh.setSectionResizeMode(3, QHeaderView.Interactive); self._tabla_auditoria.setColumnWidth(3, 160)
+        hh.setSectionResizeMode(4, QHeaderView.Stretch)
+        lay.addWidget(self._tabla_auditoria)
+
+        self._cargar_tabla_auditoria()
+        return box
+
+    def _cargar_tabla_auditoria(self) -> None:
+        from utils.auditoria import obtener_log
+        registros = obtener_log(50)
+        self._tabla_auditoria.setRowCount(len(registros))
+        for row, r in enumerate(registros):
+            self._tabla_auditoria.setRowHeight(row, 24)
+            for col, campo in enumerate(["fecha", "hora", "usuario", "accion", "detalle"]):
+                self._tabla_auditoria.setItem(row, col, QTableWidgetItem(r.get(campo, "")))
 
     # ---- Fila guardar ----
 
@@ -410,6 +690,11 @@ class ConfigPanel(QWidget):
         self.campo_addi.setValue(cfg.comision_addi)
         self.campo_transferencia.setValue(cfg.comision_transferencia)
 
+        # Apariencia
+        self._btn_modo_oscuro.setChecked(cfg.modo_oscuro)
+        self._btn_modo_oscuro.setText("☾  Modo Oscuro" if cfg.modo_oscuro else "☀  Modo Claro")
+        self._spin_timeout.setValue(cfg.timeout_minutos)
+
         # Impresora guardada
         idx = self._combo_impresora.findText(cfg.nombre_impresora)
         if idx >= 0:
@@ -455,12 +740,17 @@ class ConfigPanel(QWidget):
                 comision_transferencia=self.campo_transferencia.value(),
                 clave_inventario=cfg_actual.clave_inventario,
                 nombre_impresora=self._combo_impresora.currentText().strip(),
+                modo_oscuro=self._btn_modo_oscuro.isChecked(),
+                timeout_minutos=self._spin_timeout.value(),
             )
             self._ctrl.guardar(cfg)
             self._lbl_feedback.setText("✔  Configuración guardada correctamente.")
             self._lbl_feedback.setStyleSheet("font-size:12px; color:#15803D;")
             self.configuracion_guardada.emit()
+            import utils.auditoria as auditoria
+            auditoria.registrar("Configuración actualizada")
         except ValueError as exc:
+            log.warning("Error de validación al guardar configuración: %s", exc)
             self._lbl_feedback.setText("")
             QMessageBox.warning(self, "Error de validación", str(exc))
 
@@ -475,10 +765,11 @@ class ConfigPanel(QWidget):
             self._lbl_clave_feedback.setStyleSheet("font-size:12px; color:#DC2626;")
             return
 
-        from database.config_repo import obtener_configuracion
+        from database.config_repo import obtener_configuracion, guardar_configuracion
+        from utils.security import verificar_clave, hashear_clave
         cfg_actual = obtener_configuracion()
 
-        if actual != cfg_actual.clave_inventario:
+        if not verificar_clave(actual, cfg_actual.clave_inventario):
             self._lbl_clave_feedback.setText("Contraseña actual incorrecta.")
             self._lbl_clave_feedback.setStyleSheet("font-size:12px; color:#DC2626;")
             return
@@ -493,8 +784,7 @@ class ConfigPanel(QWidget):
             self._lbl_clave_feedback.setStyleSheet("font-size:12px; color:#DC2626;")
             return
 
-        cfg_actual.clave_inventario = nueva
-        from database.config_repo import guardar_configuracion
+        cfg_actual.clave_inventario = hashear_clave(nueva)
         guardar_configuracion(cfg_actual)
 
         self._campo_clave_actual.clear()
@@ -502,6 +792,8 @@ class ConfigPanel(QWidget):
         self._campo_clave_confirmar.clear()
         self._lbl_clave_feedback.setText("✔  Contraseña actualizada correctamente.")
         self._lbl_clave_feedback.setStyleSheet("font-size:12px; color:#15803D;")
+        import utils.auditoria as auditoria
+        auditoria.registrar("Contraseña cambiada")
 
     # ------------------------------------------------------------------
     # API pública

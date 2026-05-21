@@ -510,6 +510,37 @@ class VentaForm(QWidget):
         layout.addLayout(hdr)
         layout.addWidget(lbl_cols)
 
+        # --- Barra de escaneo de código de barras ---
+        scan_frame = QFrame()
+        scan_frame.setStyleSheet(
+            "QFrame { background:#F0F9FF; border:1px solid #BAE6FD; border-radius:6px; }"
+        )
+        scan_lay = QHBoxLayout(scan_frame)
+        scan_lay.setContentsMargins(10, 6, 10, 6)
+        scan_lay.setSpacing(8)
+
+        lbl_scan = QLabel("📷")
+        lbl_scan.setStyleSheet("font-size:18px; background:transparent;")
+        scan_lay.addWidget(lbl_scan)
+
+        self._campo_scan = QLineEdit()
+        self._campo_scan.setPlaceholderText("Escanea un código de barras o escríbelo y presiona Enter...")
+        self._campo_scan.setFixedHeight(30)
+        self._campo_scan.setStyleSheet(
+            "QLineEdit { border:1px solid #7DD3FC; border-radius:5px; padding:0 8px;"
+            "background:white; font-size:11px; }"
+            "QLineEdit:focus { border:2px solid #0284C7; }"
+        )
+        self._campo_scan.returnPressed.connect(self._on_scan_codigo)
+        scan_lay.addWidget(self._campo_scan, stretch=1)
+
+        self._lbl_scan_status = QLabel("")
+        self._lbl_scan_status.setFixedWidth(200)
+        self._lbl_scan_status.setStyleSheet("font-size:10px; color:#0369A1; background:transparent;")
+        scan_lay.addWidget(self._lbl_scan_status)
+
+        layout.addWidget(scan_frame)
+
         # Contenedor de líneas de productos (sin scroll propio — el panel completo scrollea)
         self._lineas_container = QWidget()
         self._lineas_container.setStyleSheet("background:transparent;")
@@ -1048,6 +1079,12 @@ class VentaForm(QWidget):
             self._mostrar_exito(ventas)
             for v in ventas:
                 self.venta_guardada.emit(v)
+            try:
+                import utils.auditoria as auditoria
+                nombres = ", ".join(v.producto for v in ventas[:3])
+                auditoria.registrar("Venta registrada", nombres)
+            except Exception:
+                pass
             self._limpiar_form()
 
         except ValueError as exc:
@@ -1116,6 +1153,44 @@ class VentaForm(QWidget):
     # ------------------------------------------------------------------
     # Utilidades
     # ------------------------------------------------------------------
+
+    def _on_scan_codigo(self) -> None:
+        """Busca el producto por código de barras y lo agrega al carrito al presionar Enter."""
+        codigo = self._campo_scan.text().strip()
+        if not codigo:
+            return
+        try:
+            from database.inventario_repo import (
+                obtener_producto_por_codigo_barras,
+                obtener_producto_por_nombre_exacto,
+            )
+            prod = obtener_producto_por_codigo_barras(codigo) or obtener_producto_por_nombre_exacto(codigo)
+            if prod is None:
+                self._lbl_scan_status.setText(f"No encontrado: {codigo}")
+                self._lbl_scan_status.setStyleSheet(
+                    "font-size:10px; color:#DC2626; background:transparent;"
+                )
+            else:
+                # Agregar a la primera línea vacía o crear una nueva
+                linea_vacia = next(
+                    (ln for ln in self._lineas if not ln.campo_producto.text().strip()), None
+                )
+                if linea_vacia is None:
+                    self._agregar_linea()
+                    linea_vacia = self._lineas[-1]
+                linea_vacia.campo_producto.setText(prod.producto)
+                linea_vacia._aplicar_producto(prod)
+                self._lbl_scan_status.setText(f"✔ {prod.producto}")
+                self._lbl_scan_status.setStyleSheet(
+                    "font-size:10px; color:#15803D; background:transparent;"
+                )
+        except Exception:
+            self._lbl_scan_status.setText("Error al buscar código.")
+            self._lbl_scan_status.setStyleSheet(
+                "font-size:10px; color:#DC2626; background:transparent;"
+            )
+        finally:
+            self._campo_scan.clear()
 
     @staticmethod
     def _parse_int(texto: str) -> int:

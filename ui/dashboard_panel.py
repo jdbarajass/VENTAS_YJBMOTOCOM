@@ -14,14 +14,14 @@ Layout (vertical, scrollable):
   ─ Fila 6: Productos vendidos hoy (tabla scrollable)
 """
 
-from datetime import date
+from datetime import date, timedelta
 
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QGridLayout,
     QLabel, QPushButton, QDateEdit, QFrame, QSizePolicy, QScrollArea,
 )
-from PySide6.QtCore import Qt, QDate
-from PySide6.QtGui import QFont
+from PySide6.QtCore import Qt, QDate, QRect
+from PySide6.QtGui import QFont, QPainter, QColor, QPen, QBrush
 
 from controllers.dashboard_controller import DashboardController
 from services.reportes import ResumenDiario
@@ -203,6 +203,82 @@ class _MiniCard(QFrame):
 
 
 # ──────────────────────────────────────────────────────────────────────────────
+# Gráfica de tendencia 7 días (QPainter)
+# ──────────────────────────────────────────────────────────────────────────────
+
+class _TendenciaWidget(QWidget):
+    """
+    Mini gráfica de barras de los últimos 7 días.
+    Muestra ganancia neta diaria: verde=positivo, rojo=negativo.
+    """
+
+    def __init__(self, parent=None) -> None:
+        super().__init__(parent)
+        self._datos: list[tuple[date, float, float]] = []  # (fecha, ingresos, ganancia_neta)
+        self.setMinimumHeight(120)
+        self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+
+    def actualizar(self, datos: list[tuple[date, float, float]]) -> None:
+        self._datos = datos
+        self.update()
+
+    def paintEvent(self, _event) -> None:
+        if not self._datos:
+            return
+
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.Antialiasing)
+
+        w, h = self.width(), self.height()
+        pad_l, pad_r, pad_t, pad_b = 8, 8, 16, 28
+
+        n = len(self._datos)
+        slot_w = (w - pad_l - pad_r) / n
+        bar_w = max(6, int(slot_w * 0.55))
+
+        valores = [g for _, _, g in self._datos]
+        max_abs = max((abs(v) for v in valores), default=1) or 1
+        area_h = h - pad_t - pad_b
+        zero_y = pad_t + area_h // 2
+
+        # Línea de cero
+        painter.setPen(QPen(QColor("#CBD5E1"), 1))
+        painter.drawLine(pad_l, zero_y, w - pad_r, zero_y)
+
+        for i, (fecha, _ingresos, ganancia) in enumerate(self._datos):
+            cx = int(pad_l + i * slot_w + slot_w / 2)
+            bar_h = int(abs(ganancia) / max_abs * (area_h / 2))
+            bar_h = max(bar_h, 2)
+
+            if ganancia >= 0:
+                color = QColor("#22C55E")
+                rect = QRect(cx - bar_w // 2, zero_y - bar_h, bar_w, bar_h)
+            else:
+                color = QColor("#EF4444")
+                rect = QRect(cx - bar_w // 2, zero_y, bar_w, bar_h)
+
+            painter.setPen(Qt.NoPen)
+            painter.setBrush(QBrush(color))
+            painter.drawRoundedRect(rect, 2, 2)
+
+            # Etiqueta de fecha (día/mes)
+            painter.setPen(QPen(QColor("#94A3B8")))
+            font = painter.font(); font.setPointSize(7); painter.setFont(font)
+            lbl = fecha.strftime("%d/%m")
+            painter.drawText(cx - 16, h - 6, lbl)
+
+            # Valor encima/debajo de la barra
+            if bar_h > 12:
+                painter.setPen(QPen(QColor("#374151")))
+                font.setPointSize(6); painter.setFont(font)
+                val_str = f"{ganancia / 1000:.0f}k" if abs(ganancia) >= 1000 else f"{ganancia:.0f}"
+                text_y = (zero_y - bar_h - 3) if ganancia >= 0 else (zero_y + bar_h + 9)
+                painter.drawText(cx - 20, text_y, val_str)
+
+        painter.end()
+
+
+# ──────────────────────────────────────────────────────────────────────────────
 # Panel principal
 # ──────────────────────────────────────────────────────────────────────────────
 
@@ -245,6 +321,7 @@ class DashboardPanel(QWidget):
         lay.addLayout(self._fila_metodos_gastos())     # métodos|gastos 2×2
         lay.addWidget(self._panel_proyeccion())        # proyección full-width
         lay.addWidget(self._panel_comisiones_mes())    # comisiones full-width
+        lay.addWidget(self._panel_tendencia())         # gráfica últimos 7 días
         lay.addWidget(self._panel_productos())         # productos vendidos
         lay.addStretch()
 
@@ -506,6 +583,29 @@ class DashboardPanel(QWidget):
         lay.addWidget(self._frame_comisiones)
         return self._frame_comisiones_panel
 
+    # ── Fila 6b: tendencia últimos 7 días ────────────────────────────────────
+
+    def _panel_tendencia(self) -> QFrame:
+        frame = QFrame()
+        frame.setFrameShape(QFrame.StyledPanel)
+        frame.setStyleSheet(
+            "QFrame { background:#FFFFFF; border:1px solid #E5E7EB; border-radius:10px; }"
+        )
+        aplicar_sombra(frame)
+        lay = QVBoxLayout(frame)
+        lay.setContentsMargins(20, 12, 20, 12)
+        lay.setSpacing(6)
+
+        lbl = QLabel("TENDENCIA — ÚLTIMOS 7 DÍAS  (ganancia neta diaria)")
+        lbl.setStyleSheet(
+            "color:#6B7280; font-size:10px; font-weight:bold; letter-spacing:0.5px;"
+        )
+        lay.addWidget(lbl)
+
+        self._tendencia_widget = _TendenciaWidget()
+        lay.addWidget(self._tendencia_widget)
+        return frame
+
     # ── Fila 6: productos vendidos (full-width) ───────────────────────────────
 
     def _panel_productos(self) -> QFrame:
@@ -584,6 +684,28 @@ class DashboardPanel(QWidget):
         self._actualizar_desglose(datos["por_metodo"], datos["productos"])
         self._actualizar_proyeccion(datos["proyeccion"])
         self._actualizar_alertas(datos["alertas"])
+        self._actualizar_tendencia(fecha)
+
+    def _actualizar_tendencia(self, fecha_ref: date) -> None:
+        """Carga los últimos 7 días de ganancia neta para la gráfica."""
+        try:
+            from database.ventas_repo import obtener_ventas_por_rango
+            desde = fecha_ref - timedelta(days=6)
+            ventas = obtener_ventas_por_rango(desde, fecha_ref)
+            # Agrupar por fecha
+            por_dia: dict[date, tuple[float, float]] = {}
+            for v in ventas:
+                ing, gn = por_dia.get(v.fecha, (0.0, 0.0))
+                por_dia[v.fecha] = (ing + v.precio * v.cantidad, gn + v.ganancia_neta)
+            # Construir lista de 7 días (incluye días sin ventas con 0)
+            datos = []
+            for d in range(7):
+                dia = desde + timedelta(days=d)
+                ing, gn = por_dia.get(dia, (0.0, 0.0))
+                datos.append((dia, ing, gn))
+            self._tendencia_widget.actualizar(datos)
+        except Exception:
+            pass
 
     def _actualizar_cards(self, r: ResumenDiario):
         self.card_ventas.actualizar(

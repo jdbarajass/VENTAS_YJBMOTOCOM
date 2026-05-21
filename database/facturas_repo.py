@@ -69,6 +69,24 @@ def obtener_todas_facturas() -> list[Factura]:
     return [_row_to_factura(r) for r in rows]
 
 
+def obtener_facturas_proximas_a_vencer(dias: int = 7) -> list[Factura]:
+    """Retorna facturas pendientes cuya fecha_vencimiento está entre hoy y hoy+dias."""
+    conn = DatabaseConnection.get()
+    hoy = date.today().strftime("%Y-%m-%d")
+    limite = date.today().replace(day=date.today().day)
+    from datetime import timedelta
+    limite_str = (date.today() + timedelta(days=dias)).strftime("%Y-%m-%d")
+    rows = conn.execute(
+        """SELECT * FROM facturas
+           WHERE estado = 'pendiente'
+             AND fecha_vencimiento IS NOT NULL
+             AND fecha_vencimiento <= ?
+           ORDER BY fecha_vencimiento ASC""",
+        (limite_str,),
+    ).fetchall()
+    return [_row_to_factura(r) for r in rows]
+
+
 def obtener_facturas_pendientes() -> list[Factura]:
     conn = DatabaseConnection.get()
     rows = conn.execute(

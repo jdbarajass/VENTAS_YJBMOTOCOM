@@ -17,6 +17,7 @@ from PySide6.QtCore import Signal, Qt
 from PySide6.QtGui import QFont
 
 from utils.formatters import nombre_mes
+from utils.logger import log
 
 
 _MESES_NOMBRES = [
@@ -413,6 +414,7 @@ class ExportarImportarPanel(QWidget):
                 f"Contenido exportado:\n" + "\n".join(lineas),
             )
         except Exception as exc:
+            log.error("Error al exportar", exc_info=True)
             QMessageBox.critical(self, "Error al exportar", str(exc))
 
     def _on_importar(self) -> None:
@@ -427,6 +429,7 @@ class ExportarImportarPanel(QWidget):
             from services.importador import importar_todo, validar_resultado
             res = importar_todo(Path(ruta))
         except Exception as exc:
+            log.error("Error al leer archivo de importación: %s", ruta, exc_info=True)
             QMessageBox.critical(self, "Error al leer el archivo", str(exc))
             return
 
@@ -507,6 +510,7 @@ class ExportarImportarPanel(QWidget):
                     "Si algo sale mal, importa ese archivo para recuperar todo.",
                 )
             except Exception as exc:
+                log.error("Error al guardar respaldo previo a importación", exc_info=True)
                 QMessageBox.critical(self, "Error al guardar respaldo", str(exc))
                 return
 
@@ -571,6 +575,7 @@ class ExportarImportarPanel(QWidget):
             )
             self.datos_importados.emit()
         except Exception as exc:
+            log.error("Error durante la importación", exc_info=True)
             QMessageBox.critical(self, "Error durante la importación", str(exc))
 
     def _ejecutar_importacion(self, res) -> None:

@@ -78,6 +78,16 @@ def obtener_totales_por_categoria(anio: int, mes: int) -> dict[str, float]:
     return {r["categoria"]: r["total"] for r in rows}
 
 
+def obtener_gastos_por_rango(fecha_desde: date, fecha_hasta: date) -> list[GastoDia]:
+    """Retorna gastos entre fecha_desde y fecha_hasta (ambas inclusive)."""
+    conn = DatabaseConnection.get()
+    rows = conn.execute(
+        "SELECT * FROM gastos_dia WHERE fecha BETWEEN ? AND ? ORDER BY fecha ASC, id ASC",
+        (fecha_desde.strftime("%Y-%m-%d"), fecha_hasta.strftime("%Y-%m-%d")),
+    ).fetchall()
+    return [_row_to_gasto(r) for r in rows]
+
+
 def obtener_todos_gastos() -> list[GastoDia]:
     conn = DatabaseConnection.get()
     rows = conn.execute(

@@ -9,10 +9,11 @@ from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
     QComboBox, QSpinBox, QTableWidget, QTableWidgetItem,
     QHeaderView, QAbstractItemView, QFrame, QSizePolicy,
-    QMessageBox, QLineEdit,
+    QMessageBox, QLineEdit, QDateEdit, QFileDialog,
 )
-from PySide6.QtCore import Qt, Signal
+from PySide6.QtCore import Qt, Signal, QDate
 from PySide6.QtGui import QFont, QColor
+from PySide6.QtPrintSupport import QPrinter, QPrintDialog
 
 from controllers.historial_controller import HistorialController
 from controllers.venta_controller import VentaController
@@ -47,21 +48,26 @@ class HistorialPanel(QWidget):
 
         root.addLayout(self._barra_superior())
         root.addLayout(self._fila_resumen())
+        root.addWidget(self._panel_comisiones())
         root.addWidget(self._panel_resumen_diario())
         root.addWidget(self._panel_detalle_dia(), stretch=1)
 
     # ---- Barra superior ----
 
-    def _barra_superior(self) -> QHBoxLayout:
-        lay = QHBoxLayout()
+    def _barra_superior(self) -> QVBoxLayout:
+        outer = QVBoxLayout()
+        outer.setSpacing(6)
 
-        titulo = QLabel("Historial Mensual")
+        # ── Fila 1: título + controles de mes + botones ───────────────────────
+        fila1 = QHBoxLayout()
+
+        titulo = QLabel("Historial")
         f = QFont(); f.setPointSize(16); f.setBold(True)
         titulo.setFont(f)
 
         self.combo_mes = QComboBox()
-        self.combo_mes.setFixedHeight(34)
-        self.combo_mes.setFixedWidth(115)
+        self.combo_mes.setFixedHeight(32)
+        self.combo_mes.setFixedWidth(110)
         for num, nombre in MESES_ES.items():
             self.combo_mes.addItem(nombre, num)
         self.combo_mes.setCurrentIndex(date.today().month - 1)
@@ -69,26 +75,110 @@ class HistorialPanel(QWidget):
         self.spin_año = QSpinBox()
         self.spin_año.setRange(2020, 2040)
         self.spin_año.setValue(date.today().year)
-        self.spin_año.setFixedHeight(34)
-        self.spin_año.setFixedWidth(75)
+        self.spin_año.setFixedHeight(32)
+        self.spin_año.setFixedWidth(70)
         self.spin_año.setButtonSymbols(QSpinBox.NoButtons)
 
-        btn_prev = self._btn_nav("< Anterior")
-        btn_next = self._btn_nav("Siguiente >")
+        btn_prev = self._btn_nav("< Ant.")
+        btn_next = self._btn_nav("Sig. >")
         btn_prev.clicked.connect(self._mes_anterior)
         btn_next.clicked.connect(self._mes_siguiente)
 
-        self.combo_mes.currentIndexChanged.connect(lambda _: self.refresh())
-        self.spin_año.valueChanged.connect(lambda _: self.refresh())
+        self.combo_mes.currentIndexChanged.connect(self._on_filtro_mes_cambiado)
+        self.spin_año.valueChanged.connect(self._on_filtro_mes_cambiado)
 
-        lay.addWidget(titulo)
-        lay.addSpacing(12)
-        lay.addWidget(btn_prev)
-        lay.addWidget(self.combo_mes)
-        lay.addWidget(self.spin_año)
-        lay.addWidget(btn_next)
-        lay.addStretch()
-        return lay
+        # Botón PDF
+        self._btn_pdf = QPushButton("⬇ PDF")
+        self._btn_pdf.setFixedHeight(32)
+        self._btn_pdf.setToolTip("Exportar reporte mensual a PDF")
+        self._btn_pdf.setStyleSheet(
+            "QPushButton { background:#DC2626; color:white; border-radius:5px;"
+            "font-size:11px; font-weight:bold; padding:0 10px; border:none; }"
+            "QPushButton:hover { background:#B91C1C; }"
+        )
+        self._btn_pdf.clicked.connect(self._on_exportar_pdf)
+
+        # Botón imprimir
+        self._btn_imprimir = QPushButton("🖨 Imprimir")
+        self._btn_imprimir.setFixedHeight(32)
+        self._btn_imprimir.setToolTip("Imprimir reporte mensual")
+        self._btn_imprimir.setStyleSheet(
+            "QPushButton { background:#374151; color:white; border-radius:5px;"
+            "font-size:11px; font-weight:bold; padding:0 10px; border:none; }"
+            "QPushButton:hover { background:#1F2937; }"
+        )
+        self._btn_imprimir.clicked.connect(self._on_imprimir)
+
+        # Toggle modo rango
+        self._btn_modo_rango = QPushButton("📅 Rango de fechas")
+        self._btn_modo_rango.setCheckable(True)
+        self._btn_modo_rango.setFixedHeight(32)
+        self._btn_modo_rango.setStyleSheet(
+            "QPushButton { border:1px solid #D1D5DB; border-radius:5px;"
+            "background:white; color:#374151; padding:0 10px; font-size:11px; }"
+            "QPushButton:checked { background:#2563EB; color:white; border-color:#2563EB; font-weight:bold; }"
+            "QPushButton:hover:!checked { background:#F3F4F6; }"
+        )
+        self._btn_modo_rango.toggled.connect(self._on_toggle_modo_rango)
+
+        fila1.addWidget(titulo)
+        fila1.addSpacing(8)
+        fila1.addWidget(btn_prev)
+        fila1.addWidget(self.combo_mes)
+        fila1.addWidget(self.spin_año)
+        fila1.addWidget(btn_next)
+        fila1.addSpacing(8)
+        fila1.addWidget(self._btn_modo_rango)
+        fila1.addStretch()
+        fila1.addWidget(self._btn_pdf)
+        fila1.addWidget(self._btn_imprimir)
+        outer.addLayout(fila1)
+
+        # ── Fila 2: controles de rango (ocultos por defecto) ──────────────────
+        self._fila_rango = QWidget()
+        fila2 = QHBoxLayout(self._fila_rango)
+        fila2.setContentsMargins(0, 0, 0, 0)
+        fila2.setSpacing(8)
+
+        _estilo_date = (
+            "QDateEdit { border:1px solid #D1D5DB; border-radius:5px; padding:0 8px;"
+            "background:white; font-size:11px; height:30px; }"
+            "QDateEdit:focus { border:2px solid #2563EB; }"
+        )
+        lbl_desde = QLabel("Desde:")
+        lbl_desde.setStyleSheet("font-size:11px; color:#374151;")
+        self._date_desde = QDateEdit(QDate.currentDate().addDays(-30))
+        self._date_desde.setCalendarPopup(True)
+        self._date_desde.setFixedHeight(30)
+        self._date_desde.setStyleSheet(_estilo_date)
+
+        lbl_hasta = QLabel("Hasta:")
+        lbl_hasta.setStyleSheet("font-size:11px; color:#374151;")
+        self._date_hasta = QDateEdit(QDate.currentDate())
+        self._date_hasta.setCalendarPopup(True)
+        self._date_hasta.setFixedHeight(30)
+        self._date_hasta.setStyleSheet(_estilo_date)
+
+        btn_aplicar = QPushButton("Aplicar rango")
+        btn_aplicar.setFixedHeight(30)
+        btn_aplicar.setStyleSheet(
+            "QPushButton { background:#2563EB; color:white; border-radius:5px;"
+            "font-size:11px; font-weight:bold; padding:0 12px; border:none; }"
+            "QPushButton:hover { background:#1D4ED8; }"
+        )
+        btn_aplicar.clicked.connect(self._on_aplicar_rango)
+
+        fila2.addWidget(lbl_desde)
+        fila2.addWidget(self._date_desde)
+        fila2.addWidget(lbl_hasta)
+        fila2.addWidget(self._date_hasta)
+        fila2.addWidget(btn_aplicar)
+        fila2.addStretch()
+
+        self._fila_rango.setVisible(False)
+        outer.addWidget(self._fila_rango)
+
+        return outer
 
     def _btn_nav(self, texto: str) -> QPushButton:
         btn = QPushButton(texto)
@@ -145,6 +235,54 @@ class HistorialPanel(QWidget):
         w._lbl_sub   = lbl_s
         w._color_base = color
         return w
+
+    # ---- Panel resumen comisiones ----
+
+    def _panel_comisiones(self) -> QFrame:
+        frame = QFrame()
+        frame.setObjectName("panelComisiones")
+        frame.setFrameShape(QFrame.StyledPanel)
+        frame.setStyleSheet(
+            "QFrame#panelComisiones { background:#FFFFFF; border:1px solid #E5E7EB; border-radius:10px; }"
+        )
+        lay = QHBoxLayout(frame)
+        lay.setContentsMargins(16, 8, 16, 8)
+        lay.setSpacing(0)
+
+        lbl_titulo = QLabel("Comisiones:  ")
+        lbl_titulo.setStyleSheet("color:#6B7280; font-size:11px; font-weight:bold;")
+        lay.addWidget(lbl_titulo)
+
+        self._chips_comisiones: dict[str, QLabel] = {}
+        for metodo, color_fondo, color_texto in [
+            ("Efectivo",      "#DCFCE7", "#15803D"),
+            ("Addi",          "#EDE9FE", "#6D28D9"),
+            ("Bold",          "#FEF9C3", "#92400E"),
+            ("Transferencia", "#DBEAFE", "#1D4ED8"),
+            ("Combinado",     "#FFF7ED", "#C2410C"),
+        ]:
+            chip = QLabel(f"{metodo}: $0")
+            chip.setStyleSheet(
+                f"color:{color_texto}; background:{color_fondo};"
+                "border-radius:12px; padding:2px 10px; font-size:11px; font-weight:bold;"
+                "margin:0 4px;"
+            )
+            chip.setVisible(False)
+            lay.addWidget(chip)
+            self._chips_comisiones[metodo] = chip
+
+        self._lbl_sin_comisiones = QLabel("Sin comisiones en este período")
+        self._lbl_sin_comisiones.setStyleSheet("color:#9CA3AF; font-size:11px;")
+        lay.addWidget(self._lbl_sin_comisiones)
+        lay.addStretch()
+
+        self._lbl_total_comisiones = QLabel("")
+        self._lbl_total_comisiones.setStyleSheet(
+            "color:#DC2626; font-size:11px; font-weight:bold;"
+        )
+        lay.addWidget(self._lbl_total_comisiones)
+
+        return frame
 
     # ---- Tabla resumen por día (reemplaza gráfica) ----
 
@@ -323,11 +461,14 @@ class HistorialPanel(QWidget):
     # ------------------------------------------------------------------
 
     def refresh(self) -> None:
-        mes = self.combo_mes.currentData()
-        año = self.spin_año.value()
-        self._resumen = self._ctrl.cargar_resumen_mes(año, mes)
-        self._ventas  = self._ctrl.cargar_ventas_mes(año, mes)
-        self._actualizar_ui()
+        if getattr(self, "_modo_rango", False):
+            self._on_aplicar_rango()
+        else:
+            mes = self.combo_mes.currentData()
+            año = self.spin_año.value()
+            self._resumen = self._ctrl.cargar_resumen_mes(año, mes)
+            self._ventas  = self._ctrl.cargar_ventas_mes(año, mes)
+            self._actualizar_ui()
 
     def _actualizar_ui(self) -> None:
         r = self._resumen
@@ -393,6 +534,9 @@ class HistorialPanel(QWidget):
             item_est.setTextAlignment(Qt.AlignCenter)
             item_est.setForeground(QColor("#15803D") if rd.es_positivo else QColor("#DC2626"))
             self.tabla_diaria.setItem(row, 6, item_est)
+
+        # ---- Actualizar chips de comisiones ----
+        self._actualizar_chips_comisiones()
 
         # ---- Refrescar detalle si había un día seleccionado ----
         if self._fecha_seleccionada is not None:
@@ -641,6 +785,146 @@ class HistorialPanel(QWidget):
             self._venta_ctrl.eliminar_venta(venta_id)
             self.refresh()
             self.venta_modificada.emit()
+
+    # ------------------------------------------------------------------
+    # Navegación de mes
+    # ------------------------------------------------------------------
+
+    # ------------------------------------------------------------------
+    # Comisiones por método
+    # ------------------------------------------------------------------
+
+    def _actualizar_chips_comisiones(self) -> None:
+        from collections import defaultdict
+        totales: dict[str, float] = defaultdict(float)
+        for v in self._ventas:
+            if v.comision > 0:
+                totales[v.metodo_pago] += v.comision
+
+        alguno_visible = False
+        for metodo, chip in self._chips_comisiones.items():
+            if metodo in totales:
+                chip.setText(f"{metodo}: {cop(totales[metodo])}")
+                chip.setVisible(True)
+                alguno_visible = True
+            else:
+                chip.setVisible(False)
+
+        self._lbl_sin_comisiones.setVisible(not alguno_visible)
+        if alguno_visible and self._resumen:
+            self._lbl_total_comisiones.setText(
+                f"Total: {cop(self._resumen.total_comisiones)}"
+            )
+            self._lbl_total_comisiones.setVisible(True)
+        else:
+            self._lbl_total_comisiones.setVisible(False)
+
+    # ------------------------------------------------------------------
+    # Modo rango de fechas
+    # ------------------------------------------------------------------
+
+    def _on_toggle_modo_rango(self, activo: bool) -> None:
+        self._modo_rango = activo
+        self._fila_rango.setVisible(activo)
+        # Deshabilitar controles de mes al usar rango
+        self.combo_mes.setEnabled(not activo)
+        self.spin_año.setEnabled(not activo)
+        if not activo:
+            self.refresh()
+
+    def _on_filtro_mes_cambiado(self) -> None:
+        if not getattr(self, "_modo_rango", False):
+            self.refresh()
+
+    def _on_aplicar_rango(self) -> None:
+        desde_q = self._date_desde.date()
+        hasta_q = self._date_hasta.date()
+        desde = date(desde_q.year(), desde_q.month(), desde_q.day())
+        hasta = date(hasta_q.year(), hasta_q.month(), hasta_q.day())
+        if desde > hasta:
+            QMessageBox.warning(self, "Rango inválido",
+                                "La fecha 'Desde' debe ser anterior o igual a 'Hasta'.")
+            return
+
+        self._ventas = self._ctrl.cargar_ventas_rango(desde, hasta)
+
+        # Construir resumen libre (sin restricción de mes)
+        from database.gastos_dia_repo import obtener_gastos_por_rango
+        from database.config_repo import obtener_configuracion
+        from services.reportes import calcular_resumen_mensual
+
+        cfg = obtener_configuracion()
+        # Usamos el mes del primer día del rango como referencia para gastos fijos
+        gastos = obtener_gastos_por_rango(desde, hasta)
+        gastos_por_dia: dict = {}
+        for g in gastos:
+            gastos_por_dia[g.fecha] = gastos_por_dia.get(g.fecha, 0.0) + g.monto
+
+        self._resumen = calcular_resumen_mensual(
+            self._ventas, cfg, desde.year, desde.month, gastos_por_dia
+        )
+        lbl = f"Historial  {desde.strftime('%d/%m/%Y')} → {hasta.strftime('%d/%m/%Y')}"
+        self._actualizar_ui()
+
+    # ------------------------------------------------------------------
+    # Exportar PDF / Imprimir
+    # ------------------------------------------------------------------
+
+    def _on_exportar_pdf(self) -> None:
+        if self._resumen is None or not self._resumen.resumen_por_dia:
+            QMessageBox.information(self, "Sin datos",
+                                    "No hay datos en el período seleccionado para exportar.")
+            return
+
+        mes_nombre = MESES_ES.get(self._resumen.mes, str(self._resumen.mes))
+        sugerido = f"Reporte_{mes_nombre}_{self._resumen.año}.pdf"
+        ruta, _ = QFileDialog.getSaveFileName(
+            self, "Guardar reporte PDF", sugerido, "PDF (*.pdf)"
+        )
+        if not ruta:
+            return
+
+        try:
+            from services.pdf_reporte import generar_reporte_mensual_pdf
+            from pathlib import Path
+            generar_reporte_mensual_pdf(self._resumen, self._ventas, Path(ruta))
+            QMessageBox.information(
+                self, "PDF generado",
+                f"Reporte guardado en:\n{ruta}",
+            )
+        except Exception as exc:
+            from utils.logger import log
+            log.error("Error al generar PDF", exc_info=True)
+            QMessageBox.critical(self, "Error al generar PDF", str(exc))
+
+    def _on_imprimir(self) -> None:
+        if self._resumen is None or not self._resumen.resumen_por_dia:
+            QMessageBox.information(self, "Sin datos",
+                                    "No hay datos en el período seleccionado para imprimir.")
+            return
+
+        import tempfile, os
+        from pathlib import Path
+        from services.pdf_reporte import generar_reporte_mensual_pdf
+
+        try:
+            with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as tmp:
+                ruta_tmp = Path(tmp.name)
+
+            generar_reporte_mensual_pdf(self._resumen, self._ventas, ruta_tmp)
+
+            printer = QPrinter(QPrinter.HighResolution)
+            dlg = QPrintDialog(printer, self)
+            if dlg.exec() != QPrintDialog.Accepted:
+                ruta_tmp.unlink(missing_ok=True)
+                return
+
+            # Abrir el PDF con el visor del sistema (imprimirá desde allí)
+            os.startfile(str(ruta_tmp))
+        except Exception as exc:
+            from utils.logger import log
+            log.error("Error al imprimir", exc_info=True)
+            QMessageBox.critical(self, "Error al imprimir", str(exc))
 
     # ------------------------------------------------------------------
     # Navegación de mes

@@ -5,7 +5,7 @@ Caso de uso: resumen mensual para el historial.
 
 from pathlib import Path
 
-from database.ventas_repo import obtener_ventas_por_mes
+from database.ventas_repo import obtener_ventas_por_mes, obtener_ventas_por_rango
 from database.gastos_dia_repo import obtener_gastos_por_mes
 from database.config_repo import obtener_configuracion
 from database.prestamos_repo import obtener_todos_prestamos
@@ -31,6 +31,10 @@ class HistorialController:
             gastos_por_dia[g.fecha] = gastos_por_dia.get(g.fecha, 0.0) + g.monto
         cfg = obtener_configuracion()
         return calcular_resumen_mensual(ventas, cfg, año, mes, gastos_por_dia)
+
+    def cargar_ventas_rango(self, fecha_desde, fecha_hasta) -> list:
+        """Retorna ventas en un rango de fechas libre."""
+        return obtener_ventas_por_rango(fecha_desde, fecha_hasta)
 
     def exportar_excel(self, año: int, mes: int, ruta: Path) -> None:
         """Genera el Excel con todas las ventas del mes y hoja de préstamos."""

@@ -21,6 +21,8 @@ class Configuracion:
     comision_transferencia: float = 0.0  # Porcentaje (normalmente 0)
     clave_inventario: str = "YJB2026_*"  # Contraseña para Inventario y Configuración
     nombre_impresora: str = ""           # Nombre Windows de la impresora térmica POS
+    modo_oscuro: bool = False            # Tema oscuro activado
+    timeout_minutos: int = 10            # Minutos de inactividad antes de bloquear sesión
 
     # ------------------------------------------------------------------
     # Propiedades derivadas

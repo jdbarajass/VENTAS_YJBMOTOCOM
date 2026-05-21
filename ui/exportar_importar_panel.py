@@ -1,8 +1,8 @@
 """
 ui/exportar_importar_panel.py
 Centro unificado de exportación e importación de datos.
-Un solo archivo Excel con hasta 6 hojas: Ventas | Préstamos | Inventario |
-Facturas | Gastos | Configuración.
+Un solo archivo Excel con hasta 8 hojas: Ventas | Préstamos | Inventario |
+Facturas | Abonos | Gastos | Notas | Configuración.
 """
 
 from datetime import date as _date
@@ -232,8 +232,9 @@ class ExportarImportarPanel(QWidget):
             "  • Las ventas de los meses del archivo se REEMPLAZARÁN",
             "  • Todos los préstamos se REEMPLAZARÁN",
             "  • Todo el inventario se REEMPLAZARÁ",
-            "  • Todas las facturas se REEMPLAZARÁN",
+            "  • Todas las facturas y abonos se REEMPLAZARÁN",
             "  • Los gastos de los meses del archivo se REEMPLAZARÁN",
+            "  • Todas las notas y pendientes se REEMPLAZARÁN",
             "  • La configuración se ACTUALIZARÁ (si viene en el archivo)",
         ):
             l = QLabel(linea)
@@ -500,6 +501,13 @@ class ExportarImportarPanel(QWidget):
         else:
             meses_str = "ningún mes detectado"
 
+        def _conteo(lst, singular, plural=None):
+            if lst is None:
+                return f"  • {singular}: no incluido(a) en el archivo"
+            n = len(lst)
+            label = plural or singular
+            return f"  • {n} {label}"
+
         cfg_str = "Sí" if res.configuracion else "No incluida"
         confirmacion = (
             f"¿Confirmar importación?\n\n"
@@ -510,9 +518,9 @@ class ExportarImportarPanel(QWidget):
             f"  • {len(res.productos)} producto(s) de inventario\n"
             f"  • {len(res.facturas)} factura(s)\n"
             f"  • {len(res.gastos)} gasto(s) operativo(s)\n"
-            f"  • {len(res.notas)} nota(s) y pendiente(s)\n"
-            f"  • {len(res.abonos_raw)} abono(s) de facturas\n"
-            f"  • Configuración: {cfg_str}\n\n"
+            + _conteo(res.notas, "nota(s) y pendiente(s)") + "\n"
+            + _conteo(res.abonos_raw, "abono(s) de facturas") + "\n"
+            + f"  • Configuración: {cfg_str}\n\n"
             f"Esta acción no se puede deshacer."
         )
         # Advertencias de validación de coherencia
@@ -540,8 +548,8 @@ class ExportarImportarPanel(QWidget):
                 f"  • {len(res.productos)} producto(s)\n"
                 f"  • {len(res.facturas)} factura(s)\n"
                 f"  • {len(res.gastos)} gasto(s) operativo(s)\n"
-                f"  • {len(res.notas)} nota(s) y pendiente(s)\n"
-                f"  • {len(res.abonos_raw)} abono(s) de facturas\n"
+                + (f"  • {len(res.notas)} nota(s) y pendiente(s)\n" if res.notas is not None else "")
+                + (f"  • {len(res.abonos_raw)} abono(s) de facturas\n" if res.abonos_raw is not None else "")
                 + ("  • Configuración actualizada" if res.configuracion else ""),
             )
             self.datos_importados.emit()
@@ -549,7 +557,7 @@ class ExportarImportarPanel(QWidget):
             QMessageBox.critical(self, "Error durante la importación", str(exc))
 
     def _ejecutar_importacion(self, res) -> None:
-        """Reemplaza ventas, préstamos, inventario, facturas, gastos y config."""
+        """Reemplaza ventas, préstamos, inventario, facturas, abonos, gastos, notas y config."""
         from database.ventas_repo import (
             eliminar_ventas_por_mes, insertar_venta,
         )
@@ -629,8 +637,8 @@ class ExportarImportarPanel(QWidget):
         if res.configuracion:
             guardar_configuracion(res.configuracion)
 
-        # Notas y Pendientes
-        if res.notas:
+        # Notas y Pendientes (solo si la hoja vino en el archivo)
+        if res.notas is not None:
             from database.notas_repo import eliminar_todas_notas, insertar_nota
             eliminar_todas_notas()
             for n in res.notas:

@@ -88,8 +88,8 @@ class ResultadoImportacionTotal:
     gastos: list[GastoDia] = field(default_factory=list)
     meses_gastos_afectados: set = field(default_factory=set)
     configuracion: Configuracion | None = None
-    notas: list = field(default_factory=list)
-    abonos_raw: list = field(default_factory=list)   # list[dict] con factura_desc/prov + monto/fecha/notas
+    notas: list | None = None        # None = hoja ausente; [] = hoja vacía; [...] = con datos
+    abonos_raw: list | None = None   # None = hoja ausente; [] = hoja vacía; [...] = con datos
     errores: list[str] = field(default_factory=list)
 
     @property
@@ -647,7 +647,7 @@ def importar_todo(ruta: Path) -> ResultadoImportacionTotal:
         (wb[s] for s in wb.sheetnames if s.lower() in ("notas", "notas y pendientes")),
         None,
     )
-    if ws_n:
+    if ws_n is not None:
         resultado.notas = _leer_notas(ws_n)
 
     # ── Hoja Abonos de Facturas ────────────────────────────────────────────
@@ -655,7 +655,7 @@ def importar_todo(ruta: Path) -> ResultadoImportacionTotal:
         (wb[s] for s in wb.sheetnames if s.lower() in ("abonos", "abonos de facturas")),
         None,
     )
-    if ws_ab:
+    if ws_ab is not None:
         resultado.abonos_raw = _leer_abonos(ws_ab)
 
     return resultado

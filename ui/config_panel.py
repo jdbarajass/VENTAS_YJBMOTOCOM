@@ -224,13 +224,6 @@ class ConfigPanel(QWidget):
         self._combo_impresora = QComboBox()
         self._combo_impresora.setFixedHeight(34)
         self._combo_impresora.setEditable(True)
-        self._combo_impresora.setStyleSheet(
-            "QComboBox { background:white; color:#1E293B; border:1px solid #D1D5DB;"
-            "  border-radius:6px; padding:0 10px; font-size:12px; }"
-            "QComboBox:focus { border:2px solid #2563EB; }"
-            "QComboBox QAbstractItemView { background:white; color:#1E293B;"
-            "  selection-background-color:#DBEAFE; }"
-        )
         fila.addWidget(self._combo_impresora, stretch=1)
 
         btn_detectar = QPushButton("Detectar")
@@ -429,8 +422,7 @@ class ConfigPanel(QWidget):
         self._tabla_usuarios.setMaximumHeight(140)
         self._tabla_usuarios.setStyleSheet(
             "QTableWidget { border:1px solid #E5E7EB; border-radius:6px; font-size:11px; }"
-            "QHeaderView::section { background:#F1F5F9; color:#374151; font-weight:bold;"
-            "  border:none; padding:5px; font-size:10px; }"
+            "QHeaderView::section { font-weight:bold; border:none; padding:5px; font-size:10px; }"
         )
         hh = self._tabla_usuarios.horizontalHeader()
         hh.setSectionResizeMode(0, QHeaderView.Stretch)
@@ -653,25 +645,11 @@ class ConfigPanel(QWidget):
 
     @staticmethod
     def _estilo_campo() -> str:
-        return (
-            "QLineEdit, QDoubleSpinBox, QSpinBox {"
-            "  border: 1px solid #D1D5DB; border-radius: 6px;"
-            "  padding: 0 10px; background: white;"
-            "}"
-            "QLineEdit:focus, QDoubleSpinBox:focus, QSpinBox:focus {"
-            "  border: 2px solid #2563EB;"
-            "}"
-        )
+        return ""
 
     @staticmethod
     def _estilo_groupbox() -> str:
-        return (
-            "QGroupBox { font-weight: bold; font-size: 13px; color: #374151;"
-            "  border: 1px solid #E5E7EB; border-radius: 10px; margin-top: 14px;"
-            "  padding: 16px 12px 12px 12px; background: white; }"
-            "QGroupBox::title { subcontrol-origin: margin; subcontrol-position: top left;"
-            "  padding: 0 8px; background: white; }"
-        )
+        return ""
 
     # ------------------------------------------------------------------
     # Carga y guardado

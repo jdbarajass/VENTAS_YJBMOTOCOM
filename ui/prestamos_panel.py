@@ -149,12 +149,7 @@ class EditPrestamoDialog(QDialog):
 
     @staticmethod
     def _campo_style() -> str:
-        return (
-            "QLineEdit, QDateEdit, QComboBox {"
-            "border:1px solid #D1D5DB; border-radius:6px; padding:0 8px; background:white; }"
-            "QLineEdit:focus, QDateEdit:focus, QComboBox:focus {"
-            "border:2px solid #2563EB; }"
-        )
+        return ""
 
 
 # Estado → (texto, color fondo, color texto)
@@ -632,13 +627,7 @@ class PrestamosPanel(QWidget):
 
     @staticmethod
     def _estilo_campo() -> str:
-        return (
-            "QLineEdit, QDateEdit {"
-            "border:1px solid #D1D5DB; border-radius:6px;"
-            "padding:0 8px; background:white; }"
-            "QLineEdit:focus, QDateEdit:focus {"
-            "border:2px solid #0284C7; }"
-        )
+        return ""
 
     def refresh(self) -> None:
         self._cargar_datos()

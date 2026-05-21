@@ -130,6 +130,7 @@ QDateEdit {
     border-radius: 6px;
     padding: 5px 10px;
     background: #FFFFFF;
+    color: #111827;
 }
 QDateEdit:focus {
     border: 2px solid #2563EB;
@@ -137,6 +138,21 @@ QDateEdit:focus {
 QDateEdit::drop-down {
     border: none;
     width: 24px;
+}
+
+QTimeEdit {
+    border: 1px solid #D1D5DB;
+    border-radius: 6px;
+    padding: 5px 10px;
+    background: #FFFFFF;
+    color: #111827;
+}
+QTimeEdit:focus {
+    border: 2px solid #2563EB;
+}
+QTimeEdit::up-button, QTimeEdit::down-button {
+    width: 0px;
+    border: none;
 }
 
 /* ==========================================================
@@ -501,6 +517,21 @@ QDateEdit:focus {
 QDateEdit::drop-down {
     border: none;
     width: 24px;
+}
+
+QTimeEdit {
+    border: 1px solid #475569;
+    border-radius: 6px;
+    padding: 5px 10px;
+    background: #1E293B;
+    color: #F1F5F9;
+}
+QTimeEdit:focus {
+    border: 2px solid #3B82F6;
+}
+QTimeEdit::up-button, QTimeEdit::down-button {
+    width: 0px;
+    border: none;
 }
 
 /* ==========================================================

@@ -334,6 +334,9 @@ class MainWindow(QMainWindow):
         self._facturas._panel_cargue.inventario_actualizado.connect(self._inventario.refresh)
         self._facturas._panel_cargue.inventario_actualizado.connect(self._form_venta.actualizar_inventario)
         self._facturas._panel_cargue.inventario_actualizado.connect(self._actualizar_badge_stock)
+        # Cuando cambian gastos operativos → refrescar dashboard e historial automáticamente
+        self._ventas_dia.gastos_actualizados.connect(self._dashboard.refresh)
+        self._ventas_dia.gastos_actualizados.connect(self._historial.refresh)
 
         layout.addWidget(self._stack)
         return wrapper

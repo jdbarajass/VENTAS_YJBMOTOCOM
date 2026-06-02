@@ -366,6 +366,20 @@ class DashboardPanel(QWidget):
         )
         btn_hoy.clicked.connect(lambda: self.date_selector.setDate(QDate.currentDate()))
 
+        btn_refresh = QPushButton("⟳  Actualizar")
+        btn_refresh.setFixedHeight(34)
+        btn_refresh.setToolTip(
+            "Recarga todos los datos desde la base de datos.\n"
+            "Útil si acabas de registrar gastos operativos u otros cambios."
+        )
+        btn_refresh.setStyleSheet(
+            "QPushButton { background:#2563EB; color:white; border-radius:5px;"
+            "padding:0 14px; font-size:12px; font-weight:bold; border:none; }"
+            "QPushButton:hover { background:#1D4ED8; }"
+            "QPushButton:pressed { background:#1E40AF; }"
+        )
+        btn_refresh.clicked.connect(self.refresh)
+
         self._lbl_estado = QLabel("")
         self._lbl_estado.setFixedHeight(28)
         self._lbl_estado.setStyleSheet(
@@ -379,6 +393,8 @@ class DashboardPanel(QWidget):
         lay.addWidget(self.date_selector)
         lay.addWidget(btn_sig)
         lay.addWidget(btn_hoy)
+        lay.addSpacing(8)
+        lay.addWidget(btn_refresh)
         lay.addSpacing(16)
         lay.addWidget(self._lbl_estado)
         lay.addStretch()

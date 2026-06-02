@@ -11,7 +11,7 @@ from PySide6.QtWidgets import (
     QHeaderView, QAbstractItemView, QMessageBox,
     QFrame, QLineEdit, QScrollArea, QComboBox,
 )
-from PySide6.QtCore import Qt, QDate
+from PySide6.QtCore import Qt, QDate, Signal
 from PySide6.QtGui import QFont, QColor
 
 from controllers.ventas_dia_controller import VentasDiaController
@@ -40,6 +40,10 @@ TOTAL_COLS   = 12
 
 class VentasDiaPanel(QWidget):
     """Vista de ventas del día con tabla, edición, eliminación, gastos operativos y export."""
+
+    # Emitida cuando se agregan o eliminan gastos operativos del día,
+    # para que MainWindow refresque el dashboard y el historial automáticamente.
+    gastos_actualizados = Signal()
 
     def __init__(self, parent=None) -> None:
         super().__init__(parent)
@@ -720,6 +724,7 @@ class VentasDiaPanel(QWidget):
             self._gastos = self._ctrl.cargar_gastos(fecha)
             self._poblar_gastos()
             self._actualizar_resumen()
+            self.gastos_actualizados.emit()
         except ValueError as exc:
             QMessageBox.warning(self, "Error", str(exc))
 
@@ -730,6 +735,7 @@ class VentasDiaPanel(QWidget):
         self._gastos = self._ctrl.cargar_gastos(fecha)
         self._poblar_gastos()
         self._actualizar_resumen()
+        self.gastos_actualizados.emit()
 
     # ------------------------------------------------------------------
     # API pública

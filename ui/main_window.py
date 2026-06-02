@@ -334,9 +334,10 @@ class MainWindow(QMainWindow):
         self._facturas._panel_cargue.inventario_actualizado.connect(self._inventario.refresh)
         self._facturas._panel_cargue.inventario_actualizado.connect(self._form_venta.actualizar_inventario)
         self._facturas._panel_cargue.inventario_actualizado.connect(self._actualizar_badge_stock)
-        # Cuando cambian gastos operativos → refrescar dashboard e historial automáticamente
+        # Cuando cambian gastos operativos → refrescar dashboard, historial y presupuesto
         self._ventas_dia.gastos_actualizados.connect(self._dashboard.refresh)
         self._ventas_dia.gastos_actualizados.connect(self._historial.refresh)
+        self._ventas_dia.gastos_actualizados.connect(self._presupuesto.refresh)
 
         layout.addWidget(self._stack)
         return wrapper
@@ -544,12 +545,15 @@ class MainWindow(QMainWindow):
         self._actualizar_badge_stock()
 
     def _on_datos_importados(self) -> None:
-        """Al importar desde el panel unificado, refresca todas las vistas."""
+        """Al importar desde el panel unificado, refresca TODAS las vistas."""
         self._ventas_dia.refresh()
         self._dashboard.refresh()
         self._historial.refresh()
         self._inventario.refresh()
         self._facturas.refresh()
+        self._prestamos.refresh()     # importación puede traer préstamos nuevos
+        self._notas.refresh()         # importación puede traer notas nuevas
+        self._presupuesto.refresh()   # importación puede traer presupuesto nuevo
         self._config.reload()
         self._form_venta.actualizar_inventario()
         self._actualizar_badge_stock()

@@ -201,11 +201,24 @@ class PrestamosPanel(QWidget):
         self.chk_solo_pendientes.setStyleSheet("color: #374151; font-size: 12px;")
         self.chk_solo_pendientes.toggled.connect(lambda _: self._cargar_datos())
 
+        btn_refresh = QPushButton("⟳  Actualizar")
+        btn_refresh.setFixedHeight(34)
+        btn_refresh.setToolTip("Recarga la lista de préstamos desde la base de datos.")
+        btn_refresh.setStyleSheet(
+            "QPushButton { background:#2563EB; color:white; border-radius:5px;"
+            "padding:0 14px; font-size:12px; font-weight:bold; border:none; }"
+            "QPushButton:hover { background:#1D4ED8; }"
+            "QPushButton:pressed { background:#1E40AF; }"
+        )
+        btn_refresh.clicked.connect(self.refresh)
+
         lay.addWidget(titulo)
         lay.addSpacing(12)
         lay.addWidget(desc)
         lay.addStretch()
         lay.addWidget(self.chk_solo_pendientes)
+        lay.addSpacing(8)
+        lay.addWidget(btn_refresh)
         return lay
 
     # ---- Formulario de registro ----

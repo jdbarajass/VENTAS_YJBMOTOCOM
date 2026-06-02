@@ -111,12 +111,21 @@ class MainWindow(QMainWindow):
         layout.setContentsMargins(0, 0, 0, 16)
         layout.setSpacing(2)
 
-        # Logo / nombre — muestra imagen si existe assets/logo.png, si no texto
+        # Logo / nombre — busca cualquier PNG/JPG en assets/, si no muestra texto
         import sys
         from pathlib import Path as _Path
         _base = _Path(getattr(sys, "_MEIPASS", _Path(__file__).parent.parent))
-        _logo_path = _base / "assets" / "logo.png"
-        if _logo_path.exists():
+        _assets = _base / "assets"
+        _logo_path = None
+        if _assets.exists():
+            for _n in ("logo.png", "logo.jpg", "logo.jpeg"):
+                if (_assets / _n).exists():
+                    _logo_path = _assets / _n
+                    break
+            if _logo_path is None:
+                _candidates = sorted(_assets.glob("*.png")) + sorted(_assets.glob("*.jpg"))
+                _logo_path = next((p for p in _candidates if p.stem != "icon"), None)
+        if _logo_path:
             logo = QLabel()
             logo.setAlignment(Qt.AlignCenter)
             logo.setContentsMargins(10, 16, 10, 4)

@@ -13,7 +13,7 @@ from PySide6.QtWidgets import (
     QInputDialog, QLineEdit, QMessageBox,
 )
 from PySide6.QtCore import Qt, QSize, QTimer
-from PySide6.QtGui import QFont
+from PySide6.QtGui import QFont, QPixmap
 
 from ui.busqueda_widget import BusquedaWidget
 from ui.calculadora_panel import CalculadoraPanel
@@ -111,15 +111,29 @@ class MainWindow(QMainWindow):
         layout.setContentsMargins(0, 0, 0, 16)
         layout.setSpacing(2)
 
-        # Logo / nombre
-        logo = QLabel("YJBMOTOCOM")
-        logo.setAlignment(Qt.AlignCenter)
-        logo.setContentsMargins(0, 24, 0, 8)
-        font_logo = QFont()
-        font_logo.setPointSize(13)
-        font_logo.setBold(True)
-        logo.setFont(font_logo)
-        logo.setStyleSheet("color: #F8FAFC; letter-spacing: 1px;")
+        # Logo / nombre — muestra imagen si existe assets/logo.png, si no texto
+        import sys
+        from pathlib import Path as _Path
+        _base = _Path(getattr(sys, "_MEIPASS", _Path(__file__).parent.parent))
+        _logo_path = _base / "assets" / "logo.png"
+        if _logo_path.exists():
+            logo = QLabel()
+            logo.setAlignment(Qt.AlignCenter)
+            logo.setContentsMargins(10, 16, 10, 4)
+            _pix = QPixmap(str(_logo_path)).scaledToWidth(
+                180, Qt.SmoothTransformation
+            )
+            logo.setPixmap(_pix)
+            logo.setStyleSheet("background:transparent;")
+        else:
+            logo = QLabel("YJBMOTOCOM")
+            logo.setAlignment(Qt.AlignCenter)
+            logo.setContentsMargins(0, 24, 0, 8)
+            font_logo = QFont()
+            font_logo.setPointSize(13)
+            font_logo.setBold(True)
+            logo.setFont(font_logo)
+            logo.setStyleSheet("color: #F8FAFC; letter-spacing: 1px;")
         layout.addWidget(logo)
 
         sub = QLabel("Control de Rentabilidad")

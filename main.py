@@ -10,6 +10,7 @@ NO contiene lógica de negocio ni acceso a datos.
 """
 
 import sys
+from pathlib import Path
 from PySide6.QtWidgets import QApplication, QMessageBox
 from database.schema import initialize_schema
 from database.connection import DatabaseConnection
@@ -17,6 +18,9 @@ from ui.main_window import MainWindow
 from ui.styles import GLOBAL_STYLESHEET
 from utils.backup import hacer_backup
 from utils.logger import log
+
+# Directorio raíz del proyecto (funciona tanto en desarrollo como en .exe)
+_BASE_DIR = Path(getattr(sys, "_MEIPASS", Path(__file__).parent))
 
 
 def _migrar_clave_a_hash() -> None:
@@ -70,6 +74,14 @@ def main() -> None:
     # Estilo Fusion como base + hoja de estilos global del sistema de diseño
     app.setStyle("Fusion")
     app.setStyleSheet(GLOBAL_STYLESHEET)
+
+    # Icono de la ventana / taskbar (assets/icon.ico o assets/icon.png)
+    from PySide6.QtGui import QIcon
+    for _icon_name in ("icon.ico", "icon.png"):
+        _icon_path = _BASE_DIR / "assets" / _icon_name
+        if _icon_path.exists():
+            app.setWindowIcon(QIcon(str(_icon_path)))
+            break
 
     # Inicializar base de datos antes de mostrar la ventana
     initialize_schema()

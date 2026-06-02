@@ -15,10 +15,16 @@ if exist build rmdir /s /q build
 if exist dist  rmdir /s /q dist
 if exist YJBMOTOCOM.spec del YJBMOTOCOM.spec
 
+REM Incluir icono en el .exe si existe assets\icon.ico
+set ICON_ARG=
+if exist assets\icon.ico set ICON_ARG=--icon "assets\icon.ico"
+
 python -m PyInstaller ^
     --onedir ^
     --windowed ^
     --name "YJBMOTOCOM" ^
+    --add-data "assets;assets" ^
+    %ICON_ARG% ^
     --hidden-import "PySide6.QtXml" ^
     --hidden-import "PySide6.QtPrintSupport" ^
     --hidden-import "openpyxl" ^

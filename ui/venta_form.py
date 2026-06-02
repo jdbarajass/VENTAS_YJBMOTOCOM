@@ -21,12 +21,32 @@ from models.venta import Venta
 from controllers.venta_controller import VentaController
 from utils.formatters import cop, porcentaje
 
-# Estilo compartido para QComboBox (evita fondo negro del sistema)
-_COMBO_STYLE = (
-    "QComboBox { border-radius:5px; padding:0 10px; font-size:12px; }"
-    "QComboBox:focus { border:2px solid #3B82F6; }"
-    "QComboBox::drop-down { border:none; width:20px; }"
-)
+def _get_combo_style(radius: int = 5, padding: str = "0 10px",
+                     font_size: int = 12, dropdown_width: int = 20) -> str:
+    """Retorna hoja de estilo completa para QComboBox según el tema activo.
+    Incluye colores explícitos para el combo y su popup, evitando el fondo
+    negro del sistema operativo que aparece cuando Qt no hereda del stylesheet
+    global porque el widget tiene un estilo propio parcial.
+    """
+    from ui.styles import es_modo_oscuro
+    if es_modo_oscuro():
+        bg, fg, bdr          = "#1E293B", "#F1F5F9", "#475569"
+        popup_bdr, sel_bg, sel_fg = "#334155", "#1E3A5F", "#93C5FD"
+    else:
+        bg, fg, bdr          = "#FFFFFF", "#111827", "#D1D5DB"
+        popup_bdr, sel_bg, sel_fg = "#E5E7EB", "#EFF6FF", "#1D4ED8"
+    return (
+        f"QComboBox {{ border-radius:{radius}px; padding:{padding}; "
+        f"font-size:{font_size}px; background:{bg}; color:{fg}; "
+        f"border:1px solid {bdr}; }}"
+        "QComboBox:focus { border:2px solid #3B82F6; }"
+        f"QComboBox::drop-down {{ border:none; width:{dropdown_width}px; }}"
+        f"QComboBox QAbstractItemView {{ background:{bg}; color:{fg}; "
+        f"border:1px solid {popup_bdr}; border-radius:6px; padding:2px; "
+        f"selection-background-color:{sel_bg}; selection-color:{sel_fg}; "
+        f"outline:none; }}"
+        "QComboBox QAbstractItemView::item { padding:6px 10px; border-radius:4px; }"
+    )
 
 # Métodos de pago disponibles (orden de ComboBox)
 METODOS_PAGO = ["Efectivo", "Addi", "Transferencia", "Otro"]
@@ -142,9 +162,7 @@ class _LineaProducto:
         self._combo_talla.setVisible(False)
         self._combo_talla.setToolTip("Talla del producto")
         self._combo_talla.setStyleSheet(
-            "QComboBox { border-radius:5px; padding:0 4px; font-size:11px; }"
-            "QComboBox:focus { border:2px solid #3B82F6; }"
-            "QComboBox::drop-down { border:none; width:16px; }"
+            _get_combo_style(radius=5, padding="0 4px", font_size=11, dropdown_width=16)
         )
 
         btn_del = QPushButton("✕")
@@ -550,7 +568,7 @@ class VentaForm(QWidget):
         self.campo_metodo = QComboBox()
         self.campo_metodo.addItems(METODOS_PAGO)
         self.campo_metodo.setFixedHeight(34)
-        self.campo_metodo.setStyleSheet(_COMBO_STYLE)
+        self.campo_metodo.setStyleSheet(_get_combo_style())
         self._btn_combinado = QPushButton("Combinado")
         self._btn_combinado.setCheckable(True)
         self._btn_combinado.setFixedHeight(34)
@@ -574,7 +592,7 @@ class VentaForm(QWidget):
         self.campo_sub_transferencia = QComboBox()
         self.campo_sub_transferencia.addItems(TRANSFERENCIA_SUBTIPOS)
         self.campo_sub_transferencia.setFixedHeight(34)
-        self.campo_sub_transferencia.setStyleSheet(_COMBO_STYLE)
+        self.campo_sub_transferencia.setStyleSheet(_get_combo_style())
         form2.addRow(self.lbl_sub_transferencia, self.campo_sub_transferencia)
         self.lbl_sub_transferencia.setVisible(False)
         self.campo_sub_transferencia.setVisible(False)
@@ -806,10 +824,7 @@ class VentaForm(QWidget):
 
     def _agregar_fila_pago(self, metodo: str = "Efectivo", monto: int = 0) -> None:
         """Agrega una fila de pago al panel combinado."""
-        _combo_style = (
-            "QComboBox { border-radius:4px; padding:0 8px; }"
-            "QComboBox::drop-down { border:none; width:18px; }"
-        )
+        _combo_style = _get_combo_style(radius=4, padding="0 8px", font_size=12, dropdown_width=18)
 
         row_w = QWidget()
         row_w.setStyleSheet("background:transparent;")

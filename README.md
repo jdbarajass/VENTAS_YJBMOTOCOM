@@ -307,6 +307,8 @@ La tabla `schema_version` registra qué migraciones ya se aplicaron. Al actualiz
 | F1 | **Combo negro en Método de Pago** — `_get_combo_style()` incluye colores explícitos y regla `QAbstractItemView` para evitar el fondo negro del sistema OS en Windows 11 (afectaba también a talla, sub-tipo de transferencia y pagos combinados) |
 | F2 | **Soporte de logo e icono** — detección automática desde carpeta `assets/`; cualquier PNG/JPG se usa como logo del sidebar; `.ico`/`.png` como icono de ventana y taskbar; compatible con PyInstaller |
 | F3 | **Exportación verificada** — confirmado que las 10 tablas de datos de usuario se exportan correctamente cuando todos los checkboxes están activos (ventas, préstamos, inventario, facturas, abonos, gastos, notas, configuración, usuarios, presupuesto) |
+| F4 | **Auto-refresh al cambiar gastos operativos** — nueva señal `gastos_actualizados` en `VentasDiaPanel`; al agregar o eliminar un gasto se propaga automáticamente a Dashboard, Historial y Presupuesto sin necesidad de cerrar la app; botón `⟳ Actualizar` añadido al Dashboard |
+| F5 | **Propagación completa de refreshes tras importación** — `_on_datos_importados()` ahora refresca también Préstamos, Notas y Presupuesto (antes quedaban desactualizados y había que hacer workarounds como toggle de filtros); botón `⟳ Actualizar` añadido al panel Préstamos |
 
 ---
 

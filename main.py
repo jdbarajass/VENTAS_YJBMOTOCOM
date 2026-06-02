@@ -75,13 +75,23 @@ def main() -> None:
     app.setStyle("Fusion")
     app.setStyleSheet(GLOBAL_STYLESHEET)
 
-    # Icono de la ventana / taskbar (assets/icon.ico o assets/icon.png)
+    # Icono de la ventana / taskbar
+    # Busca icon.ico → icon.png → cualquier PNG/JPG en assets/ (fallback)
     from PySide6.QtGui import QIcon
-    for _icon_name in ("icon.ico", "icon.png"):
-        _icon_path = _BASE_DIR / "assets" / _icon_name
-        if _icon_path.exists():
-            app.setWindowIcon(QIcon(str(_icon_path)))
+    _assets_dir = _BASE_DIR / "assets"
+    _icon_file = None
+    for _n in ("icon.ico", "icon.png"):
+        if (_assets_dir / _n).exists():
+            _icon_file = _assets_dir / _n
             break
+    if _icon_file is None and _assets_dir.exists():
+        _icon_file = next(
+            (p for p in sorted(_assets_dir.glob("*.png")) + sorted(_assets_dir.glob("*.ico"))
+             if p.is_file()),
+            None,
+        )
+    if _icon_file:
+        app.setWindowIcon(QIcon(str(_icon_file)))
 
     # Inicializar base de datos antes de mostrar la ventana
     initialize_schema()

@@ -70,6 +70,10 @@ VENTAS_YJBMOTOCOM/
 ├── build.bat                      # Script para generar el .exe
 ├── requirements.txt               # Dependencias pip
 │
+├── assets/                        # Personalización visual (opcional)
+│   ├── icon.ico / icon.png        # Icono de ventana y taskbar
+│   └── logo.png / *.png           # Logo del sidebar (cualquier PNG/JPG)
+│
 ├── models/                        # Modelos de dominio (dataclasses)
 │   ├── venta.py
 │   ├── gasto_dia.py
@@ -188,6 +192,22 @@ Para distribuir: copiar toda la carpeta `dist\YJBMOTOCOM\` y crear un acceso dir
 
 ---
 
+## Personalización visual — Logo e icono
+
+El programa detecta automáticamente los archivos en la carpeta `assets/` al arrancar, sin necesidad de recompilar.
+
+| Archivo | Efecto | Formato recomendado |
+|---------|--------|---------------------|
+| `assets/icon.ico` | Icono de la ventana y de la taskbar de Windows | `.ico` 256×256 px (o multi-resolución) |
+| `assets/icon.png` | Alternativa si no se dispone de `.ico` | PNG cuadrado ≥ 64×64 px |
+| `assets/logo.png` _(o cualquier PNG/JPG)_ | Imagen en el sidebar, reemplaza el texto "YJBMOTOCOM" | PNG con fondo transparente u oscuro, ~180 px de ancho |
+
+**Regla de búsqueda del logo:** el programa busca primero `logo.png` / `logo.jpg` / `logo.jpeg`; si no existe ninguno, usa el primer PNG o JPG que encuentre en `assets/` (excluyendo el archivo `icon.*`).
+
+**Para el build `.exe`:** si existe `assets/icon.ico`, se incrusta automáticamente como icono del ejecutable. La carpeta `assets/` completa se incluye en el bundle.
+
+---
+
 ## Seguridad
 
 ### Contraseña de acceso
@@ -280,6 +300,13 @@ La tabla `schema_version` registra qué migraciones ya se aplicaron. Al actualiz
 |---|--------|
 | 6.1 | Modo oscuro: toggle en Configuración para cambiar tema claro/oscuro |
 | 6.2 | Tiempo de timeout de sesión configurable desde el panel Configuración (1–60 min) |
+
+### Fixes y mejoras post-fases ✅
+| # | Descripción |
+|---|-------------|
+| F1 | **Combo negro en Método de Pago** — `_get_combo_style()` incluye colores explícitos y regla `QAbstractItemView` para evitar el fondo negro del sistema OS en Windows 11 (afectaba también a talla, sub-tipo de transferencia y pagos combinados) |
+| F2 | **Soporte de logo e icono** — detección automática desde carpeta `assets/`; cualquier PNG/JPG se usa como logo del sidebar; `.ico`/`.png` como icono de ventana y taskbar; compatible con PyInstaller |
+| F3 | **Exportación verificada** — confirmado que las 10 tablas de datos de usuario se exportan correctamente cuando todos los checkboxes están activos (ventas, préstamos, inventario, facturas, abonos, gastos, notas, configuración, usuarios, presupuesto) |
 
 ---
 

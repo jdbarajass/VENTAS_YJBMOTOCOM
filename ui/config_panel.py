@@ -471,6 +471,53 @@ class ConfigPanel(QWidget):
         self._lbl_usuarios_feedback.setStyleSheet("font-size:11px;")
         lay.addWidget(self._lbl_usuarios_feedback)
 
+        # Subsección: cambiar contraseña de cualquier usuario
+        sep2 = QFrame(); sep2.setFrameShape(QFrame.HLine)
+        sep2.setStyleSheet("color:#E5E7EB; margin:4px 0;")
+        lay.addWidget(sep2)
+
+        lbl_cambiar = QLabel("Cambiar contraseña de usuario:")
+        lbl_cambiar.setStyleSheet("font-size:11px; font-weight:bold; color:#374151;")
+        lay.addWidget(lbl_cambiar)
+
+        fila_cambiar = QHBoxLayout()
+        fila_cambiar.setSpacing(8)
+
+        self._combo_usuario_clave = QComboBox()
+        self._combo_usuario_clave.setFixedHeight(32)
+        self._combo_usuario_clave.setMinimumWidth(130)
+
+        self._campo_clave_user_nueva = QLineEdit()
+        self._campo_clave_user_nueva.setEchoMode(QLineEdit.Password)
+        self._campo_clave_user_nueva.setPlaceholderText("Nueva contraseña")
+        self._campo_clave_user_nueva.setFixedHeight(32)
+        self._campo_clave_user_nueva.setStyleSheet(self._estilo_campo())
+
+        self._campo_clave_user_confirmar = QLineEdit()
+        self._campo_clave_user_confirmar.setEchoMode(QLineEdit.Password)
+        self._campo_clave_user_confirmar.setPlaceholderText("Confirmar")
+        self._campo_clave_user_confirmar.setFixedHeight(32)
+        self._campo_clave_user_confirmar.setStyleSheet(self._estilo_campo())
+
+        btn_cambiar_user = QPushButton("Actualizar")
+        btn_cambiar_user.setFixedHeight(32)
+        btn_cambiar_user.setFixedWidth(90)
+        btn_cambiar_user.setStyleSheet(
+            "QPushButton { background:#374151; color:white; border-radius:5px; font-size:11px; }"
+            "QPushButton:hover { background:#1F2937; }"
+        )
+        btn_cambiar_user.clicked.connect(self._on_cambiar_clave_usuario)
+
+        fila_cambiar.addWidget(self._combo_usuario_clave)
+        fila_cambiar.addWidget(self._campo_clave_user_nueva, stretch=1)
+        fila_cambiar.addWidget(self._campo_clave_user_confirmar, stretch=1)
+        fila_cambiar.addWidget(btn_cambiar_user)
+        lay.addLayout(fila_cambiar)
+
+        self._lbl_clave_user_feedback = QLabel("")
+        self._lbl_clave_user_feedback.setStyleSheet("font-size:11px;")
+        lay.addWidget(self._lbl_clave_user_feedback)
+
         self._cargar_tabla_usuarios()
         return box
 
@@ -494,6 +541,15 @@ class ConfigPanel(QWidget):
                 )
                 btn_del.clicked.connect(lambda _, uid=u.id: self._on_eliminar_usuario(uid))
                 self._tabla_usuarios.setCellWidget(row, 2, btn_del)
+        # Refrescar combo de cambio de clave
+        if hasattr(self, "_combo_usuario_clave"):
+            sel_actual = self._combo_usuario_clave.currentText()
+            self._combo_usuario_clave.clear()
+            for u in usuarios:
+                self._combo_usuario_clave.addItem(u.nombre, userData=u.id)
+            idx = self._combo_usuario_clave.findText(sel_actual)
+            if idx >= 0:
+                self._combo_usuario_clave.setCurrentIndex(idx)
 
     def _on_crear_usuario(self) -> None:
         nombre = self._campo_nuevo_usuario.text().strip()
@@ -533,6 +589,40 @@ class ConfigPanel(QWidget):
             self._cargar_tabla_usuarios()
             import utils.auditoria as auditoria
             auditoria.registrar("Usuario eliminado", f"id={usuario_id}")
+
+    def _on_cambiar_clave_usuario(self) -> None:
+        self._lbl_clave_user_feedback.setText("")
+        nombre = self._combo_usuario_clave.currentText()
+        uid = self._combo_usuario_clave.currentData()
+        nueva = self._campo_clave_user_nueva.text()
+        confirmar = self._campo_clave_user_confirmar.text()
+
+        if not nombre or uid is None:
+            self._lbl_clave_user_feedback.setText("Selecciona un usuario.")
+            self._lbl_clave_user_feedback.setStyleSheet("font-size:11px; color:#DC2626;")
+            return
+        if not nueva or not confirmar:
+            self._lbl_clave_user_feedback.setText("Completa los dos campos de contraseña.")
+            self._lbl_clave_user_feedback.setStyleSheet("font-size:11px; color:#DC2626;")
+            return
+        if nueva != confirmar:
+            self._lbl_clave_user_feedback.setText("Las contraseñas no coinciden.")
+            self._lbl_clave_user_feedback.setStyleSheet("font-size:11px; color:#DC2626;")
+            return
+        if len(nueva) < 4:
+            self._lbl_clave_user_feedback.setText("Mínimo 4 caracteres.")
+            self._lbl_clave_user_feedback.setStyleSheet("font-size:11px; color:#DC2626;")
+            return
+
+        from database.usuarios_repo import actualizar_clave_usuario
+        from utils.security import hashear_clave
+        actualizar_clave_usuario(uid, hashear_clave(nueva))
+        self._campo_clave_user_nueva.clear()
+        self._campo_clave_user_confirmar.clear()
+        self._lbl_clave_user_feedback.setText(f"✔  Contraseña de '{nombre}' actualizada.")
+        self._lbl_clave_user_feedback.setStyleSheet("font-size:11px; color:#15803D;")
+        import utils.auditoria as auditoria
+        auditoria.registrar("Contraseña de usuario cambiada", f"{nombre} (id={uid})")
 
     # ---- Sección auditoría ----
 

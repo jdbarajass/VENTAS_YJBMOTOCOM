@@ -25,7 +25,7 @@ class LoginDialog(QDialog):
         super().__init__(parent)
         self.setWindowTitle("YJBMOTOCOM — Inicio de sesión")
         self.setFixedSize(440, 480)
-        self.setWindowFlags(Qt.Dialog | Qt.WindowTitleHint | Qt.MSWindowsFixedSizeDialogHint)
+        self.setWindowFlags(Qt.Dialog | Qt.WindowTitleHint | Qt.WindowCloseButtonHint)
         self.setStyleSheet("background:#F8FAFC;")
 
         self.usuario_nombre: str = ""

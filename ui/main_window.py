@@ -208,10 +208,10 @@ class MainWindow(QMainWindow):
         layout.addStretch()
 
         # Usuario activo
-        lbl_usuario = QLabel(f"{'👑' if self._rol == 'admin' else '👤'}  {self._usuario}")
-        lbl_usuario.setAlignment(Qt.AlignCenter)
-        lbl_usuario.setStyleSheet("color:#94A3B8; font-size:11px; padding:4px 0;")
-        layout.addWidget(lbl_usuario)
+        self._lbl_usuario = QLabel(f"{'👑' if self._rol == 'admin' else '👤'}  {self._usuario}")
+        self._lbl_usuario.setAlignment(Qt.AlignCenter)
+        self._lbl_usuario.setStyleSheet("color:#94A3B8; font-size:11px; padding:4px 0;")
+        layout.addWidget(self._lbl_usuario)
 
         # Botón cerrar sesión
         btn_logout = QPushButton("↩  Cerrar sesión")
@@ -497,10 +497,12 @@ class MainWindow(QMainWindow):
         import utils.auditoria as auditoria
         auditoria.registrar("Cierre de sesión")
         from ui.login_dialog import LoginDialog
-        login = LoginDialog(self)
+        self.hide()
+        login = LoginDialog()
         if login.exec() == LoginDialog.Accepted:
             self._usuario = login.usuario_nombre
             self._rol = login.usuario_rol
+            self._lbl_usuario.setText(f"{'👑' if self._rol == 'admin' else '👤'}  {self._usuario}")
             self._paginas_desbloqueadas.clear()
             if self._rol == "admin":
                 self._paginas_desbloqueadas.update({PAGE_CONFIG, PAGE_EXPORTAR})
@@ -508,6 +510,7 @@ class MainWindow(QMainWindow):
             _ocultas_vendedor = {PAGE_CONFIG, PAGE_EXPORTAR}
             for idx, btn in self._nav_buttons.items():
                 btn.setVisible(not (self._rol == "vendedor" and idx in _ocultas_vendedor))
+            self.showMaximized()
             self._navegar(PAGE_REGISTRAR)
             self._status.showMessage(f"Sesión iniciada como {self._usuario}")
         else:

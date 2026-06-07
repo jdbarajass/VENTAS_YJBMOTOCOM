@@ -252,8 +252,30 @@ class CalculadoraPanel(QWidget):
         lbl_d = QLabel("Descuento al cliente (opcional):")
         lbl_d.setStyleSheet("font-size:10px;color:#6B7280;")
         lay.addWidget(lbl_d)
-        self._chips_d = _ChipGroup(_DCTOS_CLIENTE, self._recalcular_dcto)
+        self._chips_d = _ChipGroup(_DCTOS_CLIENTE, self._on_chip_dcto_cliente)
         lay.addWidget(self._chips_d)
+
+        fila_manual_d = QHBoxLayout()
+        fila_manual_d.setSpacing(6)
+        fila_manual_d.setContentsMargins(0, 0, 0, 0)
+        lbl_manual_d = QLabel("% manual:")
+        lbl_manual_d.setStyleSheet("font-size:10px;color:#6B7280;")
+        self._spin_d = QSpinBox()
+        self._spin_d.setRange(0, 99)
+        self._spin_d.setSuffix(" %")
+        self._spin_d.setValue(0)
+        self._spin_d.setFixedHeight(26)
+        self._spin_d.setFixedWidth(82)
+        self._spin_d.setStyleSheet(
+            "QSpinBox{border:1px solid #CBD5E1;border-radius:13px;"
+            "font-size:10px;font-weight:bold;padding:0 6px;}"
+            "QSpinBox:focus{border:2px solid #2563EB;}"
+        )
+        self._spin_d.valueChanged.connect(self._on_spin_dcto_cliente)
+        fila_manual_d.addWidget(lbl_manual_d)
+        fila_manual_d.addWidget(self._spin_d)
+        fila_manual_d.addStretch()
+        lay.addLayout(fila_manual_d)
 
         self._frame_dcto = QFrame()
         self._frame_dcto.setStyleSheet(
@@ -314,9 +336,31 @@ class CalculadoraPanel(QWidget):
         col_dp = QVBoxLayout(); col_dp.setSpacing(3)
         lbl_dp = QLabel("% Descuento proveedor:")
         lbl_dp.setStyleSheet("font-size:10px;color:#6B7280;")
-        self._chips_dp = _ChipGroup(_DCTOS_PROVEEDOR, self._recalcular_cascos)
+        self._chips_dp = _ChipGroup(_DCTOS_PROVEEDOR, self._on_chip_dcto_proveedor)
         self._chips_dp.set_valor(5)
         col_dp.addWidget(lbl_dp); col_dp.addWidget(self._chips_dp)
+
+        fila_manual_dp = QHBoxLayout()
+        fila_manual_dp.setSpacing(6)
+        fila_manual_dp.setContentsMargins(0, 0, 0, 0)
+        lbl_manual_dp = QLabel("% manual:")
+        lbl_manual_dp.setStyleSheet("font-size:10px;color:#6B7280;")
+        self._spin_dp = QSpinBox()
+        self._spin_dp.setRange(0, 50)
+        self._spin_dp.setSuffix(" %")
+        self._spin_dp.setValue(5)
+        self._spin_dp.setFixedHeight(26)
+        self._spin_dp.setFixedWidth(82)
+        self._spin_dp.setStyleSheet(
+            "QSpinBox{border:1px solid #CBD5E1;border-radius:13px;"
+            "font-size:10px;font-weight:bold;padding:0 6px;}"
+            "QSpinBox:focus{border:2px solid #F59E0B;}"
+        )
+        self._spin_dp.valueChanged.connect(self._on_spin_dcto_proveedor)
+        fila_manual_dp.addWidget(lbl_manual_dp)
+        fila_manual_dp.addWidget(self._spin_dp)
+        fila_manual_dp.addStretch()
+        col_dp.addLayout(fila_manual_dp)
         fila_opt.addLayout(col_dp)
 
         col_iva = QVBoxLayout(); col_iva.setSpacing(3)
@@ -475,6 +519,36 @@ class CalculadoraPanel(QWidget):
             self._chips_g.limpiar()
         self._recalcular()
 
+    def _on_chip_dcto_cliente(self):
+        v = self._chips_d.valor()
+        if v is not None:
+            self._spin_d.blockSignals(True)
+            self._spin_d.setValue(v)
+            self._spin_d.blockSignals(False)
+        self._recalcular_dcto()
+
+    def _on_spin_dcto_cliente(self, v: int):
+        if v in _DCTOS_CLIENTE:
+            self._chips_d.set_valor(v)
+        else:
+            self._chips_d.limpiar()
+        self._recalcular_dcto()
+
+    def _on_chip_dcto_proveedor(self):
+        v = self._chips_dp.valor()
+        if v is not None:
+            self._spin_dp.blockSignals(True)
+            self._spin_dp.setValue(v)
+            self._spin_dp.blockSignals(False)
+        self._recalcular_cascos()
+
+    def _on_spin_dcto_proveedor(self, v: int):
+        if v in _DCTOS_PROVEEDOR:
+            self._chips_dp.set_valor(v)
+        else:
+            self._chips_dp.limpiar()
+        self._recalcular_cascos()
+
     def _recalcular(self):
         costo = self._costo.valor_int()
         pct   = self._spin_g.value()
@@ -497,7 +571,7 @@ class CalculadoraPanel(QWidget):
     def _recalcular_dcto(self):
         costo  = self._costo.valor_int()
         pct_g  = self._spin_g.value()
-        pct_d  = self._chips_d.valor()
+        pct_d  = self._spin_d.value()
         if not costo:
             self._frame_dcto.setVisible(False)
             return
@@ -525,7 +599,7 @@ class CalculadoraPanel(QWidget):
 
     def _recalcular_cascos(self):
         precio_raw = self._precio_factura.valor_int()
-        dcto_pct   = self._chips_dp.valor() or 0
+        dcto_pct   = self._spin_dp.value()
         incluye_iva = self._chk_iva.isChecked()
 
         def _vaciar():

@@ -111,7 +111,7 @@ class MainWindow(QMainWindow):
         layout.setContentsMargins(0, 0, 0, 16)
         layout.setSpacing(2)
 
-        # Logo / nombre — busca cualquier PNG/JPG en assets/, si no muestra texto
+        # ── Header / Logo ─────────────────────────────────────────────────
         import sys
         from pathlib import Path as _Path
         _base = _Path(getattr(sys, "_MEIPASS", _Path(__file__).parent.parent))
@@ -125,45 +125,64 @@ class MainWindow(QMainWindow):
             if _logo_path is None:
                 _candidates = sorted(_assets.glob("*.png")) + sorted(_assets.glob("*.jpg"))
                 _logo_path = next((p for p in _candidates if p.stem != "icon"), None)
+
+        header_frame = QFrame()
+        header_frame.setStyleSheet(
+            "QFrame { background-color: #162032; border-bottom: 1px solid #2D3F55; }"
+        )
+        h_layout = QVBoxLayout(header_frame)
+        h_layout.setContentsMargins(12, 14, 12, 10)
+        h_layout.setSpacing(5)
+
+        top_row = QHBoxLayout()
+        top_row.setSpacing(10)
+
         if _logo_path:
-            logo = QLabel()
-            logo.setAlignment(Qt.AlignCenter)
-            logo.setContentsMargins(10, 16, 10, 4)
-            _pix = QPixmap(str(_logo_path)).scaledToWidth(
-                180, Qt.SmoothTransformation
+            lbl_icon = QLabel()
+            lbl_icon.setFixedSize(52, 52)
+            lbl_icon.setAlignment(Qt.AlignCenter)
+            _pix = QPixmap(str(_logo_path)).scaled(
+                52, 52, Qt.KeepAspectRatio, Qt.SmoothTransformation
             )
-            logo.setPixmap(_pix)
-            logo.setStyleSheet("background:transparent;")
-        else:
-            logo = QLabel("YJBMOTOCOM")
-            logo.setAlignment(Qt.AlignCenter)
-            logo.setContentsMargins(0, 24, 0, 8)
-            font_logo = QFont()
-            font_logo.setPointSize(13)
-            font_logo.setBold(True)
-            logo.setFont(font_logo)
-            logo.setStyleSheet("color: #F8FAFC; letter-spacing: 1px;")
-        layout.addWidget(logo)
+            lbl_icon.setPixmap(_pix)
+            lbl_icon.setStyleSheet("background: transparent;")
+            top_row.addWidget(lbl_icon)
 
-        sub = QLabel("Control de Rentabilidad")
-        sub.setAlignment(Qt.AlignCenter)
-        sub.setStyleSheet("color: #94A3B8; font-size: 10px;")
-        layout.addWidget(sub)
+        info_col = QVBoxLayout()
+        info_col.setSpacing(2)
+        lbl_nombre = QLabel("YJBMOTOCOM")
+        _fn = QFont()
+        _fn.setPointSize(11)
+        _fn.setBold(True)
+        lbl_nombre.setFont(_fn)
+        lbl_nombre.setStyleSheet(
+            "color: #F8FAFC; letter-spacing: 1px; background: transparent;"
+        )
+        info_col.addWidget(lbl_nombre)
 
-        # Fecha actual
+        lbl_sub = QLabel("Control de Rentabilidad")
+        lbl_sub.setStyleSheet("color: #94A3B8; font-size: 9px; background: transparent;")
+        info_col.addWidget(lbl_sub)
+        info_col.addStretch()
+
+        top_row.addLayout(info_col)
+        top_row.addStretch()
+        h_layout.addLayout(top_row)
+
         hoy = _date.today()
         DIAS_ES = ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"]
         MESES_ES = ["", "Ene", "Feb", "Mar", "Abr", "May", "Jun",
                     "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"]
         fecha_str = f"{DIAS_ES[hoy.weekday()]}  {hoy.day} {MESES_ES[hoy.month]} {hoy.year}"
         lbl_fecha = QLabel(fecha_str)
-        lbl_fecha.setAlignment(Qt.AlignCenter)
+        lbl_fecha.setAlignment(Qt.AlignRight)
         lbl_fecha.setStyleSheet(
-            "color: #64748B; font-size: 11px; margin-top: 6px;"
+            "color: #64748B; font-size: 10px; background: transparent;"
         )
-        layout.addWidget(lbl_fecha)
+        h_layout.addWidget(lbl_fecha)
 
-        layout.addSpacing(12)
+        layout.addWidget(header_frame)
+        layout.addSpacing(8)
 
         # Búsqueda global
         self._busqueda = BusquedaWidget({

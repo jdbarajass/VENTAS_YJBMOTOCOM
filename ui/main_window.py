@@ -10,7 +10,7 @@ from datetime import date as _date
 from PySide6.QtWidgets import (
     QMainWindow, QWidget, QHBoxLayout, QVBoxLayout,
     QLabel, QStatusBar, QPushButton, QStackedWidget, QFrame,
-    QInputDialog, QLineEdit, QMessageBox, QScrollArea,
+    QInputDialog, QLineEdit, QMessageBox, QScrollArea, QApplication,
 )
 from PySide6.QtCore import Qt, QSize, QTimer
 from PySide6.QtGui import QFont, QPixmap
@@ -139,11 +139,15 @@ class MainWindow(QMainWindow):
 
         if _logo_path:
             lbl_icon = QLabel()
-            lbl_icon.setFixedSize(52, 52)
+            _icon_size = 52
+            lbl_icon.setFixedSize(_icon_size, _icon_size)
             lbl_icon.setAlignment(Qt.AlignCenter)
+            _dpr = QApplication.primaryScreen().devicePixelRatio()
+            _phys = int(_icon_size * _dpr)
             _pix = QPixmap(str(_logo_path)).scaled(
-                52, 52, Qt.KeepAspectRatio, Qt.SmoothTransformation
+                _phys, _phys, Qt.KeepAspectRatio, Qt.SmoothTransformation
             )
+            _pix.setDevicePixelRatio(_dpr)
             lbl_icon.setPixmap(_pix)
             lbl_icon.setStyleSheet("background: transparent;")
             top_row.addWidget(lbl_icon)

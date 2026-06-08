@@ -687,6 +687,30 @@ class VentaForm(QWidget):
 
         layout.addSpacing(4)
 
+        # Total de venta
+        self._lbl_total_titulo = QLabel("Total de venta")
+        self._lbl_total_titulo.setStyleSheet("color: #6B7280; font-size: 11px;")
+        self._lbl_total_venta = QLabel("$ 0")
+        self._lbl_total_venta.setFont(self._font_valor())
+        self._lbl_total_venta.setStyleSheet("color: #1E293B;")
+        layout.addWidget(self._lbl_total_titulo)
+        layout.addWidget(self._lbl_total_venta)
+
+        layout.addWidget(self._separador_horizontal())
+
+        # Medios de pago
+        self._lbl_medios_titulo = QLabel("Medio de pago")
+        self._lbl_medios_titulo.setStyleSheet("color: #6B7280; font-size: 11px;")
+        layout.addWidget(self._lbl_medios_titulo)
+        self._frame_medios = QWidget()
+        self._frame_medios.setStyleSheet("background:transparent;")
+        self._lay_medios = QVBoxLayout(self._frame_medios)
+        self._lay_medios.setContentsMargins(0, 0, 0, 0)
+        self._lay_medios.setSpacing(2)
+        layout.addWidget(self._frame_medios)
+
+        layout.addWidget(self._separador_horizontal())
+
         # Ganancia bruta
         self.lbl_bruta_titulo = QLabel("Ganancia Bruta")
         self.lbl_bruta_titulo.setStyleSheet("color: #6B7280; font-size: 11px;")
@@ -978,6 +1002,35 @@ class VentaForm(QWidget):
         data = self._ctrl.calcular_preview(
             total_costo, total_precio, metodo, 1, pagos
         )
+
+        # Total de venta
+        self._lbl_total_venta.setText(cop(total_precio))
+
+        # Medios de pago — limpiar y repoblar
+        while self._lay_medios.count():
+            item = self._lay_medios.takeAt(0)
+            if item.widget():
+                item.widget().deleteLater()
+
+        if self._btn_combinado.isChecked() and self._filas_pago:
+            self._lbl_medios_titulo.setText("Medios de pago")
+            for combo, monto_edit, _, combo_sub in self._filas_pago:
+                m = combo.currentText()
+                if m == "Transferencia" and combo_sub is not None:
+                    m = f"Transferencia {combo_sub.currentText()}"
+                monto = monto_edit.valor_int()
+                lbl = QLabel(f"{m}:  {cop(monto)}")
+                lbl.setStyleSheet(
+                    "font-size:12px; font-weight:bold; color:#1E293B; background:transparent;"
+                )
+                self._lay_medios.addWidget(lbl)
+        else:
+            self._lbl_medios_titulo.setText("Medio de pago")
+            lbl = QLabel(f"{metodo}:  {cop(total_precio)}")
+            lbl.setStyleSheet(
+                "font-size:12px; font-weight:bold; color:#1E293B; background:transparent;"
+            )
+            self._lay_medios.addWidget(lbl)
 
         self.lbl_bruta.setText(cop(data["ganancia_bruta"]))
         if data.get("es_combinado"):

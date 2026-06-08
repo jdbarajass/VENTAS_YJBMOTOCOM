@@ -10,7 +10,7 @@ from datetime import date as _date
 from PySide6.QtWidgets import (
     QMainWindow, QWidget, QHBoxLayout, QVBoxLayout,
     QLabel, QStatusBar, QPushButton, QStackedWidget, QFrame,
-    QInputDialog, QLineEdit, QMessageBox,
+    QInputDialog, QLineEdit, QMessageBox, QScrollArea,
 )
 from PySide6.QtCore import Qt, QSize, QTimer
 from PySide6.QtGui import QFont, QPixmap
@@ -182,7 +182,20 @@ class MainWindow(QMainWindow):
         h_layout.addWidget(lbl_fecha)
 
         layout.addWidget(header_frame)
-        layout.addSpacing(8)
+
+        # ── Sección scrolleable: búsqueda + nav ────────────────────────────
+        nav_scroll = QScrollArea()
+        nav_scroll.setWidgetResizable(True)
+        nav_scroll.setFrameShape(QFrame.NoFrame)
+        nav_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        nav_scroll.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+        nav_scroll.setStyleSheet("background: transparent; border: none;")
+
+        nav_content = QWidget()
+        nav_content.setStyleSheet("background: transparent;")
+        nav_inner = QVBoxLayout(nav_content)
+        nav_inner.setContentsMargins(0, 8, 0, 8)
+        nav_inner.setSpacing(2)
 
         # Búsqueda global
         self._busqueda = BusquedaWidget({
@@ -191,29 +204,28 @@ class MainWindow(QMainWindow):
             "HISTORIAL":  PAGE_HISTORIAL,
         })
         self._busqueda.resultado_seleccionado.connect(self._navegar)
-        layout.addWidget(self._busqueda)
+        nav_inner.addWidget(self._busqueda)
 
-        layout.addSpacing(8)
-        layout.addWidget(self._separador_sidebar())
-        layout.addSpacing(8)
+        nav_inner.addSpacing(8)
+        nav_inner.addWidget(self._separador_sidebar())
+        nav_inner.addSpacing(8)
 
         # Botones de navegación
         nav_items = [
-            (PAGE_REGISTRAR,  "＋  Registrar Venta"),
+            (PAGE_REGISTRAR,   "＋  Registrar Venta"),
             (PAGE_CALCULADORA, "🧮  Calculadora"),
-            (PAGE_VENTAS_DIA, "📋  Ventas del Día"),
-            (PAGE_DASHBOARD,  "📊  Dashboard"),
-            (PAGE_HISTORIAL,  "📅  Historial Mensual"),
-            (PAGE_INVENTARIO, "📦  Inventario"),
-            (PAGE_PRESTAMOS,  "🤝  Préstamos"),
+            (PAGE_VENTAS_DIA,  "📋  Ventas del Día"),
+            (PAGE_DASHBOARD,   "📊  Dashboard"),
+            (PAGE_HISTORIAL,   "📅  Historial Mensual"),
+            (PAGE_INVENTARIO,  "📦  Inventario"),
+            (PAGE_PRESTAMOS,   "🤝  Préstamos"),
             (PAGE_FACTURAS,    "🧾  Facturas"),
             (PAGE_PRESUPUESTO, "💰  Presupuesto"),
-            (PAGE_NOTAS,      "📝  Notas y Pendientes"),
-            (PAGE_EXPORTAR,   "⬇⬆  Exportar / Importar"),
-            (PAGE_CONFIG,     "⚙  Configuración"),
+            (PAGE_NOTAS,       "📝  Notas y Pendientes"),
+            (PAGE_EXPORTAR,    "⬇⬆  Exportar / Importar"),
+            (PAGE_CONFIG,      "⚙  Configuración"),
         ]
 
-        # Páginas ocultas para vendedor
         _ocultas_vendedor = {PAGE_CONFIG, PAGE_EXPORTAR}
 
         self._nav_buttons: dict[int, QPushButton] = {}
@@ -222,17 +234,26 @@ class MainWindow(QMainWindow):
             self._nav_buttons[page_idx] = btn
             if self._rol == "vendedor" and page_idx in _ocultas_vendedor:
                 btn.setVisible(False)
-            layout.addWidget(btn)
+            nav_inner.addWidget(btn)
 
-        layout.addStretch()
+        nav_inner.addStretch()
+        nav_scroll.setWidget(nav_content)
+        layout.addWidget(nav_scroll, stretch=1)
 
-        # Usuario activo
+        # ── Sección fija inferior ───────────────────────────────────────────
+        bottom_frame = QFrame()
+        bottom_frame.setStyleSheet(
+            "QFrame { border-top: 1px solid #2D3F55; background: transparent; }"
+        )
+        bottom_layout = QVBoxLayout(bottom_frame)
+        bottom_layout.setContentsMargins(0, 6, 0, 0)
+        bottom_layout.setSpacing(0)
+
         self._lbl_usuario = QLabel(f"{'👑' if self._rol == 'admin' else '👤'}  {self._usuario}")
         self._lbl_usuario.setAlignment(Qt.AlignCenter)
         self._lbl_usuario.setStyleSheet("color:#94A3B8; font-size:11px; padding:4px 0;")
-        layout.addWidget(self._lbl_usuario)
+        bottom_layout.addWidget(self._lbl_usuario)
 
-        # Botón cerrar sesión
         btn_logout = QPushButton("↩  Cerrar sesión")
         btn_logout.setFixedHeight(34)
         btn_logout.setStyleSheet(
@@ -241,13 +262,14 @@ class MainWindow(QMainWindow):
             "QPushButton:hover { color:#F87171; }"
         )
         btn_logout.clicked.connect(self._on_cerrar_sesion)
-        layout.addWidget(btn_logout)
+        bottom_layout.addWidget(btn_logout)
 
-        # Versión al pie
         version = QLabel("v2.0")
         version.setAlignment(Qt.AlignCenter)
-        version.setStyleSheet("color: #475569; font-size: 10px;")
-        layout.addWidget(version)
+        version.setStyleSheet("color: #475569; font-size: 10px; padding-bottom: 4px;")
+        bottom_layout.addWidget(version)
+
+        layout.addWidget(bottom_frame)
 
         return sidebar
 

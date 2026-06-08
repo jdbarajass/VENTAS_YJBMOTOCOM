@@ -94,6 +94,7 @@ def initialize_schema() -> None:
     _seed_configuracion(conn)
     _setup_version_table(conn)
     _aplicar_migraciones_pendientes(conn)
+    _reparar_migraciones_fallidas(conn)
     conn.commit()
     log.info("Schema inicializado correctamente (versión %d)", _VERSION_ACTUAL)
 
@@ -239,12 +240,13 @@ def _setup_version_table(conn: sqlite3.Connection) -> None:
         # Una BD existente ya tiene la columna clave_inventario
         tiene_clave = _columna_existe(conn, "configuracion", "clave_inventario")
         if tiene_clave:
-            # BD antigua: marcar todas las migraciones previas como ya aplicadas
-            for v, desc, _ in _MIGRACIONES:
-                conn.execute(
-                    "INSERT OR IGNORE INTO schema_version (version, descripcion) VALUES (?, ?)",
-                    (v, f"[legacy] {desc}"),
-                )
+            # BD antigua: marcar SOLO las migraciones cuyas columnas/tablas ya existen
+            for v, desc, sqls in _MIGRACIONES:
+                if _migracion_ya_aplicada(conn, sqls):
+                    conn.execute(
+                        "INSERT OR IGNORE INTO schema_version (version, descripcion) VALUES (?, ?)",
+                        (v, f"[legacy] {desc}"),
+                    )
             log.info("BD existente detectada — migraciones legacy marcadas como aplicadas")
         # BD nueva: no insertar nada — las migraciones se aplicarán en orden
 
@@ -275,6 +277,56 @@ def _aplicar_migraciones_pendientes(conn: sqlite3.Connection) -> None:
 
 
 # ── Utilidades ────────────────────────────────────────────────────────────────
+
+def _reparar_migraciones_fallidas(conn: sqlite3.Connection) -> None:
+    """
+    Detecta migraciones registradas en schema_version pero cuyos cambios no
+    existen en el esquema real (causado por el bug de detección legacy que las
+    marcaba aplicadas sin ejecutarlas). Las re-aplica sin tocar schema_version.
+    """
+    aplicadas = {
+        row[0] for row in conn.execute("SELECT version FROM schema_version").fetchall()
+    }
+    for version, descripcion, sqls in _MIGRACIONES:
+        if version not in aplicadas:
+            continue
+        if _migracion_ya_aplicada(conn, sqls):
+            continue
+        log.info("Reparando migración %d faltante: %s", version, descripcion)
+        for sql in sqls:
+            try:
+                conn.execute(sql)
+            except sqlite3.OperationalError as e:
+                log.warning("SQL de reparación %d omitido (%s): %s", version, e, sql)
+
+
+def _migracion_ya_aplicada(conn: sqlite3.Connection, sqls: list[str]) -> bool:
+    """
+    Verifica si todas las operaciones de una migración ya están presentes en el
+    esquema actual. Soporta ALTER TABLE … ADD COLUMN y CREATE TABLE IF NOT EXISTS.
+    Las migraciones que no sean de ninguno de esos dos tipos se asumen no aplicadas.
+    """
+    import re
+    for sql in sqls:
+        sql_upper = sql.strip().upper()
+        m_alter = re.match(r"ALTER\s+TABLE\s+(\w+)\s+ADD\s+COLUMN\s+(\w+)", sql_upper)
+        if m_alter:
+            if not _columna_existe(conn, m_alter.group(1).lower(), m_alter.group(2).lower()):
+                return False
+            continue
+        m_create = re.match(r"CREATE\s+TABLE\s+IF\s+NOT\s+EXISTS\s+(\w+)", sql_upper)
+        if m_create:
+            tabla = m_create.group(1).lower()
+            existe = conn.execute(
+                "SELECT 1 FROM sqlite_master WHERE type='table' AND name=?", (tabla,)
+            ).fetchone()
+            if not existe:
+                return False
+            continue
+        # SQL de tipo desconocido — asumir que no está aplicado
+        return False
+    return True
+
 
 def _columna_existe(conn: sqlite3.Connection, tabla: str, columna: str) -> bool:
     filas = conn.execute(f"PRAGMA table_info({tabla})").fetchall()

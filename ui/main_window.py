@@ -49,7 +49,7 @@ class MainWindow(QMainWindow):
     """Shell principal con sidebar + stacked content."""
 
     APP_TITLE = "YJBMOTOCOM — Control de Rentabilidad"
-    MIN_SIZE = QSize(1100, 700)
+    MIN_SIZE = QSize(780, 520)
 
     def __init__(self, usuario: str = "Admin", rol: str = "admin") -> None:
         super().__init__()
@@ -104,7 +104,7 @@ class MainWindow(QMainWindow):
 
     def _build_sidebar(self) -> QWidget:
         sidebar = QWidget()
-        sidebar.setFixedWidth(210)
+        sidebar.setFixedWidth(200)
         sidebar.setStyleSheet("background-color: #1E293B;")
 
         layout = QVBoxLayout(sidebar)

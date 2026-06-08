@@ -9,7 +9,7 @@ from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
     QComboBox, QSpinBox, QTableWidget, QTableWidgetItem,
     QHeaderView, QAbstractItemView, QFrame, QSizePolicy,
-    QMessageBox, QLineEdit, QDateEdit, QFileDialog,
+    QMessageBox, QLineEdit, QDateEdit, QFileDialog, QScrollArea,
 )
 from PySide6.QtCore import Qt, Signal, QDate
 from PySide6.QtGui import QFont, QColor
@@ -42,7 +42,16 @@ class HistorialPanel(QWidget):
     # ------------------------------------------------------------------
 
     def _build_ui(self) -> None:
-        root = QVBoxLayout(self)
+        outer = QVBoxLayout(self)
+        outer.setContentsMargins(0, 0, 0, 0)
+
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QFrame.NoFrame)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+
+        contenido = QWidget()
+        root = QVBoxLayout(contenido)
         root.setContentsMargins(24, 20, 24, 16)
         root.setSpacing(14)
 
@@ -51,6 +60,9 @@ class HistorialPanel(QWidget):
         root.addWidget(self._panel_comisiones())
         root.addWidget(self._panel_resumen_diario())
         root.addWidget(self._panel_detalle_dia(), stretch=1)
+
+        scroll.setWidget(contenido)
+        outer.addWidget(scroll)
 
     # ---- Barra superior ----
 
@@ -444,8 +456,10 @@ class HistorialPanel(QWidget):
         hh.setSectionResizeMode(8, QHeaderView.Fixed);       self.tabla_detalle.setColumnWidth(8, 68)
         hh.setSectionResizeMode(9, QHeaderView.Fixed);       self.tabla_detalle.setColumnWidth(9, 68)
 
+        self.tabla_detalle.setMinimumHeight(180)
         self.tabla_detalle.setVisible(False)
         lay.addWidget(self.tabla_detalle, stretch=1)
+        frame.setMinimumHeight(240)
         return frame
 
     # ------------------------------------------------------------------

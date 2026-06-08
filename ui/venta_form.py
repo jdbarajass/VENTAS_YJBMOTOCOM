@@ -51,6 +51,9 @@ def _get_combo_style(radius: int = 5, padding: str = "0 10px",
 # Métodos de pago disponibles (orden de ComboBox)
 METODOS_PAGO = ["Efectivo", "Addi", "Transferencia", "Otro"]
 
+# Texto del placeholder del combo de método de pago (no es un método real)
+_PLACEHOLDER_METODO = "— Selecciona método —"
+
 _TALLAS = ["XS", "S", "M", "L", "XL", "2XL"]
 _PAT_TALLA_FORM = _re_vf.compile(r"-T:(\w+)$")
 
@@ -566,9 +569,13 @@ class VentaForm(QWidget):
         fila_metodo.setSpacing(6)
         fila_metodo.setContentsMargins(0, 0, 0, 0)
         self.campo_metodo = QComboBox()
+        self.campo_metodo.addItem(_PLACEHOLDER_METODO)
         self.campo_metodo.addItems(METODOS_PAGO)
+        self.campo_metodo.setCurrentIndex(0)
         self.campo_metodo.setFixedHeight(34)
-        self.campo_metodo.setStyleSheet(_get_combo_style())
+        self.campo_metodo.setStyleSheet(
+            _get_combo_style() + "QComboBox { color: #9CA3AF; }"
+        )
         self._btn_combinado = QPushButton("Combinado")
         self._btn_combinado.setCheckable(True)
         self._btn_combinado.setFixedHeight(34)
@@ -974,14 +981,23 @@ class VentaForm(QWidget):
 
     def _on_metodo_changed(self, metodo: str) -> None:
         """Muestra u oculta el sub-combo de transferencia según el método elegido."""
+        es_placeholder = (metodo == _PLACEHOLDER_METODO)
         es_transferencia = (metodo == "Transferencia")
         self.lbl_sub_transferencia.setVisible(es_transferencia)
         self.campo_sub_transferencia.setVisible(es_transferencia)
+        if es_placeholder:
+            self.campo_metodo.setStyleSheet(
+                _get_combo_style() + "QComboBox { color: #9CA3AF; }"
+            )
+        else:
+            self.campo_metodo.setStyleSheet(_get_combo_style())
         self._actualizar_preview()
 
     def _metodo_completo(self) -> str:
         """Construye el string completo del método, incluyendo sub-tipo si aplica."""
         metodo = self.campo_metodo.currentText()
+        if metodo == _PLACEHOLDER_METODO:
+            return ""
         if metodo == "Transferencia":
             return f"Transferencia {self.campo_sub_transferencia.currentText()}"
         return metodo
@@ -1026,10 +1042,16 @@ class VentaForm(QWidget):
                 self._lay_medios.addWidget(lbl)
         else:
             self._lbl_medios_titulo.setText("Medio de pago")
-            lbl = QLabel(f"{metodo}:  {cop(total_precio)}")
-            lbl.setStyleSheet(
-                "font-size:12px; font-weight:bold; color:#1E293B; background:transparent;"
-            )
+            if metodo:
+                lbl = QLabel(f"{metodo}:  {cop(total_precio)}")
+                lbl.setStyleSheet(
+                    "font-size:12px; font-weight:bold; color:#1E293B; background:transparent;"
+                )
+            else:
+                lbl = QLabel("Selecciona un método de pago")
+                lbl.setStyleSheet(
+                    "font-size:12px; color:#9CA3AF; background:transparent;"
+                )
             self._lay_medios.addWidget(lbl)
 
         self.lbl_bruta.setText(cop(data["ganancia_bruta"]))
@@ -1080,6 +1102,10 @@ class VentaForm(QWidget):
             lineas = [ln.datos() for ln in self._lineas if ln.datos()["producto"]]
             if not lineas:
                 raise ValueError("Agrega al menos un producto.")
+
+            # Método de pago obligatorio (solo en modo simple)
+            if not self._btn_combinado.isChecked() and not metodo:
+                raise ValueError("Selecciona un método de pago antes de registrar la venta.")
 
             # Verificar stock para cada linea
             try:
@@ -1169,6 +1195,9 @@ class VentaForm(QWidget):
         """Resetea el formulario para la próxima entrada."""
         self.campo_fecha.setDate(QDate.currentDate())
         self.campo_metodo.setCurrentIndex(0)
+        self.campo_metodo.setStyleSheet(
+            _get_combo_style() + "QComboBox { color: #9CA3AF; }"
+        )
         self.campo_metodo.setEnabled(True)
         self.lbl_sub_transferencia.setVisible(False)
         self.campo_sub_transferencia.setCurrentIndex(0)

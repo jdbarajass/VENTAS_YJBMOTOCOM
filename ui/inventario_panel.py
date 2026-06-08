@@ -7,7 +7,7 @@ from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
     QLineEdit, QTableWidget, QTableWidgetItem, QHeaderView,
     QAbstractItemView, QFrame, QMessageBox, QInputDialog,
-    QSpinBox, QSizePolicy, QCheckBox,
+    QSpinBox, QSizePolicy, QCheckBox, QScrollArea,
 )
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QFont, QColor
@@ -40,7 +40,16 @@ class InventarioPanel(QWidget):
     # ------------------------------------------------------------------
 
     def _build_ui(self) -> None:
-        root = QVBoxLayout(self)
+        outer = QVBoxLayout(self)
+        outer.setContentsMargins(0, 0, 0, 0)
+
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QFrame.NoFrame)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+
+        contenido = QWidget()
+        root = QVBoxLayout(contenido)
         root.setContentsMargins(24, 20, 24, 16)
         root.setSpacing(12)
 
@@ -48,6 +57,9 @@ class InventarioPanel(QWidget):
         root.addWidget(self._panel_form())
         root.addWidget(self._build_tabla(), stretch=1)
         root.addWidget(self._barra_resumen())
+
+        scroll.setWidget(contenido)
+        outer.addWidget(scroll)
 
     def _barra_superior(self) -> QHBoxLayout:
         lay = QHBoxLayout()
@@ -236,6 +248,7 @@ class InventarioPanel(QWidget):
         hh.setSectionResizeMode(6, QHeaderView.Interactive);  self.tabla.setColumnWidth(6, 140)
         hh.setSectionResizeMode(7, QHeaderView.Fixed);        self.tabla.setColumnWidth(7, 145)
         self.tabla.setHorizontalScrollMode(QAbstractItemView.ScrollPerPixel)
+        self.tabla.setMinimumHeight(180)
 
         return self.tabla
 

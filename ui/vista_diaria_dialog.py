@@ -51,7 +51,7 @@ class VistaDiariaDialog(QDialog):
             Qt.WindowMaximizeButtonHint |
             Qt.WindowMinimizeButtonHint
         )
-        self.setMinimumSize(860, 560)
+        self.setMinimumSize(680, 460)
         self.showMaximized()
 
     # ------------------------------------------------------------------

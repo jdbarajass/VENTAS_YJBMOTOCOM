@@ -9,7 +9,7 @@ from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
     QLineEdit, QFrame, QButtonGroup, QCheckBox, QCompleter,
     QTableWidget, QTableWidgetItem, QHeaderView,
-    QAbstractItemView, QSpinBox,
+    QAbstractItemView, QSpinBox, QScrollArea, QSizePolicy,
 )
 from PySide6.QtCore import Qt, QStringListModel
 from PySide6.QtGui import QFont, QColor
@@ -103,7 +103,16 @@ class CalculadoraPanel(QWidget):
     # ─── Layout principal ────────────────────────────────────────────────
 
     def _build_ui(self):
-        root = QVBoxLayout(self)
+        outer = QVBoxLayout(self)
+        outer.setContentsMargins(0, 0, 0, 0)
+
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QFrame.NoFrame)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+
+        contenido = QWidget()
+        root = QVBoxLayout(contenido)
         root.setContentsMargins(24, 20, 24, 16)
         root.setSpacing(10)
 
@@ -127,6 +136,9 @@ class CalculadoraPanel(QWidget):
         cuerpo.addSpacing(12)
         cuerpo.addWidget(self._panel_derecha(), stretch=5)
         root.addLayout(cuerpo, stretch=1)
+
+        scroll.setWidget(contenido)
+        outer.addWidget(scroll)
 
     # ─── Panel izquierdo: Precio de Venta ────────────────────────────────
 

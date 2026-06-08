@@ -58,16 +58,28 @@ class VentasDiaPanel(QWidget):
     # ------------------------------------------------------------------
 
     def _build_ui(self) -> None:
-        root = QVBoxLayout(self)
+        outer = QVBoxLayout(self)
+        outer.setContentsMargins(0, 0, 0, 0)
+
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QFrame.NoFrame)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+
+        contenido = QWidget()
+        root = QVBoxLayout(contenido)
         root.setContentsMargins(24, 20, 24, 16)
         root.setSpacing(12)
 
         root.addLayout(self._barra_superior())
-        root.addWidget(self._build_tabla())
+        root.addWidget(self._build_tabla(), stretch=1)
         root.addWidget(self._panel_gastos_dia())
         root.addWidget(self._sep())
         root.addLayout(self._barra_resumen())
         root.addWidget(self._panel_metodos_pago())
+
+        scroll.setWidget(contenido)
+        outer.addWidget(scroll)
 
     def _barra_superior(self) -> QHBoxLayout:
         lay = QHBoxLayout()
@@ -161,6 +173,7 @@ class VentasDiaPanel(QWidget):
         hh.setSectionResizeMode(COL_NETA,     QHeaderView.Interactive); self.tabla.setColumnWidth(COL_NETA, 120)
         hh.setSectionResizeMode(COL_NOTAS,    QHeaderView.Stretch)
         hh.setSectionResizeMode(COL_ACCIONES, QHeaderView.Fixed);       self.tabla.setColumnWidth(COL_ACCIONES, 200)
+        self.tabla.setMinimumHeight(180)
 
         return self.tabla
 

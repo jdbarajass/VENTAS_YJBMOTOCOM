@@ -12,6 +12,7 @@ from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
     QFileDialog, QTableWidget, QTableWidgetItem, QHeaderView,
     QAbstractItemView, QFrame, QMessageBox, QLineEdit, QComboBox,
+    QScrollArea,
 )
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QColor, QFont
@@ -62,7 +63,16 @@ class CarguesPedidosWidget(QWidget):
     # ──────────────────────────────────────────────────────────────────────
 
     def _build_ui(self):
-        root = QVBoxLayout(self)
+        outer = QVBoxLayout(self)
+        outer.setContentsMargins(0, 0, 0, 0)
+
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QFrame.NoFrame)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+
+        _contenido = QWidget()
+        root = QVBoxLayout(_contenido)
         root.setContentsMargins(20, 16, 20, 16)
         root.setSpacing(12)
 
@@ -206,6 +216,9 @@ class CarguesPedidosWidget(QWidget):
         pie.addWidget(self._btn_limpiar)
         pie.addWidget(self._btn_confirmar)
         root.addLayout(pie)
+
+        scroll.setWidget(_contenido)
+        outer.addWidget(scroll)
 
     # ──────────────────────────────────────────────────────────────────────
     # Cargar PDF

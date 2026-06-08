@@ -223,7 +223,16 @@ class _FacturasPorPagarPanel(QWidget):
     # ------------------------------------------------------------------
 
     def _build_ui(self) -> None:
-        root = QVBoxLayout(self)
+        outer = QVBoxLayout(self)
+        outer.setContentsMargins(0, 0, 0, 0)
+
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QFrame.NoFrame)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+
+        contenido = QWidget()
+        root = QVBoxLayout(contenido)
         root.setContentsMargins(24, 20, 24, 16)
         root.setSpacing(10)
 
@@ -232,6 +241,9 @@ class _FacturasPorPagarPanel(QWidget):
         root.addWidget(self._panel_form())
         root.addWidget(self._build_tabla(), stretch=1)
         root.addWidget(self._barra_resumen())
+
+        scroll.setWidget(contenido)
+        outer.addWidget(scroll)
 
     # ---- Barra de título ----
 
@@ -479,6 +491,7 @@ class _FacturasPorPagarPanel(QWidget):
             self.tabla.setColumnWidth(col, w)
         self.tabla.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
         self.tabla.setHorizontalScrollMode(QAbstractItemView.ScrollPerPixel)
+        self.tabla.setMinimumHeight(180)
 
         return self.tabla
 

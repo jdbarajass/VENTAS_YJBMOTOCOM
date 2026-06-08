@@ -359,7 +359,16 @@ class NotasPanel(QWidget):
         self._build_ui()
 
     def _build_ui(self):
-        root = QVBoxLayout(self)
+        outer = QVBoxLayout(self)
+        outer.setContentsMargins(0, 0, 0, 0)
+
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QFrame.NoFrame)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+
+        contenido = QWidget()
+        root = QVBoxLayout(contenido)
         root.setContentsMargins(24, 20, 24, 16)
         root.setSpacing(12)
 
@@ -381,7 +390,10 @@ class NotasPanel(QWidget):
 
         tabs.addTab(self._tab_resurtido, "📦  Por Pedir / Resurtido")
         tabs.addTab(self._tab_tareas,    "✅  Tareas Operativas")
-        root.addWidget(tabs)
+        root.addWidget(tabs, stretch=1)
+
+        scroll.setWidget(contenido)
+        outer.addWidget(scroll)
 
     def refresh(self):
         self._tab_resurtido.refresh()

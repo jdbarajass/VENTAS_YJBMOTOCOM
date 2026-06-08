@@ -11,7 +11,7 @@ from pathlib import Path
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
     QFrame, QMessageBox, QFileDialog, QCheckBox, QComboBox, QSpinBox,
-    QGroupBox,
+    QGroupBox, QScrollArea,
 )
 from PySide6.QtCore import Signal, Qt
 from PySide6.QtGui import QFont
@@ -41,7 +41,16 @@ class ExportarImportarPanel(QWidget):
     # ------------------------------------------------------------------
 
     def _build_ui(self) -> None:
-        root = QVBoxLayout(self)
+        outer = QVBoxLayout(self)
+        outer.setContentsMargins(0, 0, 0, 0)
+
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QFrame.NoFrame)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+
+        contenido = QWidget()
+        root = QVBoxLayout(contenido)
         root.setContentsMargins(32, 28, 32, 28)
         root.setSpacing(20)
 
@@ -71,6 +80,9 @@ class ExportarImportarPanel(QWidget):
         root.addWidget(self._bloque_peligro())
 
         root.addStretch()
+
+        scroll.setWidget(contenido)
+        outer.addWidget(scroll)
 
     # ---- Bloque exportar ----
 

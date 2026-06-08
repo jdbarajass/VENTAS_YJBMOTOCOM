@@ -10,7 +10,7 @@ from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
     QTableWidget, QTableWidgetItem, QHeaderView, QAbstractItemView,
     QFrame, QLineEdit, QDateEdit, QTimeEdit, QMessageBox, QCheckBox,
-    QDialog, QComboBox, QDialogButtonBox,
+    QDialog, QComboBox, QDialogButtonBox, QScrollArea,
 )
 from PySide6.QtCore import Qt, QDate, QTime, Signal
 from PySide6.QtGui import QFont
@@ -175,7 +175,16 @@ class PrestamosPanel(QWidget):
     # ------------------------------------------------------------------
 
     def _build_ui(self) -> None:
-        root = QVBoxLayout(self)
+        outer = QVBoxLayout(self)
+        outer.setContentsMargins(0, 0, 0, 0)
+
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QFrame.NoFrame)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+
+        contenido = QWidget()
+        root = QVBoxLayout(contenido)
         root.setContentsMargins(24, 20, 24, 16)
         root.setSpacing(14)
 
@@ -183,6 +192,9 @@ class PrestamosPanel(QWidget):
         root.addWidget(self._panel_formulario())
         root.addWidget(self._panel_alerta())
         root.addWidget(self._panel_tabla(), stretch=1)
+
+        scroll.setWidget(contenido)
+        outer.addWidget(scroll)
 
     # ---- Título ----
 
@@ -384,8 +396,10 @@ class PrestamosPanel(QWidget):
         hh.setSectionResizeMode(6, QHeaderView.Fixed);        self.tabla.setColumnWidth(6, 100)
         hh.setSectionResizeMode(7, QHeaderView.Fixed);        self.tabla.setColumnWidth(7, 260)
         self.tabla.setHorizontalScrollMode(QAbstractItemView.ScrollPerPixel)
+        self.tabla.setMinimumHeight(180)
 
         lay.addWidget(self.tabla)
+        frame.setMinimumHeight(200)
         return frame
 
     # ------------------------------------------------------------------

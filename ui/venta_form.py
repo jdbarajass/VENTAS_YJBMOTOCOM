@@ -18,6 +18,13 @@ from PySide6.QtGui import QFont
 import re as _re_vf
 
 from models.venta import Venta
+
+
+class _NoScrollSpinBox(QSpinBox):
+    """QSpinBox que ignora el scroll del mouse para no cambiar el valor
+    accidentalmente al hacer scroll en la ventana."""
+    def wheelEvent(self, event):
+        event.ignore()
 from controllers.venta_controller import VentaController
 from utils.formatters import cop, porcentaje
 
@@ -205,7 +212,7 @@ class _LineaProducto:
         self.campo_precio.setFixedWidth(130)
         self.campo_precio.setStyleSheet(_campo_style)
 
-        self.campo_cantidad = QSpinBox()
+        self.campo_cantidad = _NoScrollSpinBox()
         self.campo_cantidad.setMinimum(1)
         self.campo_cantidad.setMaximum(999)
         self.campo_cantidad.setValue(1)

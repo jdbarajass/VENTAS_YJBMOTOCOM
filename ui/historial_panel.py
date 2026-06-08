@@ -720,6 +720,8 @@ class HistorialPanel(QWidget):
         from ui.vista_diaria_dialog import VistaDiariaDialog
         dlg = VistaDiariaDialog(ventas_dia, self._fecha_seleccionada, self)
         dlg.exec()
+        # Refrescar historial por si hubo ediciones desde la vista diaria
+        self.refresh()
 
     # ------------------------------------------------------------------
     # Botones de acción (devuelven QPushButton directo, sin wrapper)

@@ -30,7 +30,7 @@ def _titulo_fecha_largo(f: date) -> str:
 class VistaDiariaDialog(QDialog):
     """
     Ventana con la vista completa de un día seleccionado:
-    - Izquierda: tabla de ventas + totales por método de pago
+    - Izquierda: tabla de ventas + totales por método de pago + botones de edición
     - Derecha arriba: todos los préstamos registrados
     - Derecha abajo: gastos operativos del día
     """
@@ -113,21 +113,24 @@ class VistaDiariaDialog(QDialog):
         total_neta     = sum(v.ganancia_neta for v in self._ventas)
         total_gastos   = sum(g.monto for g in self._gastos)
 
-        chips = [
-            (f"{len(self._ventas)} venta(s)", "#1D4ED8", "#DBEAFE"),
-            (f"Ingresos: {cop(total_ingresos)}", "#374151", "#F1F5F9"),
+        # Almacenar referencias para actualizar en _refrescar_ventas_ui
+        chips_def = [
+            (f"{len(self._ventas)} venta(s)", "#1D4ED8", "#DBEAFE", "_chip_nventa"),
+            (f"Ingresos: {cop(total_ingresos)}", "#374151", "#F1F5F9", "_chip_ingresos"),
             (f"G. Neta: {cop(total_neta)}",
              "#15803D" if total_neta >= 0 else "#DC2626",
-             "#DCFCE7" if total_neta >= 0 else "#FEE2E2"),
-            (f"Gastos op.: {cop(total_gastos)}", "#92400E", "#FEF3C7"),
+             "#DCFCE7" if total_neta >= 0 else "#FEE2E2",
+             "_chip_neta"),
+            (f"Gastos op.: {cop(total_gastos)}", "#92400E", "#FEF3C7", "_chip_gastos"),
         ]
-        for texto, fg, bg in chips:
+        for texto, fg, bg, attr in chips_def:
             lbl_c = QLabel(texto)
             lbl_c.setStyleSheet(
                 f"color:{fg}; background:{bg}; border-radius:4px;"
                 f"font-size:12px; font-weight:bold; padding:4px 10px;"
             )
             lay.addWidget(lbl_c)
+            setattr(self, attr, lbl_c)
 
         lay.addStretch()
         return lay
@@ -147,28 +150,32 @@ class VistaDiariaDialog(QDialog):
         lay.setSpacing(0)
 
         # Encabezado verde (como el Excel)
-        hdr = QLabel(f"  VENTAS  —  {len(self._ventas)} producto(s)")
-        hdr.setFixedHeight(36)
+        self._lbl_hdr_ventas = QLabel(f"  VENTAS  —  {len(self._ventas)} producto(s)")
+        self._lbl_hdr_ventas.setFixedHeight(36)
         f = QFont(); f.setPointSize(11); f.setBold(True)
-        hdr.setFont(f)
-        hdr.setStyleSheet(
+        self._lbl_hdr_ventas.setFont(f)
+        self._lbl_hdr_ventas.setStyleSheet(
             "background:#16A34A; color:white; border-radius:8px 8px 0 0; padding:0 12px;"
         )
-        lay.addWidget(hdr)
+        lay.addWidget(self._lbl_hdr_ventas)
 
-        # Tabla
-        tabla = self._tabla_ventas()
-        lay.addWidget(tabla, stretch=1)
+        # Tabla (guarda referencia para refrescar)
+        self._tabla_v = self._crear_tabla_ventas()
+        self._rellenar_tabla_ventas()
+        lay.addWidget(self._tabla_v, stretch=1)
 
-        # Totales
-        lay.addWidget(self._build_totales())
+        # Totales (guarda referencia para reemplazar al refrescar)
+        self._lay_panel_ventas = lay
+        self._frame_totales = self._build_totales()
+        lay.addWidget(self._frame_totales)
         return frame
 
-    def _tabla_ventas(self) -> QTableWidget:
+    def _crear_tabla_ventas(self) -> QTableWidget:
+        """Crea la estructura de la tabla de ventas (sin poblar filas)."""
         tabla = QTableWidget()
-        tabla.setColumnCount(5)
+        tabla.setColumnCount(6)
         tabla.setHorizontalHeaderLabels([
-            "Producto", "Precio Venta", "Método de Pago", "G. Neta", "Notas"
+            "Producto", "Precio Venta", "Método de Pago", "G. Neta", "Notas", "Acciones"
         ])
         tabla.setEditTriggers(QAbstractItemView.NoEditTriggers)
         tabla.setSelectionBehavior(QAbstractItemView.SelectRows)
@@ -193,16 +200,21 @@ class VistaDiariaDialog(QDialog):
         """)
         hh = tabla.horizontalHeader()
         hh.setMinimumSectionSize(60)
-        hh.setSectionResizeMode(0, QHeaderView.Interactive); tabla.setColumnWidth(0, 230)
-        hh.setSectionResizeMode(1, QHeaderView.Interactive); tabla.setColumnWidth(1, 115)
-        hh.setSectionResizeMode(2, QHeaderView.Interactive); tabla.setColumnWidth(2, 145)
-        hh.setSectionResizeMode(3, QHeaderView.Interactive); tabla.setColumnWidth(3, 105)
-        hh.setSectionResizeMode(4, QHeaderView.Interactive); tabla.setColumnWidth(4, 120)
+        hh.setSectionResizeMode(0, QHeaderView.Interactive); tabla.setColumnWidth(0, 210)
+        hh.setSectionResizeMode(1, QHeaderView.Interactive); tabla.setColumnWidth(1, 110)
+        hh.setSectionResizeMode(2, QHeaderView.Interactive); tabla.setColumnWidth(2, 140)
+        hh.setSectionResizeMode(3, QHeaderView.Interactive); tabla.setColumnWidth(3, 100)
+        hh.setSectionResizeMode(4, QHeaderView.Interactive); tabla.setColumnWidth(4, 110)
+        hh.setSectionResizeMode(5, QHeaderView.Fixed);       tabla.setColumnWidth(5, 80)
         hh.setStretchLastSection(False)
+        return tabla
 
+    def _rellenar_tabla_ventas(self) -> None:
+        """Limpia y repuebla las filas de la tabla de ventas."""
+        tabla = self._tabla_v
         tabla.setRowCount(len(self._ventas))
         for row, v in enumerate(self._ventas):
-            tabla.setRowHeight(row, 30)
+            tabla.setRowHeight(row, 32)
             precio_total = v.precio * v.cantidad
 
             prod_txt = v.producto if v.cantidad == 1 else f"{v.producto}  (×{v.cantidad})"
@@ -232,7 +244,22 @@ class VistaDiariaDialog(QDialog):
 
             tabla.setItem(row, 4, QTableWidgetItem(v.notas or ""))
 
-        return tabla
+            # Botón editar
+            btn_edit = QPushButton("✏ Editar")
+            btn_edit.setFixedHeight(26)
+            btn_edit.setStyleSheet(
+                "QPushButton { background:#EFF6FF; color:#1D4ED8; border:1px solid #BFDBFE;"
+                "border-radius:4px; font-size:11px; font-weight:bold; padding:0 6px; }"
+                "QPushButton:hover { background:#DBEAFE; }"
+            )
+            btn_edit.clicked.connect(lambda _=False, venta=v: self._abrir_editar_venta(venta))
+            # Centrar el botón en la celda
+            cell_w = QWidget()
+            cell_w.setStyleSheet("background:transparent;")
+            cell_lay = QHBoxLayout(cell_w)
+            cell_lay.setContentsMargins(4, 2, 4, 2)
+            cell_lay.addWidget(btn_edit)
+            tabla.setCellWidget(row, 5, cell_w)
 
     def _build_totales(self) -> QFrame:
         """Sección inferior con desglose por método y grand total."""
@@ -303,6 +330,48 @@ class VistaDiariaDialog(QDialog):
         fila_tot.addWidget(_chip_total("GANANCIA NETA", cop(total_neta), color_neta))
         lay.addLayout(fila_tot)
         return frame
+
+    # ------------------------------------------------------------------
+    # Edición de ventas
+    # ------------------------------------------------------------------
+
+    def _abrir_editar_venta(self, venta: Venta) -> None:
+        from ui.edit_venta_dialog import EditVentaDialog
+        dlg = EditVentaDialog(venta, self)
+        dlg.venta_actualizada.connect(lambda _: self._refrescar_ventas_ui())
+        dlg.exec()
+
+    def _refrescar_ventas_ui(self) -> None:
+        """Recarga ventas desde BD y actualiza tabla, totales y chips del header."""
+        from database.ventas_repo import obtener_ventas_por_fecha
+        self._ventas = obtener_ventas_por_fecha(self._fecha)
+
+        total_ingresos = sum(v.precio * v.cantidad for v in self._ventas)
+        total_neta     = sum(v.ganancia_neta for v in self._ventas)
+
+        # Actualizar chips del header
+        self._chip_nventa.setText(f"{len(self._ventas)} venta(s)")
+        self._chip_ingresos.setText(f"Ingresos: {cop(total_ingresos)}")
+        color_neta = "#15803D" if total_neta >= 0 else "#DC2626"
+        bg_neta    = "#DCFCE7" if total_neta >= 0 else "#FEE2E2"
+        self._chip_neta.setText(f"G. Neta: {cop(total_neta)}")
+        self._chip_neta.setStyleSheet(
+            f"color:{color_neta}; background:{bg_neta}; border-radius:4px;"
+            f"font-size:12px; font-weight:bold; padding:4px 10px;"
+        )
+
+        # Actualizar encabezado del panel de ventas
+        self._lbl_hdr_ventas.setText(f"  VENTAS  —  {len(self._ventas)} producto(s)")
+
+        # Repoblar tabla
+        self._rellenar_tabla_ventas()
+
+        # Reemplazar frame de totales
+        item = self._lay_panel_ventas.takeAt(2)
+        if item and item.widget():
+            item.widget().deleteLater()
+        self._frame_totales = self._build_totales()
+        self._lay_panel_ventas.addWidget(self._frame_totales)
 
     # ------------------------------------------------------------------
     # Panel derecho — Préstamos + Gastos

@@ -33,6 +33,7 @@ class HistorialPanel(QWidget):
         self._venta_ctrl = VentaController()
         self._resumen: ResumenMensual | None = None
         self._ventas: list[Venta] = []
+        self._cfg = None
         self._fecha_seleccionada: date | None = None
         self._build_ui()
         self.refresh()
@@ -862,6 +863,7 @@ class HistorialPanel(QWidget):
         from services.reportes import calcular_resumen_mensual
 
         cfg = obtener_configuracion()
+        self._cfg = cfg
         # Usamos el mes del primer día del rango como referencia para gastos fijos
         gastos = obtener_gastos_por_rango(desde, hasta)
         gastos_por_dia: dict = {}
@@ -898,7 +900,8 @@ class HistorialPanel(QWidget):
             from database.inventario_repo import obtener_todos_productos
             productos = obtener_todos_productos()
             generar_reporte_mensual_pdf(
-                self._resumen, self._ventas, Path(ruta), productos=productos
+                self._resumen, self._ventas, Path(ruta),
+                productos=productos, cfg=self._cfg
             )
             QMessageBox.information(
                 self, "PDF generado",
@@ -926,7 +929,7 @@ class HistorialPanel(QWidget):
             from database.inventario_repo import obtener_todos_productos as _get_inv
             generar_reporte_mensual_pdf(
                 self._resumen, self._ventas, ruta_tmp,
-                productos=_get_inv()
+                productos=_get_inv(), cfg=self._cfg
             )
 
             printer = QPrinter(QPrinter.HighResolution)

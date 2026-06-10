@@ -53,12 +53,14 @@ def generar_reporte_mensual_pdf(
     ventas,
     ruta: Path,
     nombre_negocio: str = "YJBMOTOCOM",
-    productos=None,          # list[Producto] — inventario actual (opcional)
+    productos=None,   # list[Producto] — inventario actual (opcional)
+    cfg=None,         # Configuracion — para desglose de gastos fijos
 ) -> None:
     """
     Genera un PDF con el reporte mensual completo.
     ventas:    lista de Venta del mes.
     productos: lista de Producto del inventario actual (para sección inventario general).
+    cfg:       Configuracion para mostrar el desglose de gastos fijos.
     """
     doc = SimpleDocTemplate(
         str(ruta),
@@ -79,6 +81,11 @@ def generar_reporte_mensual_pdf(
 
     # ── 2. Tarjetas KPI ───────────────────────────────────────────────────────
     elementos.append(_tabla_resumen(resumen))
+    elementos.append(Spacer(1, 0.4 * cm))
+
+    # ── 2.5. Desglose de gastos ───────────────────────────────────────────────
+    elementos.append(_titulo_seccion("Desglose de Gastos del Mes", estilos))
+    elementos.append(_tabla_gastos(resumen, cfg))
     elementos.append(Spacer(1, 0.5 * cm))
 
     # ── 3. Estadísticas adicionales ───────────────────────────────────────────
@@ -198,7 +205,12 @@ def _tabla_resumen(resumen: ResumenMensual) -> Table:
         ("ALIGN",         (0, 2), (-1, 2), "CENTER"),
         ("BOTTOMPADDING", (0, 2), (-1, 2), 6),
         ("GRID",          (0, 0), (-1, -1), 0.5, _GRIS_BORDE),
-        ("ROUNDEDCORNERS", [4]),
+        # Ocultar separadores horizontales internos de la columna UTILIDAD REAL
+        ("LINEBELOW",     (3, 0), (3, 0), 0.5, fondo_util),
+        ("LINEBELOW",     (3, 1), (3, 1), 0.5, fondo_util),
+        # Texto del encabezado UTILIDAD REAL legible sobre fondo claro
+        ("TEXTCOLOR",     (3, 0), (3, 0), color_util),
+        ("FONTNAME",      (3, 0), (3, 0), "Helvetica-Bold"),
     ]))
     return t
 
@@ -461,6 +473,69 @@ def _tabla_horas_pico(ventas) -> Table:
             estilos_t.append(("FONTNAME",   (0, i), (-1, i), "Helvetica-Bold"))
             estilos_t.append(("TEXTCOLOR",  (0, i), (0, i), _AZUL_MEDIO))
 
+    t.setStyle(TableStyle(estilos_t))
+    return t
+
+
+def _tabla_gastos(resumen: ResumenMensual, cfg=None) -> Table:
+    """Desglose de gastos fijos + operativos del mes."""
+    total_op = round(sum(rd.gastos_operativos for rd in resumen.resumen_por_dia), 2)
+    total_fijos = resumen.total_gastos_fijos
+    total_egresos = round(total_fijos + total_op, 2)
+
+    encabezado = [["CONCEPTO", "MONTO"]]
+    filas: list = []
+
+    if cfg is not None:
+        for label, monto in [
+            ("Arriendo",           cfg.arriendo),
+            ("Sueldo",             cfg.sueldo),
+            ("Servicios públicos", cfg.servicios),
+            ("Otros gastos fijos", cfg.otros_gastos),
+        ]:
+            filas.append([label, cop(monto)])
+
+    idx_total_fijos = len(filas) + 1   # índice en la tabla (con encabezado)
+    filas.append(["Total gastos fijos", cop(total_fijos)])
+
+    idx_op = len(filas) + 1
+    filas.append(["Gastos operativos del mes", cop(total_op)])
+
+    idx_total = len(filas) + 1
+    filas.append(["TOTAL EGRESOS DEL MES", cop(total_egresos)])
+
+    datos = encabezado + filas
+    col_w = [12.0 * cm, 5.3 * cm]
+    t = Table(datos, colWidths=col_w)
+
+    estilos_t = [
+        ("BACKGROUND",    (0, 0), (-1, 0), _AZUL_OSCURO),
+        ("TEXTCOLOR",     (0, 0), (-1, 0), colors.white),
+        ("FONTNAME",      (0, 0), (-1, 0), "Helvetica-Bold"),
+        ("FONTSIZE",      (0, 0), (-1, 0), 8),
+        ("ALIGN",         (0, 0), (-1, 0), "CENTER"),
+        ("FONTSIZE",      (0, 1), (-1, -1), 9),
+        ("ALIGN",         (1, 1), (1, -1), "RIGHT"),
+        ("LEFTPADDING",   (0, 1), (0, -1), 12),
+        ("GRID",          (0, 0), (-1, -1), 0.4, _GRIS_BORDE),
+        ("ROWBACKGROUNDS",(0, 1), (-1, idx_total - 2), [colors.white, _GRIS_CLARO]),
+        ("TOPPADDING",    (0, 0), (-1, -1), 5),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
+        # Fila total gastos fijos
+        ("BACKGROUND",    (0, idx_total_fijos), (-1, idx_total_fijos), _GRIS_CLARO),
+        ("FONTNAME",      (0, idx_total_fijos), (-1, idx_total_fijos), "Helvetica-Bold"),
+        ("TEXTCOLOR",     (1, idx_total_fijos), (1, idx_total_fijos), _ROJO),
+        # Fila gastos operativos
+        ("FONTNAME",      (0, idx_op), (0, idx_op), "Helvetica-Oblique"),
+        ("TEXTCOLOR",     (1, idx_op), (1, idx_op), _AMARILLO),
+        # Fila total egresos
+        ("BACKGROUND",    (0, idx_total), (-1, idx_total), _ROJO_CLARO),
+        ("FONTNAME",      (0, idx_total), (-1, idx_total), "Helvetica-Bold"),
+        ("FONTSIZE",      (0, idx_total), (-1, idx_total), 10),
+        ("TEXTCOLOR",     (1, idx_total), (1, idx_total), _ROJO),
+        ("TOPPADDING",    (0, idx_total), (-1, idx_total), 7),
+        ("BOTTOMPADDING", (0, idx_total), (-1, idx_total), 7),
+    ]
     t.setStyle(TableStyle(estilos_t))
     return t
 

@@ -390,6 +390,7 @@ class MainWindow(QMainWindow):
         self._ventas_dia.gastos_actualizados.connect(self._dashboard.refresh)
         self._ventas_dia.gastos_actualizados.connect(self._historial.refresh)
         self._ventas_dia.gastos_actualizados.connect(self._presupuesto.refresh)
+        self._ventas_dia.gastos_actualizados.connect(self._cuentas.refresh)
 
         layout.addWidget(self._stack)
         return wrapper

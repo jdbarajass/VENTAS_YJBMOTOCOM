@@ -15,6 +15,7 @@ from database.ventas_repo import (
 from database.gastos_dia_repo import (
     insertar_gasto,
     obtener_gastos_por_fecha,
+    obtener_gasto_por_id,
     eliminar_gasto,
 )
 from services.exportador import exportar_ventas_dia
@@ -43,11 +44,17 @@ class VentasDiaController:
         return obtener_gastos_por_fecha(fecha)
 
     def agregar_gasto(self, descripcion: str, monto: float, fecha: date,
-                      categoria: str = "Otro") -> GastoDia:
+                      categoria: str = "Otro",
+                      cuenta_pago: str = "Efectivo") -> GastoDia:
         """Valida y persiste un nuevo gasto operativo. Lanza ValueError si inválido."""
-        gasto = GastoDia(descripcion=descripcion, monto=monto, fecha=fecha, categoria=categoria)
+        gasto = GastoDia(descripcion=descripcion, monto=monto, fecha=fecha,
+                         categoria=categoria, cuenta_pago=cuenta_pago)
         insertar_gasto(gasto)
         return gasto
+
+    def obtener_gasto(self, gasto_id: int) -> GastoDia | None:
+        """Retorna un gasto por id, o None si no existe."""
+        return obtener_gasto_por_id(gasto_id)
 
     def eliminar_gasto(self, gasto_id: int) -> bool:
         """Elimina un gasto operativo por id."""

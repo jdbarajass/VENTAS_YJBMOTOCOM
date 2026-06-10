@@ -8,7 +8,15 @@ from dataclasses import dataclass, field
 from datetime import date
 
 
-CATEGORIAS_GASTO = ["Transporte", "Alimentación", "Insumos", "Banco", "Otro"]
+CATEGORIAS_GASTO = [
+    "Montado",
+    "Relleno Cascos",
+    "Devueltas de dinero",
+    "Sueldo",
+    "Arriendo",
+    "Luz",
+    "Otro",
+]
 
 
 @dataclass
@@ -20,6 +28,7 @@ class GastoDia:
     fecha: date = field(default_factory=date.today)
     id: int | None = None
     categoria: str = "Otro"
+    cuenta_pago: str = "Efectivo"   # cuenta de la que se descuenta el gasto
 
     def __post_init__(self) -> None:
         if not self.descripcion.strip():

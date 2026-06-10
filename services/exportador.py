@@ -402,8 +402,8 @@ def _escribir_hoja_facturas(ws, facturas: list) -> None:
         ws.column_dimensions[get_column_letter(i)].width = ancho
 
 
-_HEADERS_GASTOS = ["Fecha", "Descripción", "Monto", "Categoría"]
-_ANCHOS_GASTOS  = [14, 40, 16, 14]
+_HEADERS_GASTOS = ["Fecha", "Descripción", "Monto", "Categoría", "Cuenta"]
+_ANCHOS_GASTOS  = [14, 40, 16, 14, 14]
 
 
 def _escribir_hoja_gastos(ws, gastos: list) -> None:
@@ -411,7 +411,7 @@ def _escribir_hoja_gastos(ws, gastos: list) -> None:
     lado = Side(style="thin", color="CCCCCC")
     borde = Border(left=lado, right=lado, top=lado, bottom=lado)
 
-    ws.merge_cells("A1:D1")
+    ws.merge_cells("A1:E1")
     t = ws["A1"]
     t.value = "YJBMOTOCOM — Gastos Operativos Diarios"
     t.font = Font(name="Calibri", bold=True, size=13, color="FFFFFF")
@@ -420,7 +420,7 @@ def _escribir_hoja_gastos(ws, gastos: list) -> None:
     ws.row_dimensions[1].height = 26
 
     ws.append(_HEADERS_GASTOS)
-    for col_idx in range(1, 5):
+    for col_idx in range(1, 6):
         cell = ws.cell(row=2, column=col_idx)
         cell.font = Font(bold=True, color="FFFFFF", name="Calibri", size=10)
         cell.fill = PatternFill("solid", fgColor="7C3AED")
@@ -435,10 +435,11 @@ def _escribir_hoja_gastos(ws, gastos: list) -> None:
             else str(g.fecha)
         )
         cat = getattr(g, "categoria", "Otro") or "Otro"
-        ws.append([fecha_str, g.descripcion, g.monto, cat])
+        cuenta = getattr(g, "cuenta_pago", "Efectivo") or "Efectivo"
+        ws.append([fecha_str, g.descripcion, g.monto, cat, cuenta])
         row = ws.max_row
         fondo = "F5F3FF" if i % 2 == 0 else "FFFFFF"
-        for col_idx in range(1, 5):
+        for col_idx in range(1, 6):
             c = ws.cell(row=row, column=col_idx)
             c.fill = PatternFill("solid", fgColor=fondo)
             c.border = borde

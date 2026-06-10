@@ -10,17 +10,21 @@ from database.connection import DatabaseConnection
 
 
 def _row_to_gasto(row: sqlite3.Row) -> GastoDia:
-    # categoria puede no existir en filas antiguas antes de la migración
     try:
         cat = row["categoria"] or "Otro"
     except (IndexError, KeyError):
         cat = "Otro"
+    try:
+        cuenta = row["cuenta_pago"] or "Efectivo"
+    except (IndexError, KeyError):
+        cuenta = "Efectivo"
     return GastoDia(
         id=row["id"],
         fecha=date.fromisoformat(row["fecha"]),
         descripcion=row["descripcion"],
         monto=row["monto"],
         categoria=cat,
+        cuenta_pago=cuenta,
     )
 
 
@@ -31,12 +35,22 @@ def _row_to_gasto(row: sqlite3.Row) -> GastoDia:
 def insertar_gasto(gasto: GastoDia) -> int:
     conn = DatabaseConnection.get()
     cursor = conn.execute(
-        "INSERT INTO gastos_dia (fecha, descripcion, monto, categoria) VALUES (?, ?, ?, ?)",
-        (gasto.fecha.isoformat(), gasto.descripcion.strip(), gasto.monto, gasto.categoria),
+        "INSERT INTO gastos_dia (fecha, descripcion, monto, categoria, cuenta_pago) "
+        "VALUES (?, ?, ?, ?, ?)",
+        (gasto.fecha.isoformat(), gasto.descripcion.strip(),
+         gasto.monto, gasto.categoria, gasto.cuenta_pago),
     )
     conn.commit()
     gasto.id = cursor.lastrowid
     return cursor.lastrowid
+
+
+def obtener_gasto_por_id(gasto_id: int) -> GastoDia | None:
+    conn = DatabaseConnection.get()
+    row = conn.execute(
+        "SELECT * FROM gastos_dia WHERE id = ?", (gasto_id,)
+    ).fetchone()
+    return _row_to_gasto(row) if row else None
 
 
 # ------------------------------------------------------------------
@@ -118,8 +132,10 @@ def insertar_gasto_directo(gasto: GastoDia) -> int:
     """Inserta un gasto sin commit inmediato opcional — para importación masiva."""
     conn = DatabaseConnection.get()
     cursor = conn.execute(
-        "INSERT INTO gastos_dia (fecha, descripcion, monto, categoria) VALUES (?, ?, ?, ?)",
-        (gasto.fecha.isoformat(), gasto.descripcion.strip(), gasto.monto, gasto.categoria),
+        "INSERT INTO gastos_dia (fecha, descripcion, monto, categoria, cuenta_pago) "
+        "VALUES (?, ?, ?, ?, ?)",
+        (gasto.fecha.isoformat(), gasto.descripcion.strip(),
+         gasto.monto, gasto.categoria, getattr(gasto, "cuenta_pago", "Efectivo")),
     )
     conn.commit()
     return cursor.lastrowid

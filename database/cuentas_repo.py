@@ -232,6 +232,74 @@ def obtener_cierres() -> list[CierreMensual]:
                           fecha_cierre=r[5]) for r in rows]
 
 
+# ── Débito/crédito por gastos operativos ────────────────────────────────────
+
+def debitar_gasto(gasto) -> None:
+    """
+    Descuenta el monto de un gasto operativo de la cuenta indicada en gasto.cuenta_pago.
+    Silencioso si la cuenta no existe o cuenta_pago está vacío.
+    """
+    cuenta_nombre = getattr(gasto, "cuenta_pago", "") or ""
+    if not cuenta_nombre:
+        return
+    conn = DatabaseConnection.get()
+    try:
+        row = conn.execute(
+            "SELECT id FROM cuentas WHERE nombre = ? AND activa = 1", (cuenta_nombre,)
+        ).fetchone()
+        if not row:
+            return
+        cuenta_id = row[0]
+        conn.execute(
+            "UPDATE cuentas SET balance_actual = balance_actual - ? WHERE id = ?",
+            (round(gasto.monto, 2), cuenta_id)
+        )
+        fecha_str = gasto.fecha.isoformat() if hasattr(gasto.fecha, "isoformat") else str(gasto.fecha)
+        conn.execute(
+            """INSERT INTO cuentas_movimientos (cuenta_id, fecha, tipo, monto, descripcion)
+               VALUES (?, ?, 'gasto_operativo', ?, ?)""",
+            (cuenta_id, fecha_str, -round(gasto.monto, 2),
+             gasto.descripcion or "Gasto operativo")
+        )
+        conn.commit()
+        log.info("Gasto debitado de cuenta '%s': %.2f", cuenta_nombre, gasto.monto)
+    except Exception as exc:
+        log.warning("No se pudo debitar gasto de cuenta '%s': %s", cuenta_nombre, exc)
+
+
+def revertir_gasto(gasto) -> None:
+    """
+    Revierte el débito de un gasto eliminado, devolviendo el monto a la cuenta.
+    Silencioso si la cuenta no existe.
+    """
+    cuenta_nombre = getattr(gasto, "cuenta_pago", "") or ""
+    if not cuenta_nombre:
+        return
+    conn = DatabaseConnection.get()
+    try:
+        row = conn.execute(
+            "SELECT id FROM cuentas WHERE nombre = ? AND activa = 1", (cuenta_nombre,)
+        ).fetchone()
+        if not row:
+            return
+        cuenta_id = row[0]
+        conn.execute(
+            "UPDATE cuentas SET balance_actual = balance_actual + ? WHERE id = ?",
+            (round(gasto.monto, 2), cuenta_id)
+        )
+        fecha_str = gasto.fecha.isoformat() if hasattr(gasto.fecha, "isoformat") else str(gasto.fecha)
+        conn.execute(
+            """INSERT INTO cuentas_movimientos (cuenta_id, fecha, tipo, monto, descripcion)
+               VALUES (?, ?, 'reversa_gasto', ?, ?)""",
+            (cuenta_id, fecha_str, round(gasto.monto, 2),
+             f"Reversión gasto: {gasto.descripcion}")
+        )
+        conn.commit()
+        log.info("Gasto revertido en cuenta '%s': %.2f", cuenta_nombre, gasto.monto)
+    except Exception as exc:
+        log.warning("No se pudo revertir gasto en cuenta '%s': %s", cuenta_nombre, exc)
+
+
 # ── Utilitarios ───────────────────────────────────────────────────────────────
 
 def _row_to_cuenta(row) -> Cuenta:

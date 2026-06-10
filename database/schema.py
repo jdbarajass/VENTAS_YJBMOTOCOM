@@ -20,7 +20,7 @@ from database.connection import DatabaseConnection
 
 # ── Versión actual del esquema ────────────────────────────────────────────────
 # Incrementar este número cada vez que se añada una migración a _MIGRACIONES.
-_VERSION_ACTUAL = 14
+_VERSION_ACTUAL = 15
 
 
 # ── Lista de migraciones (forward-only) ───────────────────────────────────────
@@ -117,6 +117,9 @@ _MIGRACIONES = [
         "INSERT OR IGNORE INTO cuentas (nombre, metodo_pago, color, orden) VALUES ('NU',               'Transferencia NU',       '#EF4444', 4)",
         "INSERT OR IGNORE INTO cuentas (nombre, metodo_pago, color, orden) VALUES ('Daviplata',        'Transferencia DAVIPLATA','#F97316', 5)",
         "INSERT OR IGNORE INTO cuentas (nombre, metodo_pago, color, orden) VALUES ('Addi',             'Addi',                   '#06B6D4', 6)",
+    ]),
+    (15, "Agregar cuenta_pago a gastos_dia", [
+        "ALTER TABLE gastos_dia ADD COLUMN cuenta_pago TEXT NOT NULL DEFAULT 'Efectivo'",
     ]),
 ]
 

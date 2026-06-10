@@ -16,6 +16,7 @@ Aplicación de escritorio para gestión integral de un negocio de motocicletas: 
 | **Préstamos** | Seguimiento de productos prestados a almacenes externos |
 | **Presupuesto Mensual** | Comparativo presupuesto vs. gasto real por categoría |
 | **Notas y Pendientes** | Tareas con fecha límite, badge de vencidas en sidebar |
+| **Cuentas** | Control de saldo por medio de pago (Efectivo, Nequi, QR, NU, Daviplata, Addi), transferencias entre cuentas, historial de movimientos y cierres mensuales — solo Admin |
 | **Exportar / Importar** | Backup a Excel multi-hoja (protegido con contraseña) e importación con validación de coherencia |
 | **Calculadora** | Cálculo instantáneo de precio de venta, margen y comisión |
 | **Configuración** | Gastos fijos, comisiones, impresora térmica, seguridad, usuarios, auditoría, apariencia |
@@ -80,21 +81,23 @@ VENTAS_YJBMOTOCOM/
 │   ├── factura.py, abono_factura.py
 │   ├── producto.py, prestamo.py
 │   ├── nota.py
+│   ├── cuenta.py                  # Cuenta, MovimientoCuenta, CierreMensual
 │   └── configuracion.py
 │
 ├── database/                      # Acceso a BD
 │   ├── connection.py              # Singleton DatabaseConnection (WAL + FK)
-│   ├── schema.py                  # Creación de tablas + 12 migraciones versionadas
+│   ├── schema.py                  # Creación de tablas + 14 migraciones versionadas
 │   ├── ventas_repo.py
 │   ├── gastos_dia_repo.py
 │   ├── facturas_repo.py, abonos_factura_repo.py
 │   ├── inventario_repo.py, prestamos_repo.py
 │   ├── notas_repo.py, presupuesto_repo.py
 │   ├── usuarios_repo.py           # Multi-usuario
+│   ├── cuentas_repo.py            # Saldos, movimientos y cierres de Cuentas
 │   └── config_repo.py
 │
 ├── controllers/
-│   ├── venta_controller.py        # Registra venta + descuenta inventario
+│   ├── venta_controller.py        # Registra venta + descuenta inventario + acredita cuentas
 │   ├── historial_controller.py
 │   ├── dashboard_controller.py
 │   ├── facturas_controller.py
@@ -130,6 +133,7 @@ VENTAS_YJBMOTOCOM/
 │   ├── presupuesto_panel.py
 │   ├── exportar_importar_panel.py
 │   ├── calculadora_panel.py
+│   ├── cuentas_panel.py           # Panel Cuentas (3 tabs: Resumen, Movimientos, Cierres)
 │   └── ventas_dia_panel.py
 │
 ├── utils/
@@ -216,15 +220,15 @@ El programa detecta automáticamente los archivos en la carpeta `assets/` al arr
 - Contraseña por defecto: `YJB2026_*`
 
 ### Páginas protegidas
-Las páginas **Configuración** y **Exportar/Importar** requieren contraseña para acceder. La sesión desbloquea la página hasta que:
+Las páginas **Configuración**, **Exportar/Importar** y **Cuentas** requieren contraseña para acceder. La sesión desbloquea la página hasta que:
 - El timer de inactividad expira (configurable, por defecto 10 min).
 - El usuario cierra sesión manualmente.
 
 ### Roles
 | Rol | Acceso |
 |-----|--------|
-| **Admin** | Todo, incluyendo Configuración y Exportar/Importar |
-| **Vendedor** | Todo excepto Configuración y Exportar/Importar |
+| **Admin** | Todo, incluyendo Configuración, Exportar/Importar y Cuentas |
+| **Vendedor** | Todo excepto Configuración, Exportar/Importar y Cuentas |
 
 ### Excel exportado
 Las hojas **Inventario** y **Configuración** del Excel exportado quedan protegidas con contraseña de worksheet (solo lectura).
@@ -249,6 +253,8 @@ El sistema de migraciones es **forward-only e idempotente** (seguro de ejecutar 
 | 10 | CREATE TABLE usuarios (multi-usuario) |
 | 11 | modo_oscuro en configuracion |
 | 12 | timeout_minutos en configuracion |
+| 13 | hora en ventas (análisis de horas pico) |
+| 14 | CREATE TABLE cuentas, cuentas_movimientos, cuentas_cierres + seed de 6 cuentas por defecto |
 
 La tabla `schema_version` registra qué migraciones ya se aplicaron. Al actualizar el `.exe` en producción, solo se aplican las versiones nuevas.
 
@@ -309,6 +315,7 @@ La tabla `schema_version` registra qué migraciones ya se aplicaron. Al actualiz
 | F3 | **Exportación verificada** — confirmado que las 10 tablas de datos de usuario se exportan correctamente cuando todos los checkboxes están activos (ventas, préstamos, inventario, facturas, abonos, gastos, notas, configuración, usuarios, presupuesto) |
 | F4 | **Auto-refresh al cambiar gastos operativos** — nueva señal `gastos_actualizados` en `VentasDiaPanel`; al agregar o eliminar un gasto se propaga automáticamente a Dashboard, Historial y Presupuesto sin necesidad de cerrar la app; botón `⟳ Actualizar` añadido al Dashboard |
 | F5 | **Propagación completa de refreshes tras importación** — `_on_datos_importados()` ahora refresca también Préstamos, Notas y Presupuesto (antes quedaban desactualizados y había que hacer workarounds como toggle de filtros); botón `⟳ Actualizar` añadido al panel Préstamos |
+| F6 | **Sección Cuentas** — control de saldo por medio de pago (Efectivo, Nequi, QR, NU, Daviplata, Addi); ventas nuevas acreditan automáticamente la cuenta correspondiente (incluyendo pagos combinados); ajuste manual de saldo; transferencias entre cuentas; historial de movimientos filtrable; cierres mensuales con snapshot histórico; solo Admin, protegida por contraseña — archivos: `models/cuenta.py`, `database/cuentas_repo.py`, `ui/cuentas_panel.py` |
 
 ---
 

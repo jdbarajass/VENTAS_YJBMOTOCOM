@@ -3,11 +3,13 @@ ui/inventario_panel.py
 Panel de gestión de inventario: tabla, formulario, importación desde Excel.
 """
 
+import re as _re
+
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
     QLineEdit, QTableWidget, QTableWidgetItem, QHeaderView,
     QAbstractItemView, QFrame, QMessageBox, QInputDialog,
-    QSpinBox, QSizePolicy, QCheckBox, QScrollArea,
+    QSpinBox, QSizePolicy, QCheckBox, QScrollArea, QTabWidget,
 )
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QFont, QColor
@@ -43,6 +45,23 @@ class InventarioPanel(QWidget):
         outer = QVBoxLayout(self)
         outer.setContentsMargins(0, 0, 0, 0)
 
+        self._tabs = QTabWidget()
+        self._tabs.setStyleSheet("""
+            QTabWidget::pane { border: none; }
+            QTabBar::tab {
+                padding: 8px 18px; font-size: 12px;
+                background: #F1F5F9; border: 1px solid #E2E8F0;
+                border-bottom: none; border-radius: 4px 4px 0 0;
+            }
+            QTabBar::tab:selected {
+                background: white; font-weight: bold; color: #2563EB;
+                border-bottom: 2px solid #2563EB;
+            }
+            QTabBar::tab:hover:!selected { background: #E2E8F0; }
+        """)
+
+        # ── Tab 1: Detalle ────────────────────────────────────────────────
+        tab_detalle = QWidget()
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
         scroll.setFrameShape(QFrame.NoFrame)
@@ -59,7 +78,16 @@ class InventarioPanel(QWidget):
         root.addWidget(self._barra_resumen())
 
         scroll.setWidget(contenido)
-        outer.addWidget(scroll)
+        lay_detalle = QVBoxLayout(tab_detalle)
+        lay_detalle.setContentsMargins(0, 0, 0, 0)
+        lay_detalle.addWidget(scroll)
+
+        # ── Tab 2: Inventario General ─────────────────────────────────────
+        tab_general = self._build_tab_general()
+
+        self._tabs.addTab(tab_detalle, "📦  Detalle")
+        self._tabs.addTab(tab_general, "📊  Inventario General")
+        outer.addWidget(self._tabs)
 
     def _barra_superior(self) -> QHBoxLayout:
         lay = QHBoxLayout()
@@ -279,12 +307,182 @@ class InventarioPanel(QWidget):
     # Datos
     # ------------------------------------------------------------------
 
+    # ------------------------------------------------------------------
+    # Tab Inventario General
+    # ------------------------------------------------------------------
+
+    def _build_tab_general(self) -> QWidget:
+        """Tab con inventario agrupado por categoría."""
+        tab = QWidget()
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QFrame.NoFrame)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+
+        contenido = QWidget()
+        root = QVBoxLayout(contenido)
+        root.setContentsMargins(24, 20, 24, 16)
+        root.setSpacing(12)
+
+        # Título + búsqueda
+        barra = QHBoxLayout()
+        titulo = QLabel("Inventario General")
+        f = QFont(); f.setPointSize(16); f.setBold(True)
+        titulo.setFont(f)
+
+        self._busq_general = QLineEdit()
+        self._busq_general.setPlaceholderText("Filtrar categoría…")
+        self._busq_general.setFixedHeight(34)
+        self._busq_general.setFixedWidth(200)
+        self._busq_general.setStyleSheet(
+            "QLineEdit { border:1px solid #D1D5DB; border-radius:5px; padding:0 10px; }"
+            "QLineEdit:focus { border:2px solid #2563EB; }"
+        )
+        self._busq_general.textChanged.connect(self._filtrar_general)
+
+        barra.addWidget(titulo)
+        barra.addSpacing(16)
+        barra.addWidget(self._busq_general)
+        barra.addStretch()
+        root.addLayout(barra)
+
+        # Nota informativa
+        nota = QLabel(
+            "Unidades actuales agrupadas por tipo de producto  "
+            "(primera palabra del nombre)"
+        )
+        nota.setStyleSheet("font-size:11px; color:#6B7280;")
+        root.addWidget(nota)
+
+        # Tabla
+        self._tabla_general = QTableWidget()
+        self._tabla_general.setColumnCount(4)
+        self._tabla_general.setHorizontalHeaderLabels([
+            "Categoría", "Referencias", "Unidades en Stock", "Valor en Stock"
+        ])
+        self._tabla_general.setEditTriggers(QAbstractItemView.NoEditTriggers)
+        self._tabla_general.setSelectionBehavior(QAbstractItemView.SelectRows)
+        self._tabla_general.setAlternatingRowColors(True)
+        self._tabla_general.verticalHeader().setVisible(False)
+        self._tabla_general.setShowGrid(False)
+        self._tabla_general.setMinimumHeight(200)
+        self._tabla_general.setStyleSheet("""
+            QTableWidget { border:none; font-size:12px; }
+            QTableWidget::item { padding:5px 10px; }
+            QHeaderView::section {
+                background:#1E293B; color:white;
+                font-weight:bold; font-size:11px;
+                padding:7px; border:none;
+            }
+            QTableWidget::item:selected { background:#DBEAFE; color:#1E3A5F; }
+        """)
+        hh = self._tabla_general.horizontalHeader()
+        hh.setSectionResizeMode(0, QHeaderView.Stretch)
+        hh.setSectionResizeMode(1, QHeaderView.Fixed); self._tabla_general.setColumnWidth(1, 110)
+        hh.setSectionResizeMode(2, QHeaderView.Fixed); self._tabla_general.setColumnWidth(2, 160)
+        hh.setSectionResizeMode(3, QHeaderView.Fixed); self._tabla_general.setColumnWidth(3, 160)
+        root.addWidget(self._tabla_general, stretch=1)
+
+        # Barra resumen general
+        self._frame_resumen_general = QFrame()
+        self._frame_resumen_general.setStyleSheet(
+            "QFrame { background:#F8FAFC; border:1px solid #E2E8F0; border-radius:6px; }"
+        )
+        lay_res = QHBoxLayout(self._frame_resumen_general)
+        lay_res.setContentsMargins(14, 6, 14, 6)
+        lay_res.setSpacing(20)
+        self._lbl_gen_cats   = QLabel("0 categorías")
+        self._lbl_gen_uds    = QLabel("0 unidades")
+        self._lbl_gen_valor  = QLabel("Valor: $ 0")
+        for lbl in (self._lbl_gen_cats, self._lbl_gen_uds, self._lbl_gen_valor):
+            lbl.setStyleSheet(
+                "font-size:12px; font-weight:bold; color:#374151;"
+                "background:transparent; border:none;"
+            )
+            lay_res.addWidget(lbl)
+        lay_res.addStretch()
+        root.addWidget(self._frame_resumen_general)
+
+        scroll.setWidget(contenido)
+        lay = QVBoxLayout(tab)
+        lay.setContentsMargins(0, 0, 0, 0)
+        lay.addWidget(scroll)
+        return tab
+
+    def _categoria_producto(self, nombre: str) -> str:
+        limpio = _re.sub(r"\s*-T:\S*", "", nombre, flags=_re.IGNORECASE).strip()
+        return limpio.split()[0].upper() if limpio else "OTRO"
+
+    def _poblar_tabla_general(self, productos=None) -> None:
+        from collections import defaultdict
+        fuente = productos if productos is not None else self._productos
+        texto = self._busq_general.text().lower().strip()
+
+        grupos: dict[str, dict] = defaultdict(lambda: {"refs": 0, "uds": 0, "valor": 0.0})
+        for p in fuente:
+            cat = self._categoria_producto(p.producto)
+            grupos[cat]["refs"] += 1
+            grupos[cat]["uds"] += p.cantidad
+            grupos[cat]["valor"] += p.costo_unitario * p.cantidad
+
+        if texto:
+            grupos = {k: v for k, v in grupos.items() if texto in k.lower()}
+
+        ordenados = sorted(grupos.items(), key=lambda x: -x[1]["uds"])
+
+        self._tabla_general.setRowCount(0)
+        self._tabla_general.setRowCount(len(ordenados))
+
+        for row, (cat, d) in enumerate(ordenados):
+            self._tabla_general.setRowHeight(row, 36)
+
+            item_cat = QTableWidgetItem(cat)
+            item_cat.setTextAlignment(Qt.AlignLeft | Qt.AlignVCenter)
+            f2 = QFont(); f2.setBold(True)
+            item_cat.setFont(f2)
+            self._tabla_general.setItem(row, 0, item_cat)
+
+            item_refs = QTableWidgetItem(str(d["refs"]))
+            item_refs.setTextAlignment(Qt.AlignCenter)
+            item_refs.setForeground(QColor("#374151"))
+            self._tabla_general.setItem(row, 1, item_refs)
+
+            item_uds = QTableWidgetItem(str(d["uds"]))
+            item_uds.setTextAlignment(Qt.AlignCenter)
+            color_uds = QColor("#15803D") if d["uds"] > 5 else (
+                QColor("#D97706") if d["uds"] > 0 else QColor("#DC2626")
+            )
+            item_uds.setForeground(color_uds)
+            f3 = QFont(); f3.setBold(True)
+            item_uds.setFont(f3)
+            self._tabla_general.setItem(row, 2, item_uds)
+
+            item_val = QTableWidgetItem(cop(d["valor"]))
+            item_val.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
+            item_val.setForeground(QColor("#1D4ED8"))
+            self._tabla_general.setItem(row, 3, item_val)
+
+        total_cats = len(ordenados)
+        total_uds  = sum(d["uds"] for _, d in ordenados)
+        total_val  = sum(d["valor"] for _, d in ordenados)
+        self._lbl_gen_cats.setText(f"{total_cats} categoría{'s' if total_cats != 1 else ''}")
+        self._lbl_gen_uds.setText(f"{total_uds} unidades en stock")
+        self._lbl_gen_valor.setText(f"Valor: {cop(total_val)}")
+
+    def _filtrar_general(self, _texto: str = "") -> None:
+        self._poblar_tabla_general()
+
+    # ------------------------------------------------------------------
+    # Datos
+    # ------------------------------------------------------------------
+
     def refresh(self) -> None:
         from utils.busy import ocupado
         with ocupado(mensaje="Cargando inventario..."):
             self._productos = obtener_todos_productos()
             self._campo_busqueda.clear()
             self._aplicar_filtros()
+            self._poblar_tabla_general()
 
     def _on_toggle_stock(self, checked: bool) -> None:
         self._solo_con_stock = checked

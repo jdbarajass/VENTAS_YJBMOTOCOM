@@ -4,7 +4,7 @@ Coordina el formulario de registro con los servicios y la base de datos.
 La UI nunca toca la BD ni el calculator directamente.
 """
 
-from datetime import date
+from datetime import date, datetime
 
 from models.venta import Venta
 from models.configuracion import Configuracion
@@ -114,6 +114,7 @@ class VentaController:
             pagos_combinados=pagos_combinados,
         )
         venta.numero_factura = nro_factura
+        venta.hora = datetime.now().strftime("%H:%M")
         completar_venta(venta, cfg)
         insertar_venta(venta)
 
@@ -196,6 +197,7 @@ class VentaController:
                 grupo_venta_id=grupo_id,
             )
             venta.numero_factura = nro_factura
+            venta.hora = datetime.now().strftime("%H:%M")
             completar_venta(venta, cfg)
             insertar_venta(venta)
 

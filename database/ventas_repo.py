@@ -34,6 +34,7 @@ def _row_to_venta(row: sqlite3.Row) -> Venta:
     )
     v.grupo_venta_id = row["grupo_venta_id"] if "grupo_venta_id" in keys else None
     v.numero_factura = row["numero_factura"] if "numero_factura" in keys else None
+    v.hora = row["hora"] if "hora" in keys else ""
     return v
 
 
@@ -68,13 +69,14 @@ def insertar_venta(venta: Venta) -> int:
     pagos_json = json.dumps(venta.pagos_combinados) if venta.pagos_combinados else None
     grupo_id = getattr(venta, "grupo_venta_id", None)
     nro_factura = getattr(venta, "numero_factura", None)
+    hora = getattr(venta, "hora", "")
     cursor = conn.execute(
         """
         INSERT INTO ventas
             (fecha, producto, costo, precio, metodo_pago, cantidad,
              comision, ganancia_neta, notas, pagos_combinados, grupo_venta_id,
-             numero_factura)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+             numero_factura, hora)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         (
             venta.fecha.isoformat(),
@@ -89,6 +91,7 @@ def insertar_venta(venta: Venta) -> int:
             pagos_json,
             grupo_id,
             nro_factura,
+            hora,
         ),
     )
     conn.commit()

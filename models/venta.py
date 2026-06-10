@@ -29,6 +29,8 @@ class Venta:
     grupo_venta_id: int | None = None
     # Número de factura consecutivo compartido por todo el carrito.
     numero_factura: int | None = None
+    # Hora de registro en formato "HH:MM". Vacío en ventas históricas.
+    hora: str = ""
 
     # ------------------------------------------------------------------
     # Propiedades derivadas (sin acceso a BD)

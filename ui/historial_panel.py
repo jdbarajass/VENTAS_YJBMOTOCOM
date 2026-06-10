@@ -895,7 +895,11 @@ class HistorialPanel(QWidget):
         try:
             from services.pdf_reporte import generar_reporte_mensual_pdf
             from pathlib import Path
-            generar_reporte_mensual_pdf(self._resumen, self._ventas, Path(ruta))
+            from database.inventario_repo import obtener_todos_productos
+            productos = obtener_todos_productos()
+            generar_reporte_mensual_pdf(
+                self._resumen, self._ventas, Path(ruta), productos=productos
+            )
             QMessageBox.information(
                 self, "PDF generado",
                 f"Reporte guardado en:\n{ruta}",
@@ -919,7 +923,11 @@ class HistorialPanel(QWidget):
             with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as tmp:
                 ruta_tmp = Path(tmp.name)
 
-            generar_reporte_mensual_pdf(self._resumen, self._ventas, ruta_tmp)
+            from database.inventario_repo import obtener_todos_productos as _get_inv
+            generar_reporte_mensual_pdf(
+                self._resumen, self._ventas, ruta_tmp,
+                productos=_get_inv()
+            )
 
             printer = QPrinter(QPrinter.HighResolution)
             dlg = QPrintDialog(printer, self)

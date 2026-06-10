@@ -20,7 +20,7 @@ from database.connection import DatabaseConnection
 
 # ── Versión actual del esquema ────────────────────────────────────────────────
 # Incrementar este número cada vez que se añada una migración a _MIGRACIONES.
-_VERSION_ACTUAL = 12
+_VERSION_ACTUAL = 13
 
 
 # ── Lista de migraciones (forward-only) ───────────────────────────────────────
@@ -78,6 +78,9 @@ _MIGRACIONES = [
     ]),
     (12, "Agregar timeout_minutos a configuracion", [
         "ALTER TABLE configuracion ADD COLUMN timeout_minutos INTEGER NOT NULL DEFAULT 10",
+    ]),
+    (13, "Agregar hora a ventas para análisis de horas pico", [
+        "ALTER TABLE ventas ADD COLUMN hora TEXT NOT NULL DEFAULT ''",
     ]),
 ]
 

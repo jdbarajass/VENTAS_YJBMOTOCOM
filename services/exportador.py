@@ -668,6 +668,187 @@ def _escribir_hoja_usuarios(ws, usuarios: list) -> None:
         ws.column_dimensions[get_column_letter(i)].width = ancho
 
 
+_HEADERS_CUENTAS = ["Nombre", "Método Pago", "Balance Actual", "Color", "Activa", "Orden"]
+_ANCHOS_CUENTAS  = [20, 18, 18, 10, 8, 8]
+
+_TIPO_MOV_LABEL = {
+    "venta":                "Venta",
+    "ajuste_manual":        "Ajuste manual",
+    "transferencia_salida": "Transferencia salida",
+    "transferencia_entrada":"Transferencia entrada",
+    "gasto_operativo":      "Gasto operativo",
+    "reversa_gasto":        "Reversión gasto",
+}
+
+
+def _escribir_hoja_cuentas(ws, cuentas: list) -> None:
+    """Hoja con el saldo actual de cada cuenta."""
+    lado = Side(style="thin", color="CCCCCC")
+    borde = Border(left=lado, right=lado, top=lado, bottom=lado)
+    ncols = len(_HEADERS_CUENTAS)
+
+    ws.merge_cells(f"A1:{get_column_letter(ncols)}1")
+    t = ws["A1"]
+    t.value = "YJBMOTOCOM — Saldos de Cuentas"
+    t.font = Font(name="Calibri", bold=True, size=13, color="FFFFFF")
+    t.fill = PatternFill("solid", fgColor="0E7490")
+    t.alignment = Alignment(horizontal="center", vertical="center")
+    ws.row_dimensions[1].height = 26
+
+    ws.append(_HEADERS_CUENTAS)
+    for col_idx in range(1, ncols + 1):
+        cell = ws.cell(row=2, column=col_idx)
+        cell.font = Font(bold=True, color="FFFFFF", name="Calibri", size=10)
+        cell.fill = PatternFill("solid", fgColor="0891B2")
+        cell.alignment = Alignment(horizontal="center", vertical="center")
+        cell.border = borde
+    ws.row_dimensions[2].height = 20
+
+    for i, c in enumerate(cuentas, start=1):
+        ws.append([
+            c.nombre,
+            c.metodo_pago,
+            c.balance_actual,
+            c.color,
+            "Sí" if c.activa else "No",
+            c.orden,
+        ])
+        row = ws.max_row
+        fondo = "ECFEFF" if i % 2 == 0 else "FFFFFF"
+        for col_idx in range(1, ncols + 1):
+            cell = ws.cell(row=row, column=col_idx)
+            cell.fill = PatternFill("solid", fgColor=fondo)
+            cell.border = borde
+            cell.font = Font(name="Calibri", size=10,
+                             bold=(col_idx == 3))
+            cell.alignment = Alignment(
+                vertical="center",
+                horizontal="right" if col_idx == 3 else "center" if col_idx in (5, 6) else "left",
+            )
+        ws.row_dimensions[row].height = 18
+
+    for i, ancho in enumerate(_ANCHOS_CUENTAS, start=1):
+        ws.column_dimensions[get_column_letter(i)].width = ancho
+
+
+_HEADERS_MOV_CUENTAS = ["ID", "Cuenta", "Fecha", "Tipo", "Monto", "Descripción", "Venta ID"]
+_ANCHOS_MOV_CUENTAS  = [8, 20, 14, 22, 16, 44, 10]
+
+
+def _escribir_hoja_movimientos_cuentas(ws, movimientos: list) -> None:
+    """Hoja con el historial completo de movimientos de todas las cuentas."""
+    lado = Side(style="thin", color="CCCCCC")
+    borde = Border(left=lado, right=lado, top=lado, bottom=lado)
+    ncols = len(_HEADERS_MOV_CUENTAS)
+
+    ws.merge_cells(f"A1:{get_column_letter(ncols)}1")
+    t = ws["A1"]
+    t.value = "YJBMOTOCOM — Historial de Movimientos de Cuentas"
+    t.font = Font(name="Calibri", bold=True, size=13, color="FFFFFF")
+    t.fill = PatternFill("solid", fgColor="0E7490")
+    t.alignment = Alignment(horizontal="center", vertical="center")
+    ws.row_dimensions[1].height = 26
+
+    ws.append(_HEADERS_MOV_CUENTAS)
+    for col_idx in range(1, ncols + 1):
+        cell = ws.cell(row=2, column=col_idx)
+        cell.font = Font(bold=True, color="FFFFFF", name="Calibri", size=10)
+        cell.fill = PatternFill("solid", fgColor="0891B2")
+        cell.alignment = Alignment(horizontal="center", vertical="center")
+        cell.border = borde
+    ws.row_dimensions[2].height = 20
+
+    for i, m in enumerate(movimientos, start=1):
+        tipo_label = _TIPO_MOV_LABEL.get(m.tipo, m.tipo)
+        ws.append([
+            m.id,
+            m.cuenta_id,
+            m.fecha,
+            tipo_label,
+            m.monto,
+            m.descripcion or "",
+            m.venta_id or "",
+        ])
+        row = ws.max_row
+        fondo = "F0FDFA" if i % 2 == 0 else "FFFFFF"
+        color_monto = "15803D" if (m.monto or 0) >= 0 else "DC2626"
+        for col_idx in range(1, ncols + 1):
+            cell = ws.cell(row=row, column=col_idx)
+            cell.fill = PatternFill("solid", fgColor=fondo)
+            cell.border = borde
+            cell.font = Font(name="Calibri", size=10,
+                             color=color_monto if col_idx == 5 else "000000")
+            cell.alignment = Alignment(
+                vertical="center",
+                horizontal="right" if col_idx in (1, 5, 7) else "center" if col_idx in (2, 3) else "left",
+            )
+        ws.row_dimensions[row].height = 18
+
+    for i, ancho in enumerate(_ANCHOS_MOV_CUENTAS, start=1):
+        ws.column_dimensions[get_column_letter(i)].width = ancho
+
+
+_HEADERS_CIERRES = ["Año", "Mes", "Cuenta", "Balance al Cierre", "Fecha Cierre", "Notas"]
+_ANCHOS_CIERRES  = [8, 6, 20, 18, 20, 36]
+
+
+def _escribir_hoja_cierres_cuentas(ws, cierres: list) -> None:
+    """Hoja con los cierres mensuales expandidos por cuenta."""
+    import json as _json
+    lado = Side(style="thin", color="CCCCCC")
+    borde = Border(left=lado, right=lado, top=lado, bottom=lado)
+    ncols = len(_HEADERS_CIERRES)
+
+    ws.merge_cells(f"A1:{get_column_letter(ncols)}1")
+    t = ws["A1"]
+    t.value = "YJBMOTOCOM — Cierres Mensuales de Cuentas"
+    t.font = Font(name="Calibri", bold=True, size=13, color="FFFFFF")
+    t.fill = PatternFill("solid", fgColor="0E7490")
+    t.alignment = Alignment(horizontal="center", vertical="center")
+    ws.row_dimensions[1].height = 26
+
+    ws.append(_HEADERS_CIERRES)
+    for col_idx in range(1, ncols + 1):
+        cell = ws.cell(row=2, column=col_idx)
+        cell.font = Font(bold=True, color="FFFFFF", name="Calibri", size=10)
+        cell.fill = PatternFill("solid", fgColor="0891B2")
+        cell.alignment = Alignment(horizontal="center", vertical="center")
+        cell.border = borde
+    ws.row_dimensions[2].height = 20
+
+    i = 0
+    for cierre in cierres:
+        try:
+            datos = _json.loads(cierre.datos_json or "[]")
+        except Exception:
+            datos = []
+        for entrada in datos:
+            i += 1
+            ws.append([
+                cierre.anio,
+                cierre.mes,
+                entrada.get("nombre", ""),
+                entrada.get("balance", 0),
+                cierre.fecha_cierre,
+                cierre.notas or "",
+            ])
+            row = ws.max_row
+            fondo = "F0FDFA" if i % 2 == 0 else "FFFFFF"
+            for col_idx in range(1, ncols + 1):
+                cell = ws.cell(row=row, column=col_idx)
+                cell.fill = PatternFill("solid", fgColor=fondo)
+                cell.border = borde
+                cell.font = Font(name="Calibri", size=10)
+                cell.alignment = Alignment(
+                    vertical="center",
+                    horizontal="center" if col_idx in (1, 2) else "right" if col_idx == 4 else "left",
+                )
+            ws.row_dimensions[row].height = 18
+
+    for i2, ancho in enumerate(_ANCHOS_CIERRES, start=1):
+        ws.column_dimensions[get_column_letter(i2)].width = ancho
+
+
 _HEADERS_PRESUPUESTO = ["Año", "Mes", "Categoría", "Monto Presupuestado"]
 _ANCHOS_PRESUPUESTO  = [8, 8, 28, 22]
 
@@ -736,6 +917,9 @@ def exportar_todo(
     abonos: list | None = None,
     usuarios: list | None = None,
     presupuestos: list | None = None,
+    cuentas: list | None = None,
+    movimientos_cuentas: list | None = None,
+    cierres_cuentas: list | None = None,
 ) -> None:
     """
     Genera un .xlsx con las hojas que se pasen (None = omitir esa hoja).
@@ -880,6 +1064,14 @@ def exportar_todo(
     # ── Hoja Presupuesto Mensual (opcional) ───────────────────────────────
     if presupuestos is not None:
         _escribir_hoja_presupuesto(_hoja("Presupuesto"), presupuestos)
+
+    # ── Hojas Cuentas (saldos / movimientos / cierres) ────────────────────
+    if cuentas is not None:
+        _escribir_hoja_cuentas(_hoja("Cuentas"), cuentas)
+    if movimientos_cuentas is not None:
+        _escribir_hoja_movimientos_cuentas(_hoja("Mov. Cuentas"), movimientos_cuentas)
+    if cierres_cuentas is not None:
+        _escribir_hoja_cierres_cuentas(_hoja("Cierres Cuentas"), cierres_cuentas)
 
     # Si ninguna hoja fue incluida, agregar una de aviso
     if not primera_hoja_usada:

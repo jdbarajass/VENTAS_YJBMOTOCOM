@@ -168,11 +168,12 @@ class ExportarImportarPanel(QWidget):
         self._chk_abonos      = QCheckBox("Abonos de facturas")
         self._chk_config      = QCheckBox("Configuración")
         self._chk_presupuesto = QCheckBox("Presupuesto mensual")
+        self._chk_cuentas     = QCheckBox("Cuentas (saldos, movimientos y cierres)")
 
         for chk in (self._chk_prestamos, self._chk_inventario,
                     self._chk_facturas, self._chk_gastos,
                     self._chk_notas, self._chk_abonos, self._chk_config,
-                    self._chk_presupuesto):
+                    self._chk_presupuesto, self._chk_cuentas):
             chk.setChecked(True)
             chk.setStyleSheet(chk_style)
             g_lay.addWidget(chk)
@@ -420,10 +421,22 @@ class ExportarImportarPanel(QWidget):
                 from database.presupuesto_repo import obtener_todos_presupuestos
                 presupuestos_export = obtener_todos_presupuestos()
 
+            cuentas_export = movimientos_export = cierres_export = None
+            if self._chk_cuentas.isChecked():
+                from database.cuentas_repo import (
+                    obtener_todas_incluyendo_inactivas as _cuentas_all,
+                    obtener_movimientos as _movimientos_all,
+                    obtener_cierres as _cierres_all,
+                )
+                cuentas_export     = _cuentas_all()
+                movimientos_export = _movimientos_all(limite=999_999)
+                cierres_export     = _cierres_all()
+
             with CargandoModal(self, "Exportando datos…"):
                 exportar_todo(Path(ruta), ventas, prestamos, productos,
                               facturas, gastos, configuracion, notas, abonos,
-                              usuarios_export, presupuestos_export)
+                              usuarios_export, presupuestos_export,
+                              cuentas_export, movimientos_export, cierres_export)
 
             # Construir resumen para el mensaje
             lineas = []
@@ -446,6 +459,10 @@ class ExportarImportarPanel(QWidget):
                 lineas.append(f"  • {len(usuarios_export)} usuario(s)")
             if presupuestos_export is not None:
                 lineas.append(f"  • {len(presupuestos_export)} registro(s) de presupuesto")
+            if cuentas_export is not None:
+                lineas.append(f"  • {len(cuentas_export)} cuenta(s) — saldos, "
+                              f"{len(movimientos_export)} movimiento(s), "
+                              f"{len(cierres_export)} cierre(s)")
 
             QMessageBox.information(
                 self,

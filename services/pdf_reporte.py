@@ -160,57 +160,56 @@ def _titulo_seccion(texto: str, estilos) -> Paragraph:
 def _tabla_resumen(resumen: ResumenMensual) -> Table:
     color_util = _VERDE if resumen.utilidad_real >= 0 else _ROJO
     fondo_util = _VERDE_CLARO if resumen.utilidad_real >= 0 else _ROJO_CLARO
+    color_util_hex = "#16A34A" if resumen.utilidad_real >= 0 else "#DC2626"
+
+    # Celda UTILIDAD REAL como Paragraph fusionado (sin líneas internas)
+    util_cell = Paragraph(
+        f'<font name="Helvetica-Bold" size="8" color="{color_util_hex}">UTILIDAD REAL</font>'
+        f'<br/><br/>'
+        f'<font name="Helvetica-Bold" size="16" color="{color_util_hex}">{cop(resumen.utilidad_real)}</font>'
+        f'<br/><br/>'
+        f'<font name="Helvetica" size="8" color="#6B7280">Margen: {resumen.margen_utilidad:+.1f}%</font>',
+        ParagraphStyle("util_cell", alignment=TA_CENTER, leading=22),
+    )
 
     datos = [
-        ["VENTAS DEL MES", "INGRESOS TOTALES", "GANANCIA NETA", "UTILIDAD REAL"],
-        [
-            str(resumen.cantidad_ventas),
-            cop(resumen.total_ingresos),
-            cop(resumen.ganancia_neta),
-            cop(resumen.utilidad_real),
-        ],
-        [
-            f"Días trabajados: {resumen.dias_con_ventas}",
-            f"Costos: {cop(resumen.total_costos)}",
-            f"Margen: {resumen.margen_ganancia:+.1f}%",
-            f"Margen: {resumen.margen_utilidad:+.1f}%",
-        ],
+        ["VENTAS DEL MES", "INGRESOS TOTALES", "GANANCIA NETA", util_cell],
+        [str(resumen.cantidad_ventas), cop(resumen.total_ingresos), cop(resumen.ganancia_neta), ""],
+        [f"Días trabajados: {resumen.dias_con_ventas}", f"Costos: {cop(resumen.total_costos)}", f"Margen: {resumen.margen_ganancia:+.1f}%", ""],
     ]
 
     col_w = [4.3 * cm] * 4
     t = Table(datos, colWidths=col_w)
     t.setStyle(TableStyle([
-        ("BACKGROUND",    (0, 0), (-1, 0), _AZUL_OSCURO),
-        ("TEXTCOLOR",     (0, 0), (-1, 0), colors.white),
-        ("FONTNAME",      (0, 0), (-1, 0), "Helvetica-Bold"),
-        ("FONTSIZE",      (0, 0), (-1, 0), 7.5),
-        ("ALIGN",         (0, 0), (-1, 0), "CENTER"),
-        ("BOTTOMPADDING", (0, 0), (-1, 0), 4),
-        ("TOPPADDING",    (0, 0), (-1, 0), 5),
-        ("FONTNAME",      (0, 1), (-1, 1), "Helvetica-Bold"),
-        ("FONTSIZE",      (0, 1), (-1, 1), 14),
-        ("ALIGN",         (0, 1), (-1, 1), "CENTER"),
-        ("TEXTCOLOR",     (0, 1), (0,  1), _AZUL_MEDIO),
-        ("TEXTCOLOR",     (1, 1), (1,  1), _AZUL_OSCURO),
-        ("TEXTCOLOR",     (2, 1), (2,  1), _VERDE if resumen.ganancia_neta >= 0 else _ROJO),
-        ("TEXTCOLOR",     (3, 1), (3,  1), color_util),
-        ("BACKGROUND",    (3, 0), (3, -1), fondo_util),
-        ("FONTSIZE",      (3, 1), (3,  1), 17),
-        ("TOPPADDING",    (3, 1), (3,  1), 8),
-        ("BOTTOMPADDING", (3, 1), (3,  1), 8),
-        ("BOTTOMPADDING", (0, 1), (-1, 1), 4),
-        ("TOPPADDING",    (0, 1), (-1, 1), 6),
-        ("FONTSIZE",      (0, 2), (-1, 2), 8),
-        ("TEXTCOLOR",     (0, 2), (-1, 2), _GRIS_TEXTO),
-        ("ALIGN",         (0, 2), (-1, 2), "CENTER"),
-        ("BOTTOMPADDING", (0, 2), (-1, 2), 6),
+        # Columnas 0-2: encabezado oscuro
+        ("BACKGROUND",    (0, 0), (2, 0), _AZUL_OSCURO),
+        ("TEXTCOLOR",     (0, 0), (2, 0), colors.white),
+        ("FONTNAME",      (0, 0), (2, 0), "Helvetica-Bold"),
+        ("FONTSIZE",      (0, 0), (2, 0), 7.5),
+        ("ALIGN",         (0, 0), (2, 0), "CENTER"),
+        ("BOTTOMPADDING", (0, 0), (2, 0), 4),
+        ("TOPPADDING",    (0, 0), (2, 0), 5),
+        # Columnas 0-2: fila de valores
+        ("FONTNAME",      (0, 1), (2, 1), "Helvetica-Bold"),
+        ("FONTSIZE",      (0, 1), (2, 1), 14),
+        ("ALIGN",         (0, 1), (2, 1), "CENTER"),
+        ("TEXTCOLOR",     (0, 1), (0, 1), _AZUL_MEDIO),
+        ("TEXTCOLOR",     (1, 1), (1, 1), _AZUL_OSCURO),
+        ("TEXTCOLOR",     (2, 1), (2, 1), _VERDE if resumen.ganancia_neta >= 0 else _ROJO),
+        ("BOTTOMPADDING", (0, 1), (2, 1), 4),
+        ("TOPPADDING",    (0, 1), (2, 1), 6),
+        # Columnas 0-2: subtítulo
+        ("FONTSIZE",      (0, 2), (2, 2), 8),
+        ("TEXTCOLOR",     (0, 2), (2, 2), _GRIS_TEXTO),
+        ("ALIGN",         (0, 2), (2, 2), "CENTER"),
+        ("BOTTOMPADDING", (0, 2), (2, 2), 6),
+        # UTILIDAD REAL: celda fusionada — sin líneas internas posibles
+        ("SPAN",          (3, 0), (3, 2)),
+        ("BACKGROUND",    (3, 0), (3, 2), fondo_util),
+        ("VALIGN",        (3, 0), (3, 2), "MIDDLE"),
+        ("ALIGN",         (3, 0), (3, 2), "CENTER"),
+        # Borde general
         ("GRID",          (0, 0), (-1, -1), 0.5, _GRIS_BORDE),
-        # Ocultar separadores horizontales internos de la columna UTILIDAD REAL
-        ("LINEBELOW",     (3, 0), (3, 0), 0.5, fondo_util),
-        ("LINEBELOW",     (3, 1), (3, 1), 0.5, fondo_util),
-        # Texto del encabezado UTILIDAD REAL legible sobre fondo claro
-        ("TEXTCOLOR",     (3, 0), (3, 0), color_util),
-        ("FONTNAME",      (3, 0), (3, 0), "Helvetica-Bold"),
     ]))
     return t
 

@@ -125,6 +125,13 @@ class VentaController:
         except Exception:
             pass
 
+        # Acreditar a la cuenta correspondiente
+        try:
+            from database.cuentas_repo import acreditar_venta
+            acreditar_venta(venta)
+        except Exception:
+            pass
+
         return venta
 
     # ------------------------------------------------------------------
@@ -204,6 +211,12 @@ class VentaController:
             try:
                 from database.inventario_repo import decrementar_cantidad
                 decrementar_cantidad(venta.producto, venta.cantidad)
+            except Exception:
+                pass
+
+            try:
+                from database.cuentas_repo import acreditar_venta
+                acreditar_venta(venta)
             except Exception:
                 pass
 

@@ -20,7 +20,7 @@ from database.connection import DatabaseConnection
 
 # ── Versión actual del esquema ────────────────────────────────────────────────
 # Incrementar este número cada vez que se añada una migración a _MIGRACIONES.
-_VERSION_ACTUAL = 13
+_VERSION_ACTUAL = 14
 
 
 # ── Lista de migraciones (forward-only) ───────────────────────────────────────
@@ -81,6 +81,42 @@ _MIGRACIONES = [
     ]),
     (13, "Agregar hora a ventas para análisis de horas pico", [
         "ALTER TABLE ventas ADD COLUMN hora TEXT NOT NULL DEFAULT ''",
+    ]),
+    (14, "Crear sistema de Cuentas (cuentas, movimientos, cierres)", [
+        """CREATE TABLE IF NOT EXISTS cuentas (
+            id             INTEGER PRIMARY KEY AUTOINCREMENT,
+            nombre         TEXT    NOT NULL UNIQUE,
+            metodo_pago    TEXT    NOT NULL DEFAULT '',
+            balance_actual REAL    NOT NULL DEFAULT 0,
+            color          TEXT    NOT NULL DEFAULT '#3B82F6',
+            activa         INTEGER NOT NULL DEFAULT 1,
+            orden          INTEGER NOT NULL DEFAULT 0
+        )""",
+        """CREATE TABLE IF NOT EXISTS cuentas_movimientos (
+            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            cuenta_id   INTEGER NOT NULL REFERENCES cuentas(id) ON DELETE CASCADE,
+            fecha       TEXT    NOT NULL,
+            tipo        TEXT    NOT NULL,
+            monto       REAL    NOT NULL DEFAULT 0,
+            descripcion TEXT             DEFAULT '',
+            venta_id    INTEGER          DEFAULT NULL
+        )""",
+        """CREATE TABLE IF NOT EXISTS cuentas_cierres (
+            id           INTEGER PRIMARY KEY AUTOINCREMENT,
+            anio         INTEGER NOT NULL,
+            mes          INTEGER NOT NULL,
+            datos_json   TEXT    NOT NULL DEFAULT '[]',
+            notas        TEXT             DEFAULT '',
+            fecha_cierre TEXT    NOT NULL,
+            UNIQUE(anio, mes)
+        )""",
+        # Cuentas por defecto — una por cada medio de pago del sistema
+        "INSERT OR IGNORE INTO cuentas (nombre, metodo_pago, color, orden) VALUES ('Efectivo',         'Efectivo',               '#22C55E', 1)",
+        "INSERT OR IGNORE INTO cuentas (nombre, metodo_pago, color, orden) VALUES ('Nequi',            'Transferencia NEQUI',    '#8B5CF6', 2)",
+        "INSERT OR IGNORE INTO cuentas (nombre, metodo_pago, color, orden) VALUES ('QR / Bancolombia', 'Transferencia QR',       '#F59E0B', 3)",
+        "INSERT OR IGNORE INTO cuentas (nombre, metodo_pago, color, orden) VALUES ('NU',               'Transferencia NU',       '#EF4444', 4)",
+        "INSERT OR IGNORE INTO cuentas (nombre, metodo_pago, color, orden) VALUES ('Daviplata',        'Transferencia DAVIPLATA','#F97316', 5)",
+        "INSERT OR IGNORE INTO cuentas (nombre, metodo_pago, color, orden) VALUES ('Addi',             'Addi',                   '#06B6D4', 6)",
     ]),
 ]
 
@@ -214,6 +250,39 @@ def _create_tables(conn: sqlite3.Connection) -> None:
             nombre     TEXT    NOT NULL UNIQUE,
             rol        TEXT    NOT NULL DEFAULT 'vendedor',
             clave_hash TEXT    NOT NULL DEFAULT ''
+        )
+    """)
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS cuentas (
+            id             INTEGER PRIMARY KEY AUTOINCREMENT,
+            nombre         TEXT    NOT NULL UNIQUE,
+            metodo_pago    TEXT    NOT NULL DEFAULT '',
+            balance_actual REAL    NOT NULL DEFAULT 0,
+            color          TEXT    NOT NULL DEFAULT '#3B82F6',
+            activa         INTEGER NOT NULL DEFAULT 1,
+            orden          INTEGER NOT NULL DEFAULT 0
+        )
+    """)
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS cuentas_movimientos (
+            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            cuenta_id   INTEGER NOT NULL REFERENCES cuentas(id) ON DELETE CASCADE,
+            fecha       TEXT    NOT NULL,
+            tipo        TEXT    NOT NULL,
+            monto       REAL    NOT NULL DEFAULT 0,
+            descripcion TEXT             DEFAULT '',
+            venta_id    INTEGER          DEFAULT NULL
+        )
+    """)
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS cuentas_cierres (
+            id           INTEGER PRIMARY KEY AUTOINCREMENT,
+            anio         INTEGER NOT NULL,
+            mes          INTEGER NOT NULL,
+            datos_json   TEXT    NOT NULL DEFAULT '[]',
+            notas        TEXT             DEFAULT '',
+            fecha_cierre TEXT    NOT NULL,
+            UNIQUE(anio, mes)
         )
     """)
 

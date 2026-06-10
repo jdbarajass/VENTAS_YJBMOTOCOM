@@ -28,6 +28,7 @@ from ui.exportar_importar_panel import ExportarImportarPanel
 from ui.facturas_panel import FacturasPanel
 from ui.presupuesto_panel import PresupuestoPanel
 from ui.notas_panel import NotasPanel
+from ui.cuentas_panel import CuentasPanel
 
 
 # Índices de página en el QStackedWidget
@@ -43,6 +44,7 @@ PAGE_EXPORTAR     = 8
 PAGE_FACTURAS     = 9
 PAGE_PRESUPUESTO  = 10
 PAGE_NOTAS        = 11
+PAGE_CUENTAS      = 12
 
 
 class MainWindow(QMainWindow):
@@ -60,7 +62,7 @@ class MainWindow(QMainWindow):
         self._paginas_desbloqueadas: set[int] = set()   # páginas ya autenticadas esta sesión
         # Admin ya tiene acceso a sus propias páginas protegidas desde login
         if rol == "admin":
-            self._paginas_desbloqueadas.update({PAGE_CONFIG, PAGE_EXPORTAR})
+            self._paginas_desbloqueadas.update({PAGE_CONFIG, PAGE_EXPORTAR, PAGE_CUENTAS})
         self._setup_window()
         self._build_ui()
         self._nav_buttons[PAGE_REGISTRAR].setChecked(True)
@@ -228,9 +230,10 @@ class MainWindow(QMainWindow):
             (PAGE_NOTAS,       "📝  Notas y Pendientes"),
             (PAGE_EXPORTAR,    "⬇⬆  Exportar / Importar"),
             (PAGE_CONFIG,      "⚙  Configuración"),
+            (PAGE_CUENTAS,     "💳  Cuentas"),
         ]
 
-        _ocultas_vendedor = {PAGE_CONFIG, PAGE_EXPORTAR}
+        _ocultas_vendedor = {PAGE_CONFIG, PAGE_EXPORTAR, PAGE_CUENTAS}
 
         self._nav_buttons: dict[int, QPushButton] = {}
         for page_idx, label in nav_items:
@@ -369,6 +372,10 @@ class MainWindow(QMainWindow):
         self._notas = NotasPanel()
         self._stack.addWidget(self._notas)
 
+        # Página 12 — Cuentas (solo Admin)
+        self._cuentas = CuentasPanel()
+        self._stack.addWidget(self._cuentas)
+
         # Señales
         self._form_venta.venta_guardada.connect(self._on_venta_guardada)
         self._config.configuracion_guardada.connect(self._on_config_guardada)
@@ -405,8 +412,8 @@ class MainWindow(QMainWindow):
     # ------------------------------------------------------------------
 
     def _navegar(self, page_idx: int) -> None:
-        """Cambia la página visible; pide contraseña para Configuración y Exportar/Importar."""
-        _PAGINAS_PROTEGIDAS = {PAGE_CONFIG, PAGE_EXPORTAR}
+        """Cambia la página visible; pide contraseña para Configuración, Exportar/Importar y Cuentas."""
+        _PAGINAS_PROTEGIDAS = {PAGE_CONFIG, PAGE_EXPORTAR, PAGE_CUENTAS}
         if page_idx in _PAGINAS_PROTEGIDAS and page_idx not in self._paginas_desbloqueadas:
             from database.config_repo import obtener_configuracion
             from utils.security import verificar_clave
@@ -426,7 +433,9 @@ class MainWindow(QMainWindow):
                 return
             self._paginas_desbloqueadas.add(page_idx)
             import utils.auditoria as auditoria
-            nombre_pagina = "Configuración" if page_idx == PAGE_CONFIG else "Exportar/Importar"
+            nombre_pagina = {PAGE_CONFIG: "Configuración",
+                             PAGE_EXPORTAR: "Exportar/Importar",
+                             PAGE_CUENTAS: "Cuentas"}.get(page_idx, "Página protegida")
             auditoria.registrar(f"Acceso a {nombre_pagina}")
 
         self._stack.setCurrentIndex(page_idx)
@@ -550,9 +559,9 @@ class MainWindow(QMainWindow):
             self._lbl_usuario.setText(f"{'👑' if self._rol == 'admin' else '👤'}  {self._usuario}")
             self._paginas_desbloqueadas.clear()
             if self._rol == "admin":
-                self._paginas_desbloqueadas.update({PAGE_CONFIG, PAGE_EXPORTAR})
+                self._paginas_desbloqueadas.update({PAGE_CONFIG, PAGE_EXPORTAR, PAGE_CUENTAS})
             # Actualizar visibilidad de botones
-            _ocultas_vendedor = {PAGE_CONFIG, PAGE_EXPORTAR}
+            _ocultas_vendedor = {PAGE_CONFIG, PAGE_EXPORTAR, PAGE_CUENTAS}
             for idx, btn in self._nav_buttons.items():
                 btn.setVisible(not (self._rol == "vendedor" and idx in _ocultas_vendedor))
             self.showMaximized()
@@ -568,6 +577,7 @@ class MainWindow(QMainWindow):
         self._dashboard.refresh()
         self._historial.refresh()
         self._inventario.refresh()
+        self._cuentas.refresh()
         self._actualizar_badge_stock()
         self._status.showMessage(
             f"Venta registrada: {venta.producto}  •  Ganancia neta: {venta.ganancia_neta:,.0f}"
@@ -607,6 +617,7 @@ class MainWindow(QMainWindow):
         self._actualizar_badge_stock()
         self._actualizar_badge_facturas()
         self._actualizar_badge_notas()
+        self._cuentas.refresh()
         self._status.showMessage("Importación completada  •  Todos los datos actualizados")
 
     # ------------------------------------------------------------------

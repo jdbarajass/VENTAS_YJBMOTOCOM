@@ -198,6 +198,12 @@ def actualizar_venta(venta: Venta) -> bool:
         raise ValueError("No se puede actualizar una venta sin id.")
     conn = DatabaseConnection.get()
     pagos_json = json.dumps(venta.pagos_combinados) if venta.pagos_combinados else None
+    vendedor      = getattr(venta, "vendedor", "")
+    cliente_nombre = getattr(venta, "cliente_nombre", "")
+    cliente_cedula = getattr(venta, "cliente_cedula", "")
+    cliente_tel   = getattr(venta, "cliente_tel", "")
+    descuento     = getattr(venta, "descuento", 0)
+    sku           = getattr(venta, "sku", "")
     cursor = conn.execute(
         """
         UPDATE ventas SET
@@ -210,7 +216,13 @@ def actualizar_venta(venta: Venta) -> bool:
             comision           = ?,
             ganancia_neta      = ?,
             notas              = ?,
-            pagos_combinados   = ?
+            pagos_combinados   = ?,
+            vendedor           = ?,
+            cliente_nombre     = ?,
+            cliente_cedula     = ?,
+            cliente_tel        = ?,
+            descuento          = ?,
+            sku                = ?
         WHERE id = ?
         """,
         (
@@ -224,6 +236,12 @@ def actualizar_venta(venta: Venta) -> bool:
             venta.ganancia_neta,
             venta.notas,
             pagos_json,
+            vendedor,
+            cliente_nombre,
+            cliente_cedula,
+            cliente_tel,
+            descuento,
+            sku,
             venta.id,
         ),
     )

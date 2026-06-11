@@ -25,7 +25,7 @@ NEGOCIO_NIT     = "NIT 1032464724-2"
 NEGOCIO_DIR     = "AK 14 # 17-21 LOCAL 127, Bogota D.C."
 NEGOCIO_TEL     = "Tel: +57 314 406 5520"
 NEGOCIO_EMAIL   = "yjbmotocom@gmail.com"
-NEGOCIO_REGIMEN = "No responsable de IVA - IVA incluido en el precio"
+NEGOCIO_REGIMEN = "No responsable de IVA"
 
 # ---------------------------------------------------------------------------
 # Dimensiones del papel (80 mm ancho, alto dinámico)
@@ -271,7 +271,8 @@ class _Recibo:
             nl(LINE_H_SM)
 
         v0 = self._v0
-        now = datetime.now()
+        # Usar la hora guardada en la venta; fallback a la hora actual (ventas antiguas sin campo)
+        hora_venta = getattr(v0, "hora", "") or ""
 
         # ── Cabecera del negocio ──────────────────────────────────────────
         nl(4 * mm)
@@ -337,7 +338,7 @@ class _Recibo:
         fecha_str = (v0.fecha.strftime("%d/%m/%Y")
                      if hasattr(v0.fecha, "strftime") else str(v0.fecha))
         kv("Fecha:", fecha_str)
-        kv("Hora:", now.strftime("%I:%M %p"))
+        kv("Hora:", hora_venta if hora_venta else datetime.now().strftime("%I:%M %p"))
 
         if v0.pagos_combinados:
             kv("Metodo pago:", "Combinado")

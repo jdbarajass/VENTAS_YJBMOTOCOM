@@ -484,6 +484,16 @@ class EditVentaDialog(QDialog):
                 notas=self.campo_notas.toPlainText().strip(),
                 pagos_combinados=pagos,
             )
+            # Preservar campos inmutables / no editables en este diálogo
+            venta.vendedor        = getattr(self._venta_original, "vendedor", "")
+            venta.cliente_nombre  = getattr(self._venta_original, "cliente_nombre", "")
+            venta.cliente_cedula  = getattr(self._venta_original, "cliente_cedula", "")
+            venta.cliente_tel     = getattr(self._venta_original, "cliente_tel", "")
+            venta.descuento       = getattr(self._venta_original, "descuento", 0)
+            venta.sku             = getattr(self._venta_original, "sku", "")
+            venta.numero_factura  = getattr(self._venta_original, "numero_factura", None)
+            venta.hora            = getattr(self._venta_original, "hora", "")
+            venta.grupo_venta_id  = getattr(self._venta_original, "grupo_venta_id", None)
             self._ctrl.actualizar_venta_existente(venta)
             self.venta_actualizada.emit(venta)
             self.accept()

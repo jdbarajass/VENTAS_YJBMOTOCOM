@@ -16,8 +16,9 @@ from database.gastos_dia_repo import (
     insertar_gasto,
     obtener_gastos_por_fecha,
     obtener_gasto_por_id,
-    eliminar_gasto,
+    eliminar_gasto as _eliminar_gasto_repo,
 )
+from database.cuentas_repo import revertir_gasto as _revertir_gasto
 from services.exportador import exportar_ventas_dia
 
 
@@ -57,5 +58,12 @@ class VentasDiaController:
         return obtener_gasto_por_id(gasto_id)
 
     def eliminar_gasto(self, gasto_id: int) -> bool:
-        """Elimina un gasto operativo por id."""
-        return eliminar_gasto(gasto_id)
+        """Elimina un gasto operativo y revierte el débito en la cuenta correspondiente."""
+        gasto = obtener_gasto_por_id(gasto_id)
+        resultado = _eliminar_gasto_repo(gasto_id)
+        if resultado and gasto:
+            try:
+                _revertir_gasto(gasto)
+            except Exception:
+                pass
+        return resultado

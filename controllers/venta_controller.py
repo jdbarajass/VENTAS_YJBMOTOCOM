@@ -166,6 +166,11 @@ class VentaController:
         metodo_final = "Combinado" if pagos_combinados else metodo_pago
         total_carrito = sum(ln["precio"] * ln["cantidad"] for ln in lineas)
 
+        if descuento > total_carrito:
+            raise ValueError(
+                "El descuento no puede ser mayor al total del carrito."
+            )
+
         from database.ventas_repo import siguiente_grupo_venta_id
         grupo_id = siguiente_grupo_venta_id() if len(lineas) > 1 else None
         nro_factura = siguiente_numero_factura()
@@ -221,18 +226,40 @@ class VentaController:
             completar_venta(venta, cfg)
             ventas.append(venta)
 
-        # ── Fase 2: distribuir el descuento en ganancia_neta (proporcional) ──
+        # ── Fase 2: distribuir descuento en comision y ganancia_neta (proporcional) ──
+        # La comisión se recalcula sobre el precio efectivo (ya descontado) porque
+        # el terminal cobra comisión sobre lo que el cliente realmente paga.
         if descuento > 0 and total_carrito > 0:
             restante = descuento
             for i, venta in enumerate(ventas):
+                valor_linea = venta.precio * venta.cantidad
                 if i < len(ventas) - 1:
-                    prop = (venta.precio * venta.cantidad) / total_carrito
+                    prop = valor_linea / total_carrito
                     ajuste = round(descuento * prop)
-                    venta.ganancia_neta = round(venta.ganancia_neta - ajuste, 2)
                     restante -= ajuste
                 else:
-                    # Último producto absorbe el residuo de redondeo
-                    venta.ganancia_neta = round(venta.ganancia_neta - restante, 2)
+                    ajuste = restante
+
+                if ajuste > 0:
+                    if venta.pagos_combinados:
+                        # Escalar cada pago proporcionalmente al descuento de esta línea
+                        pagos_desc = [
+                            {"metodo": p["metodo"],
+                             "monto": p["monto"] - round(ajuste * p["monto"] / valor_linea)}
+                            for p in venta.pagos_combinados
+                        ]
+                        comision_nueva = calcular_comision_combinada(pagos_desc, cfg)
+                    else:
+                        precio_neto_unit = max(0.0, venta.precio - ajuste / venta.cantidad)
+                        comision_unit = calcular_comision(precio_neto_unit, venta.metodo_pago, cfg)
+                        comision_nueva = round(comision_unit * venta.cantidad, 2)
+
+                    diff_comision = venta.comision - comision_nueva
+                    venta.comision = comision_nueva
+                    # ganancia_neta = (precio - ajuste) × cant - costo × cant - comision_nueva
+                    venta.ganancia_neta = round(
+                        venta.ganancia_neta - ajuste + diff_comision, 2
+                    )
 
         # ── Fase 3: persistir y post-procesar ────────────────────────────────
         for venta in ventas:

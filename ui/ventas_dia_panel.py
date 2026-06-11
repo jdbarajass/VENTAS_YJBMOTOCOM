@@ -20,7 +20,7 @@ from ui.edit_venta_dialog import EditVentaDialog
 from ui.venta_form import MoneyLineEdit
 from utils.formatters import cop, fecha_corta
 from models.gasto_dia import CATEGORIAS_GASTO
-from database.cuentas_repo import obtener_todas as _obtener_cuentas, debitar_gasto, revertir_gasto
+from database.cuentas_repo import obtener_todas as _obtener_cuentas, debitar_gasto
 
 # Columnas de la tabla (índices)
 COL_ID       = 0   # oculto
@@ -808,14 +808,7 @@ class VentasDiaPanel(QWidget):
             QMessageBox.warning(self, "Error", str(exc))
 
     def _on_eliminar_gasto(self, gasto_id: int) -> None:
-        # Recuperar el gasto antes de borrarlo para revertir el débito
-        gasto = self._ctrl.obtener_gasto(gasto_id)
         self._ctrl.eliminar_gasto(gasto_id)
-        if gasto:
-            try:
-                revertir_gasto(gasto)
-            except Exception:
-                pass
         qd = self.date_selector.date()
         fecha = date(qd.year(), qd.month(), qd.day())
         self._gastos = self._ctrl.cargar_gastos(fecha)

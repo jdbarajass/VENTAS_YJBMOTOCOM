@@ -935,6 +935,7 @@ class VentaForm(QWidget):
         self.campo_vendedor.currentIndexChanged.connect(self._on_vendedor_changed)
         self._chk_descuento.toggled.connect(self._on_toggle_descuento)
         self._campo_descuento.textChanged.connect(self._actualizar_preview)
+        self._campo_descuento.textChanged.connect(self._actualizar_status_combinado)
         self._chk_cliente.toggled.connect(
             lambda activo: self._frame_cliente_campos.setVisible(activo)
         )
@@ -1100,6 +1101,12 @@ class VentaForm(QWidget):
             ln.campo_precio.valor_int() * ln.campo_cantidad.value()
             for ln in self._lineas
         )
+        desc = (
+            self._campo_descuento.valor_int()
+            if hasattr(self, "_chk_descuento") and self._chk_descuento.isChecked()
+            else 0
+        )
+        total = max(0, total - desc)
         color = "#15803D" if asignado == total and total > 0 else (
             "#DC2626" if asignado > total else "#374151"
         )
@@ -1217,7 +1224,7 @@ class VentaForm(QWidget):
         else:
             self._lbl_medios_titulo.setText("Medio de pago")
             if metodo:
-                lbl = QLabel(f"{metodo}:  {cop(total_precio)}")
+                lbl = QLabel(f"{metodo}:  {cop(total_final)}")
                 lbl.setStyleSheet(
                     "font-size:12px; font-weight:bold; color:#1E293B; background:transparent;"
                 )
@@ -1320,9 +1327,11 @@ class VentaForm(QWidget):
             except Exception:
                 pass
 
-            # Validar suma de pagos combinados == total carrito
+            # Validar suma de pagos combinados == total carrito (con descuento)
             if pagos is not None:
-                total_esperado = sum(int(d["precio"]) * d["cantidad"] for d in lineas)
+                total_esperado = (
+                    sum(int(d["precio"]) * d["cantidad"] for d in lineas) - descuento
+                )
                 total_asignado = sum(int(p["monto"]) for p in pagos)
                 if total_asignado != total_esperado:
                     from utils.formatters import cop as _cop

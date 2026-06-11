@@ -587,7 +587,10 @@ class VentasDiaPanel(QWidget):
 
     def _actualizar_resumen(self) -> None:
         n          = sum(v.cantidad for v in self._ventas)
-        ingresos   = sum(v.precio * v.cantidad for v in self._ventas)
+        ingresos   = sum(
+            v.precio * v.cantidad - (getattr(v, "descuento", 0) or 0)
+            for v in self._ventas
+        )
         costos     = sum(v.costo * v.cantidad for v in self._ventas)
         comisiones = sum(v.comision for v in self._ventas)
         neta       = sum(v.ganancia_neta for v in self._ventas)

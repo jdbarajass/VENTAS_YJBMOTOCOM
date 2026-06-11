@@ -118,7 +118,9 @@ def acreditar_venta(venta) -> None:
                 _acreditar_un_pago(conn, pago["metodo"], pago["monto"],
                                    venta.id, venta.fecha)
         elif venta.metodo_pago not in ("Otro", "Combinado"):
-            _acreditar_un_pago(conn, venta.metodo_pago, venta.precio * venta.cantidad,
+            desc = getattr(venta, "descuento", 0) or 0
+            monto_real = venta.precio * venta.cantidad - desc
+            _acreditar_un_pago(conn, venta.metodo_pago, monto_real,
                                venta.id, venta.fecha)
         conn.commit()
     except Exception as exc:

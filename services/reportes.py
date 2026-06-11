@@ -122,7 +122,7 @@ def calcular_resumen_diario(
     resumen.cantidad_ventas = sum(v.cantidad for v in ventas)
 
     for v in ventas:
-        resumen.total_ingresos += v.precio * v.cantidad
+        resumen.total_ingresos += v.precio * v.cantidad - (getattr(v, "descuento", 0) or 0)
         resumen.total_costos += v.costo * v.cantidad
         resumen.total_comisiones += v.comision
         resumen.ganancia_neta += v.ganancia_neta

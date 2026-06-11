@@ -1179,7 +1179,7 @@ class VentaForm(QWidget):
         pagos = self._get_pagos_combinados()
 
         data = self._ctrl.calcular_preview(
-            total_costo, total_precio, metodo, 1, pagos
+            total_costo, total_final, metodo, 1, pagos
         )
 
         # Actualizar label de porcentaje de descuento
@@ -1239,7 +1239,7 @@ class VentaForm(QWidget):
             f"- {cop(data['comision'])}" if data["comision"] > 0 else cop(0)
         )
 
-        neta = data["ganancia_neta"] - descuento
+        neta = data["ganancia_neta"]
         self.lbl_neta.setText(cop(neta))
 
         if neta > 0:

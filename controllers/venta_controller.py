@@ -170,6 +170,7 @@ class VentaController:
         grupo_id = siguiente_grupo_venta_id() if len(lineas) > 1 else None
         nro_factura = siguiente_numero_factura()
 
+        # ── Fase 1: construir todas las Venta sin insertar ──────────────────
         ventas = []
         for i, ln in enumerate(lineas):
             # Distribuir pagos_combinados proporcionalmente
@@ -184,7 +185,7 @@ class VentaController:
                         for p in pagos_combinados
                     ]
                 else:
-                    # Ultimo producto: usar el saldo restante para evitar redondeos
+                    # Último producto: usar el saldo restante para evitar redondeos
                     asignados: dict = {}
                     for v in ventas:
                         for pc in (v.pagos_combinados or []):
@@ -218,6 +219,23 @@ class VentaController:
                 venta.cliente_tel = cliente_tel
                 venta.descuento = descuento
             completar_venta(venta, cfg)
+            ventas.append(venta)
+
+        # ── Fase 2: distribuir el descuento en ganancia_neta (proporcional) ──
+        if descuento > 0 and total_carrito > 0:
+            restante = descuento
+            for i, venta in enumerate(ventas):
+                if i < len(ventas) - 1:
+                    prop = (venta.precio * venta.cantidad) / total_carrito
+                    ajuste = round(descuento * prop)
+                    venta.ganancia_neta = round(venta.ganancia_neta - ajuste, 2)
+                    restante -= ajuste
+                else:
+                    # Último producto absorbe el residuo de redondeo
+                    venta.ganancia_neta = round(venta.ganancia_neta - restante, 2)
+
+        # ── Fase 3: persistir y post-procesar ────────────────────────────────
+        for venta in ventas:
             insertar_venta(venta)
 
             try:
@@ -231,8 +249,6 @@ class VentaController:
                 acreditar_venta(venta)
             except Exception:
                 pass
-
-            ventas.append(venta)
 
         return ventas
 

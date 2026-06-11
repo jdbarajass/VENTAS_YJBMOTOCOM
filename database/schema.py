@@ -20,7 +20,7 @@ from database.connection import DatabaseConnection
 
 # ── Versión actual del esquema ────────────────────────────────────────────────
 # Incrementar este número cada vez que se añada una migración a _MIGRACIONES.
-_VERSION_ACTUAL = 15
+_VERSION_ACTUAL = 16
 
 
 # ── Lista de migraciones (forward-only) ───────────────────────────────────────
@@ -120,6 +120,14 @@ _MIGRACIONES = [
     ]),
     (15, "Agregar cuenta_pago a gastos_dia", [
         "ALTER TABLE gastos_dia ADD COLUMN cuenta_pago TEXT NOT NULL DEFAULT 'Efectivo'",
+    ]),
+    (16, "Comprobante overhaul: vendedor, datos cliente, descuento y sku en ventas", [
+        "ALTER TABLE ventas ADD COLUMN vendedor TEXT NOT NULL DEFAULT ''",
+        "ALTER TABLE ventas ADD COLUMN cliente_nombre TEXT NOT NULL DEFAULT ''",
+        "ALTER TABLE ventas ADD COLUMN cliente_cedula TEXT NOT NULL DEFAULT ''",
+        "ALTER TABLE ventas ADD COLUMN cliente_tel TEXT NOT NULL DEFAULT ''",
+        "ALTER TABLE ventas ADD COLUMN descuento INTEGER NOT NULL DEFAULT 0",
+        "ALTER TABLE ventas ADD COLUMN sku TEXT NOT NULL DEFAULT ''",
     ]),
 ]
 

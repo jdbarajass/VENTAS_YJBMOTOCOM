@@ -141,10 +141,15 @@ class VentaController:
     def guardar_carrito(
         self,
         fecha: date,
-        lineas: list[dict],  # [{producto, costo, precio, cantidad}]
+        lineas: list[dict],  # [{producto, costo, precio, cantidad, sku}]
         metodo_pago: str,
         notas: str,
         pagos_combinados: list | None = None,
+        vendedor: str = "",
+        cliente_nombre: str = "",
+        cliente_cedula: str = "",
+        cliente_tel: str = "",
+        descuento: int = 0,
     ) -> list:
         """
         Guarda un carrito con N productos. Crea N ventas independientes.
@@ -205,6 +210,13 @@ class VentaController:
             )
             venta.numero_factura = nro_factura
             venta.hora = datetime.now().strftime("%H:%M")
+            venta.vendedor = vendedor
+            venta.sku = ln.get("sku", "")
+            if i == 0:
+                venta.cliente_nombre = cliente_nombre
+                venta.cliente_cedula = cliente_cedula
+                venta.cliente_tel = cliente_tel
+                venta.descuento = descuento
             completar_venta(venta, cfg)
             insertar_venta(venta)
 

@@ -1,6 +1,6 @@
 """
 services/recibo_generator.py
-Genera un recibo POS (80 mm ancho) en PDF con altura dinámica.
+Genera un comprobante de venta POS (80 mm ancho) en PDF con altura dinámica.
 Acepta una sola Venta o una lista (carrito multi-producto).
 
 Dependencia: reportlab
@@ -25,7 +25,7 @@ NEGOCIO_NIT     = "NIT 1032464724-2"
 NEGOCIO_DIR     = "AK 14 # 17-21 LOCAL 127, Bogota D.C."
 NEGOCIO_TEL     = "Tel: +57 314 406 5520"
 NEGOCIO_EMAIL   = "yjbmotocom@gmail.com"
-NEGOCIO_REGIMEN = "Regimen: Responsable de IVA"
+NEGOCIO_REGIMEN = "No responsable de IVA - IVA incluido en el precio"
 
 # ---------------------------------------------------------------------------
 # Dimensiones del papel (80 mm ancho, alto dinámico)
@@ -51,6 +51,16 @@ LINE_H_SM   = 8.5    # interlineado pequeño
 # ---------------------------------------------------------------------------
 ESCUDO_W = 11 * mm          # ancho del escudo (pequeño, lado izquierdo)
 ESCUDO_H = ESCUDO_W * 1.38  # alto del escudo (proporción heráldica)
+
+# Texto de garantía y políticas (sin tildes para latin-1)
+_GARANTIA = (
+    "Para cambios o garantias, presenta este comprobante. "
+    "Plazo maximo: 30 dias calendario. Aplican condiciones."
+)
+_LEGAL = (
+    "Este documento es un comprobante interno de venta. "
+    "No reemplaza la factura electronica oficial."
+)
 
 
 def _safe(t: str) -> str:
@@ -118,12 +128,13 @@ class _Recibo:
     Construye el PDF con altura exactamente igual al contenido.
     Layout por producto (sin columnas apretadas):
       Línea 1: "N. Nombre del producto"       (nombre completo, wrapping)
-      Línea 2:          cant × $ precio_unit = $ total   (alineado a la derecha)
+      Línea 2:  [SKU: XXXXX]                  (si hay sku, pequeño)
+      Línea 3:          cant × $ precio_unit = $ total   (alineado a la derecha)
     """
 
     def __init__(self, ventas: list[Venta]) -> None:
         self._ventas = ventas
-        self._v0 = ventas[0]   # primera venta: metodo pago, fecha, id de factura
+        self._v0 = ventas[0]   # primera venta: metodo pago, fecha, datos globales del carrito
 
     # ------------------------------------------------------------------
     # API pública
@@ -150,19 +161,27 @@ class _Recibo:
 
         v0 = self._v0
 
-        # Cabecera empresa
+        # ── Cabecera empresa ─────────────────────────────────────────────
         av(4 * mm)
         av(LINE_H * 1.4)                              # título YJBMOTOCOM
         av(2 * mm)                                    # gap
-        av(max(ESCUDO_H, LINE_H_SM * 4) + 3 * mm)    # escudo izq + info centrada
-        av(2 * mm); av(1); av(2 * mm)   # gap + sep + gap
+        av(max(ESCUDO_H, LINE_H_SM * 4) + 3 * mm)    # escudo izq + info centrada (4 líneas)
+        av(2 * mm); av(1); av(2 * mm)                 # gap + sep + gap
 
-        # Cliente
-        av(LINE_H_SM)
+        # ── Régimen IVA + Cliente ────────────────────────────────────────
+        av(LINE_H_SM)   # "No responsable de IVA..."
+        if getattr(v0, "cliente_nombre", ""):
+            av(LINE_H_SM)   # nombre
+            if getattr(v0, "cliente_cedula", ""):
+                av(LINE_H_SM)
+            if getattr(v0, "cliente_tel", ""):
+                av(LINE_H_SM)
+        else:
+            av(LINE_H_SM)   # "Cliente: Consumidor Final"
         av(2 * mm); av(1); av(2 * mm)
 
-        # Datos de transacción
-        av(LINE_H_SM * 3)         # Factura N, Fecha, Hora
+        # ── Datos de la transacción ──────────────────────────────────────
+        av(LINE_H_SM * 3)         # Comprobante N°, Fecha, Hora
         if v0.pagos_combinados:
             av(LINE_H_SM)         # "Metodo pago: Combinado"
             av(LINE_H_SM * len(v0.pagos_combinados))
@@ -171,43 +190,57 @@ class _Recibo:
         av(LINE_H_SM)             # Vendedor
         av(2 * mm); av(1); av(2 * mm)
 
-        # Cabecera tabla
+        # ── Cabecera tabla ───────────────────────────────────────────────
         av(LINE_H)
 
-        # Filas de productos
+        # ── Filas de productos ───────────────────────────────────────────
         for v in self._ventas:
             av(self._altura_fila(v))
 
         av(1); av(2 * mm)          # sep punteada + gap
 
-        # Totales
+        # ── Totales ──────────────────────────────────────────────────────
         av(LINE_H)                 # Subtotal
+        desc = getattr(v0, "descuento", 0) or 0
+        if desc > 0:
+            av(LINE_H_SM)          # Descuento
         total_com = sum(v.comision for v in self._ventas)
         if total_com > 0:
             av(LINE_H_SM)          # Comision
-        av(LINE_H * 1.2)           # TOTAL
+        av(LINE_H * 1.2)           # TOTAL COP
         av(2 * mm); av(1); av(2 * mm)
 
-        # Resumen forma de pago + items
+        # ── Resumen forma de pago + items ────────────────────────────────
         av(LINE_H_SM * 2)
+
+        # ── Observaciones (si hay notas) ─────────────────────────────────
+        notas = getattr(v0, "notas", "") or ""
+        if notas:
+            obs_lines = simpleSplit(_safe(notas), FONT_NORMAL, FONT_SMALL, COL_W)
+            av(LINE_H_SM)                         # "Observaciones:" label
+            av(len(obs_lines) * LINE_H_SM)
+
         av(2 * mm); av(1); av(2 * mm)
 
-        # Texto legal
-        legal = _safe(
-            "Gracias por su compra. Este documento es un comprobante "
-            "interno de venta. No reemplaza la factura electronica oficial."
-        )
-        av(len(simpleSplit(legal, FONT_NORMAL, FONT_SMALL, COL_W)) * LINE_H_SM + 1)
+        # ── Texto garantía ───────────────────────────────────────────────
+        av(len(simpleSplit(_safe(_GARANTIA), FONT_NORMAL, FONT_SMALL, COL_W)) * LINE_H_SM + 1)
+
+        # ── Texto legal ──────────────────────────────────────────────────
+        av(len(simpleSplit(_safe(_LEGAL), FONT_NORMAL, FONT_SMALL, COL_W)) * LINE_H_SM + 1)
+
         av(LINE_H)                 # "!Gracias por su compra!"
         av(4 * mm)                 # margen inferior
 
         return cur[0]
 
     def _altura_fila(self, v: Venta) -> float:
-        """Altura de la fila de un producto (2 líneas: nombre + detalle precio)."""
+        """Altura de la fila de un producto (nombre + opcional SKU + detalle precio)."""
         nombre = _safe(v.producto)
         lineas = simpleSplit(nombre, FONT_NORMAL, FONT_BODY, COL_W - 6 * mm)
-        return max(len(lineas), 1) * LINE_H + LINE_H_SM + 3
+        height = max(len(lineas), 1) * LINE_H + LINE_H_SM + 3
+        if getattr(v, "sku", ""):
+            height += LINE_H_SM
+        return height
 
     # ------------------------------------------------------------------
     # Dibujo real
@@ -240,10 +273,9 @@ class _Recibo:
         v0 = self._v0
         now = datetime.now()
 
-        # ── Cabecera del negocio ──────────────────────────────────────
+        # ── Cabecera del negocio ──────────────────────────────────────────
         nl(4 * mm)
 
-        # Título "YJBMOTOCOM" centrado en toda la página
         c.setFont(FONT_BOLD, FONT_TITLE * 1.3)
         c.setFillColorRGB(0, 0, 0)
         c.drawCentredString(PAGE_W / 2, y(), "YJBMOTOCOM")
@@ -251,13 +283,11 @@ class _Recibo:
 
         nl(2 * mm)
 
-        # Bloque: escudo izquierda + info centrada en el espacio restante
         header_h = max(ESCUDO_H, LINE_H_SM * 4)
 
         v_off_s = (header_h - ESCUDO_H) / 2
         _dibujar_escudo(c, MARGIN_X + ESCUDO_W / 2, y() - v_off_s)
 
-        # Centro del área a la derecha del escudo
         area_left  = MARGIN_X + ESCUDO_W + 2 * mm
         area_right = PAGE_W - MARGIN_R
         text_cx    = (area_left + area_right) / 2
@@ -274,16 +304,35 @@ class _Recibo:
 
         nl(2 * mm); sep(); nl(2 * mm)
 
-        # ── Cliente ────────────────────────────────────────────────────
-        c.setFont(FONT_BOLD, FONT_BODY)
-        c.drawCentredString(PAGE_W / 2, y(), "Cliente: Consumidor Final")
+        # ── Régimen IVA ───────────────────────────────────────────────────
+        c.setFont(FONT_NORMAL, FONT_SMALL)
+        c.setFillColorRGB(0.25, 0.25, 0.25)
+        c.drawCentredString(PAGE_W / 2, y(), _safe(NEGOCIO_REGIMEN))
         nl(LINE_H_SM)
+        c.setFillColorRGB(0, 0, 0)
+
+        # ── Cliente ───────────────────────────────────────────────────────
+        cli_nombre = getattr(v0, "cliente_nombre", "") or ""
+        cli_cedula = getattr(v0, "cliente_cedula", "") or ""
+        cli_tel    = getattr(v0, "cliente_tel", "") or ""
+
+        if cli_nombre:
+            kv("Cliente:", cli_nombre)
+            if cli_cedula:
+                kv("Cedula:", cli_cedula)
+            if cli_tel:
+                kv("Tel.:", cli_tel)
+        else:
+            c.setFont(FONT_BOLD, FONT_BODY)
+            c.drawCentredString(PAGE_W / 2, y(), "Cliente: Consumidor Final")
+            nl(LINE_H_SM)
+
         nl(2 * mm); sep(); nl(2 * mm)
 
-        # ── Datos de la transacción ────────────────────────────────────
+        # ── Datos de la transacción ────────────────────────────────────────
         num_factura = getattr(v0, "numero_factura", None) or v0.id
         num = str(num_factura) if num_factura else "---"
-        kv("Factura N:", f"#{num}")
+        kv("Comprobante N\xb0:", f"#{num}")
 
         fecha_str = (v0.fecha.strftime("%d/%m/%Y")
                      if hasattr(v0.fecha, "strftime") else str(v0.fecha))
@@ -302,11 +351,11 @@ class _Recibo:
         else:
             kv("Metodo pago:", v0.metodo_pago)
 
-        kv("Vendedor:", "YJB Motocom")
+        vendedor = getattr(v0, "vendedor", "") or "YJB Motocom"
+        kv("Vendedor:", vendedor)
         nl(2 * mm); sep(); nl(2 * mm)
 
-        # ── Tabla de productos ─────────────────────────────────────────
-        # Cabecera sencilla: "#  Descripcion" | "Total" (sin columnas apretadas)
+        # ── Tabla de productos ─────────────────────────────────────────────
         c.setFont(FONT_BOLD, FONT_SMALL + 0.5)
         c.drawString(MARGIN_X, y(), "#  Descripcion")
         c.drawRightString(PAGE_W - MARGIN_R, y(), "Total")
@@ -325,6 +374,15 @@ class _Recibo:
                 c.drawString(MARGIN_X + 6 * mm, base_y - i * LINE_H, linea)
             nl(max(len(lineas_nombre), 1) * LINE_H)
 
+            # Línea SKU (si existe)
+            sku = getattr(v, "sku", "") or ""
+            if sku:
+                c.setFont(FONT_NORMAL, FONT_SMALL)
+                c.setFillColorRGB(0.4, 0.4, 0.4)
+                c.drawString(MARGIN_X + 6 * mm, y(), _safe(f"SKU: {sku}"))
+                c.setFillColorRGB(0, 0, 0)
+                nl(LINE_H_SM)
+
             # Línea 2: cant × precio_unit = total  (todo en pequeño, alineado derecha)
             total_linea = v.precio * v.cantidad
             detalle = f"{v.cantidad}u x {cop(v.precio)} = {cop(total_linea)}"
@@ -334,14 +392,25 @@ class _Recibo:
 
         sep("dashed"); nl(2 * mm)
 
-        # ── Totales ────────────────────────────────────────────────────
-        subtotal = sum(v.precio * v.cantidad for v in self._ventas)
+        # ── Totales ────────────────────────────────────────────────────────
+        subtotal  = sum(v.precio * v.cantidad for v in self._ventas)
+        desc      = getattr(v0, "descuento", 0) or 0
+        total_final = subtotal - desc
         total_com = sum(v.comision for v in self._ventas)
 
         c.setFont(FONT_NORMAL, FONT_BODY)
         c.drawString(MARGIN_X, y(), "Subtotal:")
         c.drawRightString(PAGE_W - MARGIN_R, y(), _safe(cop(subtotal)))
         nl(LINE_H)
+
+        if desc > 0:
+            pct = desc / subtotal * 100 if subtotal > 0 else 0
+            c.setFont(FONT_NORMAL, FONT_BODY)
+            c.drawString(MARGIN_X, y(), _safe(f"Descuento ({pct:.0f}%):"))
+            c.setFillColorRGB(0.8, 0.1, 0.1)
+            c.drawRightString(PAGE_W - MARGIN_R, y(), _safe(f"- {cop(desc)}"))
+            c.setFillColorRGB(0, 0, 0)
+            nl(LINE_H_SM)
 
         if total_com > 0:
             metodo_com = (v0.metodo_pago.split()[0]
@@ -352,13 +421,13 @@ class _Recibo:
             nl(LINE_H_SM)
 
         c.setFont(FONT_BOLD, FONT_TITLE)
-        c.drawString(MARGIN_X, y(), "TOTAL:")
-        c.drawRightString(PAGE_W - MARGIN_R, y(), _safe(cop(subtotal)))
+        c.drawString(MARGIN_X, y(), "TOTAL COP:")
+        c.drawRightString(PAGE_W - MARGIN_R, y(), _safe(cop(total_final)))
         nl(LINE_H * 1.2)
 
         nl(2 * mm); sep(); nl(2 * mm)
 
-        # ── Resumen ────────────────────────────────────────────────────
+        # ── Resumen ────────────────────────────────────────────────────────
         metodo_display = "Combinado" if v0.pagos_combinados else v0.metodo_pago
         total_items = sum(v.cantidad for v in self._ventas)
         c.setFont(FONT_NORMAL, FONT_BODY)
@@ -369,19 +438,35 @@ class _Recibo:
         c.drawRightString(PAGE_W - MARGIN_R, y(), str(total_items))
         nl(LINE_H_SM)
 
+        # ── Observaciones ─────────────────────────────────────────────────
+        notas = getattr(v0, "notas", "") or ""
+        if notas:
+            c.setFont(FONT_BOLD, FONT_SMALL)
+            c.drawString(MARGIN_X, y(), "Observaciones:")
+            nl(LINE_H_SM)
+            c.setFont(FONT_NORMAL, FONT_SMALL)
+            for linea in simpleSplit(_safe(notas), FONT_NORMAL, FONT_SMALL, COL_W):
+                c.drawString(MARGIN_X, y(), linea)
+                nl(LINE_H_SM)
+
         nl(2 * mm); sep(); nl(2 * mm)
 
-        # ── Texto legal y despedida ────────────────────────────────────
-        legal = _safe(
-            "Gracias por su compra. Este documento es un comprobante "
-            "interno de venta. No reemplaza la factura electronica oficial."
-        )
+        # ── Garantía y política de devoluciones ────────────────────────────
         c.setFont(FONT_NORMAL, FONT_SMALL)
-        for linea in simpleSplit(legal, FONT_NORMAL, FONT_SMALL, COL_W):
+        c.setFillColorRGB(0.15, 0.15, 0.15)
+        for linea in simpleSplit(_safe(_GARANTIA), FONT_NORMAL, FONT_SMALL, COL_W):
             c.drawCentredString(PAGE_W / 2, y(), linea)
             nl(LINE_H_SM)
-
         nl(1)
+
+        # ── Texto legal ────────────────────────────────────────────────────
+        c.setFillColorRGB(0.35, 0.35, 0.35)
+        for linea in simpleSplit(_safe(_LEGAL), FONT_NORMAL, FONT_SMALL, COL_W):
+            c.drawCentredString(PAGE_W / 2, y(), linea)
+            nl(LINE_H_SM)
+        nl(1)
+        c.setFillColorRGB(0, 0, 0)
+
         c.setFont(FONT_BOLD, FONT_BODY)
         c.drawCentredString(PAGE_W / 2, y(), "!Gracias por su compra!")
         nl(LINE_H)
@@ -393,7 +478,7 @@ class _Recibo:
 
 def generar_recibo(ventas) -> str:
     """
-    Genera el recibo como PDF temporal.
+    Genera el comprobante como PDF temporal.
     Acepta una sola Venta o una lista de Ventas (carrito multi-producto).
     Retorna la ruta absoluta al PDF generado.
     """

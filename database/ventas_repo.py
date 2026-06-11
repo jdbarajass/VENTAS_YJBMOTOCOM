@@ -35,6 +35,12 @@ def _row_to_venta(row: sqlite3.Row) -> Venta:
     v.grupo_venta_id = row["grupo_venta_id"] if "grupo_venta_id" in keys else None
     v.numero_factura = row["numero_factura"] if "numero_factura" in keys else None
     v.hora = row["hora"] if "hora" in keys else ""
+    v.vendedor = row["vendedor"] if "vendedor" in keys else ""
+    v.cliente_nombre = row["cliente_nombre"] if "cliente_nombre" in keys else ""
+    v.cliente_cedula = row["cliente_cedula"] if "cliente_cedula" in keys else ""
+    v.cliente_tel = row["cliente_tel"] if "cliente_tel" in keys else ""
+    v.descuento = row["descuento"] if "descuento" in keys else 0
+    v.sku = row["sku"] if "sku" in keys else ""
     return v
 
 
@@ -70,13 +76,20 @@ def insertar_venta(venta: Venta) -> int:
     grupo_id = getattr(venta, "grupo_venta_id", None)
     nro_factura = getattr(venta, "numero_factura", None)
     hora = getattr(venta, "hora", "")
+    vendedor = getattr(venta, "vendedor", "")
+    cliente_nombre = getattr(venta, "cliente_nombre", "")
+    cliente_cedula = getattr(venta, "cliente_cedula", "")
+    cliente_tel = getattr(venta, "cliente_tel", "")
+    descuento = getattr(venta, "descuento", 0)
+    sku = getattr(venta, "sku", "")
     cursor = conn.execute(
         """
         INSERT INTO ventas
             (fecha, producto, costo, precio, metodo_pago, cantidad,
              comision, ganancia_neta, notas, pagos_combinados, grupo_venta_id,
-             numero_factura, hora)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+             numero_factura, hora, vendedor, cliente_nombre, cliente_cedula,
+             cliente_tel, descuento, sku)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         (
             venta.fecha.isoformat(),
@@ -92,6 +105,12 @@ def insertar_venta(venta: Venta) -> int:
             grupo_id,
             nro_factura,
             hora,
+            vendedor,
+            cliente_nombre,
+            cliente_cedula,
+            cliente_tel,
+            descuento,
+            sku,
         ),
     )
     conn.commit()

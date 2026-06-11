@@ -10,7 +10,7 @@ from PySide6.QtWidgets import (
     QWidget, QHBoxLayout, QVBoxLayout, QFormLayout,
     QLabel, QLineEdit, QComboBox, QTextEdit,
     QPushButton, QDateEdit, QFrame, QMessageBox,
-    QSpinBox, QCompleter, QScrollArea,
+    QSpinBox, QCompleter, QScrollArea, QCheckBox,
 )
 from PySide6.QtCore import Qt, QDate, QTimer, Signal, QStringListModel
 from PySide6.QtGui import QFont
@@ -251,6 +251,8 @@ class _LineaProducto:
             "QListView::item:selected { background:#DBEAFE; font-weight:bold; }"
         )
 
+        self._sku = ""
+
         # Callbacks
         self._on_change = on_change
         self.campo_producto.textEdited.connect(self._on_texto_editado)
@@ -372,6 +374,10 @@ class _LineaProducto:
             self._combo_talla.setVisible(True)
         else:
             self._combo_talla.setVisible(False)
+        self._sku = (
+            getattr(producto, "codigo_barras", "") or
+            getattr(producto, "serial", "") or ""
+        ).strip()
         self.campo_costo.set_valor(int(producto.costo_unitario))
         if producto.cantidad > 5:
             self._lbl_stock.setText(f"Stock: {producto.cantidad}")
@@ -416,6 +422,7 @@ class _LineaProducto:
             "costo":    float(self.campo_costo.valor_int()),
             "precio":   float(self.campo_precio.valor_int()),
             "cantidad": self.campo_cantidad.value(),
+            "sku":      self._sku,
         }
 
     def limpiar(self) -> None:
@@ -426,6 +433,7 @@ class _LineaProducto:
         self._lbl_stock.setVisible(False)
         self._combo_talla.setCurrentIndex(0)
         self._combo_talla.setVisible(False)
+        self._sku = ""
 
 
 class VentaForm(QWidget):
@@ -500,6 +508,22 @@ class VentaForm(QWidget):
         self.campo_fecha.setDisplayFormat("dd/MM/yyyy")
         self.campo_fecha.setFixedHeight(34)
         form.addRow("Fecha:", self.campo_fecha)
+
+        # Vendedor (obligatorio)
+        _PLACEHOLDER_VENDEDOR = "— Selecciona vendedor —"
+        self._placeholder_vendedor = _PLACEHOLDER_VENDEDOR
+        self.campo_vendedor = QComboBox()
+        self.campo_vendedor.addItem(_PLACEHOLDER_VENDEDOR)
+        for _v in ["Sindy Katherine Barajas", "Deiby Sotelo",
+                   "Yojan Barajas", "Monica Sotelo", "Jose Barajas"]:
+            self.campo_vendedor.addItem(_v)
+        self.campo_vendedor.setCurrentIndex(0)
+        self.campo_vendedor.setFixedHeight(34)
+        self.campo_vendedor.setStyleSheet(
+            _get_combo_style() + "QComboBox { color: #9CA3AF; }"
+        )
+        form.addRow("Vendedor*:", self.campo_vendedor)
+
         layout.addLayout(form)
 
         # --- Cabecera de la sección de productos ---
@@ -617,14 +641,22 @@ class VentaForm(QWidget):
         form2.addRow("", self._panel_combinado)
         self._panel_combinado.setVisible(False)
 
-        # Notas
+        # Observaciones
         self.campo_notas = QTextEdit()
-        self.campo_notas.setPlaceholderText("Observaciones opcionales…")
-        self.campo_notas.setFixedHeight(60)
+        self.campo_notas.setPlaceholderText("Observaciones opcionales (aparecen en el comprobante)…")
+        self.campo_notas.setFixedHeight(55)
         self.campo_notas.setTabChangesFocus(True)
-        form2.addRow("Notas:", self.campo_notas)
+        form2.addRow("Observaciones:", self.campo_notas)
 
         layout.addLayout(form2)
+        layout.addSpacing(4)
+
+        # ── Sección descuento ─────────────────────────────────────────────
+        layout.addWidget(self._build_descuento_section())
+
+        # ── Sección datos del cliente ─────────────────────────────────────
+        layout.addWidget(self._build_cliente_section())
+
         layout.addSpacing(8)
 
         # Botón guardar
@@ -685,6 +717,103 @@ class VentaForm(QWidget):
         outer.addWidget(self._lbl_pagos_status)
 
         return w
+
+    def _build_descuento_section(self) -> QFrame:
+        frame = QFrame()
+        frame.setStyleSheet(
+            "QFrame { background:#FFFBEB; border:1px solid #FDE68A; border-radius:6px; }"
+        )
+        lay = QVBoxLayout(frame)
+        lay.setContentsMargins(12, 8, 12, 8)
+        lay.setSpacing(6)
+
+        self._chk_descuento = QCheckBox("¿Hay descuento en esta venta?")
+        self._chk_descuento.setStyleSheet(
+            "QCheckBox { font-size:12px; font-weight:bold; background:transparent; border:none; }"
+        )
+        lay.addWidget(self._chk_descuento)
+
+        self._frame_desc_campos = QWidget()
+        self._frame_desc_campos.setStyleSheet("background:transparent;")
+        self._frame_desc_campos.setVisible(False)
+        fc_lay = QHBoxLayout(self._frame_desc_campos)
+        fc_lay.setContentsMargins(0, 0, 0, 0)
+        fc_lay.setSpacing(8)
+
+        lbl = QLabel("Descuento (COP):")
+        lbl.setStyleSheet("font-size:11px; background:transparent;")
+
+        self._campo_descuento = MoneyLineEdit()
+        self._campo_descuento.setPlaceholderText("0")
+        self._campo_descuento.setFixedHeight(30)
+        self._campo_descuento.setFixedWidth(140)
+        self._campo_descuento.setStyleSheet(
+            "QLineEdit { border-radius:5px; font-size:11px; padding:0 6px; }"
+            "QLineEdit:focus { border:2px solid #3B82F6; }"
+        )
+
+        self._lbl_desc_pct = QLabel("")
+        self._lbl_desc_pct.setStyleSheet(
+            "font-size:12px; font-weight:bold; color:#B45309; background:transparent;"
+        )
+
+        fc_lay.addWidget(lbl)
+        fc_lay.addWidget(self._campo_descuento)
+        fc_lay.addWidget(self._lbl_desc_pct)
+        fc_lay.addStretch()
+        lay.addWidget(self._frame_desc_campos)
+        return frame
+
+    def _build_cliente_section(self) -> QFrame:
+        frame = QFrame()
+        frame.setStyleSheet(
+            "QFrame { background:#F0F9FF; border:1px solid #BAE6FD; border-radius:6px; }"
+        )
+        lay = QVBoxLayout(frame)
+        lay.setContentsMargins(12, 8, 12, 8)
+        lay.setSpacing(6)
+
+        self._chk_cliente = QCheckBox("¿El cliente va a dejar sus datos?")
+        self._chk_cliente.setStyleSheet(
+            "QCheckBox { font-size:12px; font-weight:bold; background:transparent; border:none; }"
+        )
+        lay.addWidget(self._chk_cliente)
+
+        self._frame_cliente_campos = QWidget()
+        self._frame_cliente_campos.setStyleSheet("background:transparent;")
+        self._frame_cliente_campos.setVisible(False)
+
+        fc_form = QFormLayout(self._frame_cliente_campos)
+        fc_form.setSpacing(6)
+        fc_form.setLabelAlignment(Qt.AlignRight | Qt.AlignVCenter)
+        fc_form.setFieldGrowthPolicy(QFormLayout.ExpandingFieldsGrow)
+
+        _ls = (
+            "QLineEdit { border-radius:5px; font-size:11px; padding:0 8px; }"
+            "QLineEdit:focus { border:2px solid #3B82F6; }"
+        )
+
+        self._campo_cli_nombre = QLineEdit()
+        self._campo_cli_nombre.setPlaceholderText("Nombre completo")
+        self._campo_cli_nombre.setFixedHeight(30)
+        self._campo_cli_nombre.setStyleSheet(_ls)
+
+        self._campo_cli_cedula = QLineEdit()
+        self._campo_cli_cedula.setPlaceholderText("Número de cédula")
+        self._campo_cli_cedula.setFixedHeight(30)
+        self._campo_cli_cedula.setStyleSheet(_ls)
+
+        self._campo_cli_tel = QLineEdit()
+        self._campo_cli_tel.setPlaceholderText("Teléfono / Celular")
+        self._campo_cli_tel.setFixedHeight(30)
+        self._campo_cli_tel.setStyleSheet(_ls)
+
+        fc_form.addRow("Nombre:", self._campo_cli_nombre)
+        fc_form.addRow("Cédula:", self._campo_cli_cedula)
+        fc_form.addRow("Teléfono:", self._campo_cli_tel)
+
+        lay.addWidget(self._frame_cliente_campos)
+        return frame
 
     def _panel_preview(self) -> QWidget:
         panel = QWidget()
@@ -803,6 +932,12 @@ class VentaForm(QWidget):
         self.campo_sub_transferencia.currentTextChanged.connect(self._actualizar_preview)
         self.btn_guardar.clicked.connect(self._on_guardar)
         self._btn_combinado.toggled.connect(self._on_toggle_combinado)
+        self.campo_vendedor.currentIndexChanged.connect(self._on_vendedor_changed)
+        self._chk_descuento.toggled.connect(self._on_toggle_descuento)
+        self._campo_descuento.textChanged.connect(self._actualizar_preview)
+        self._chk_cliente.toggled.connect(
+            lambda activo: self._frame_cliente_campos.setVisible(activo)
+        )
 
     # ------------------------------------------------------------------
     # Gestión de lineas del carrito
@@ -858,6 +993,20 @@ class VentaForm(QWidget):
             # Limpiar filas al desactivar
             self._limpiar_filas_pago()
 
+        self._actualizar_preview()
+
+    def _on_vendedor_changed(self, idx: int) -> None:
+        if idx == 0:
+            self.campo_vendedor.setStyleSheet(
+                _get_combo_style() + "QComboBox { color: #9CA3AF; }"
+            )
+        else:
+            self.campo_vendedor.setStyleSheet(_get_combo_style())
+
+    def _on_toggle_descuento(self, activo: bool) -> None:
+        self._frame_desc_campos.setVisible(activo)
+        if not activo:
+            self._campo_descuento.setText("")
         self._actualizar_preview()
 
     def _agregar_fila_pago(self, metodo: str = "Efectivo", monto: int = 0) -> None:
@@ -1019,6 +1168,13 @@ class VentaForm(QWidget):
             ln.campo_costo.valor_int() * ln.campo_cantidad.value()
             for ln in self._lineas
         )
+        descuento = (
+            self._campo_descuento.valor_int()
+            if hasattr(self, "_chk_descuento") and self._chk_descuento.isChecked()
+            else 0
+        )
+        total_final = max(0, total_precio - descuento)
+
         metodo = self._metodo_completo()
         pagos = self._get_pagos_combinados()
 
@@ -1026,8 +1182,19 @@ class VentaForm(QWidget):
             total_costo, total_precio, metodo, 1, pagos
         )
 
-        # Total de venta
-        self._lbl_total_venta.setText(cop(total_precio))
+        # Actualizar label de porcentaje de descuento
+        if descuento > 0 and total_precio > 0:
+            pct = descuento / total_precio * 100
+            self._lbl_desc_pct.setText(f"({pct:.1f}% del total)")
+        elif hasattr(self, "_lbl_desc_pct"):
+            self._lbl_desc_pct.setText("")
+
+        # Total de venta (con descuento aplicado)
+        if descuento > 0:
+            self._lbl_total_titulo.setText(f"Total de venta  (desc. -{cop(descuento)})")
+        else:
+            self._lbl_total_titulo.setText("Total de venta")
+        self._lbl_total_venta.setText(cop(total_final))
 
         # Medios de pago — limpiar y repoblar
         while self._lay_medios.count():
@@ -1072,7 +1239,7 @@ class VentaForm(QWidget):
             f"- {cop(data['comision'])}" if data["comision"] > 0 else cop(0)
         )
 
-        neta = data["ganancia_neta"]
+        neta = data["ganancia_neta"] - descuento
         self.lbl_neta.setText(cop(neta))
 
         if neta > 0:
@@ -1104,6 +1271,25 @@ class VentaForm(QWidget):
             metodo = self._metodo_completo()
             notas = self.campo_notas.toPlainText().strip()
             pagos = self._get_pagos_combinados()
+
+            # Vendedor obligatorio
+            vendedor = self.campo_vendedor.currentText()
+            if vendedor == self._placeholder_vendedor:
+                raise ValueError("Selecciona el vendedor antes de registrar la venta.")
+
+            # Descuento
+            descuento = (
+                self._campo_descuento.valor_int()
+                if self._chk_descuento.isChecked() else 0
+            )
+
+            # Datos del cliente
+            if self._chk_cliente.isChecked():
+                cliente_nombre = self._campo_cli_nombre.text().strip()
+                cliente_cedula = self._campo_cli_cedula.text().strip()
+                cliente_tel    = self._campo_cli_tel.text().strip()
+            else:
+                cliente_nombre = cliente_cedula = cliente_tel = ""
 
             # Recoger lineas del carrito (solo las que tienen producto)
             lineas = [ln.datos() for ln in self._lineas if ln.datos()["producto"]]
@@ -1153,6 +1339,11 @@ class VentaForm(QWidget):
                     metodo_pago=metodo,
                     notas=notas,
                     pagos_combinados=pagos,
+                    vendedor=vendedor,
+                    cliente_nombre=cliente_nombre,
+                    cliente_cedula=cliente_cedula,
+                    cliente_tel=cliente_tel,
+                    descuento=descuento,
                 )
             self._mostrar_exito(ventas)
             for v in ventas:
@@ -1214,6 +1405,19 @@ class VentaForm(QWidget):
         self._btn_combinado.setChecked(False)
         self._limpiar_filas_pago()
         self._panel_combinado.setVisible(False)
+        # Resetear vendedor
+        self.campo_vendedor.setCurrentIndex(0)
+        self.campo_vendedor.setStyleSheet(
+            _get_combo_style() + "QComboBox { color: #9CA3AF; }"
+        )
+        # Resetear descuento
+        self._chk_descuento.setChecked(False)
+        self._campo_descuento.setText("")
+        # Resetear cliente
+        self._chk_cliente.setChecked(False)
+        self._campo_cli_nombre.clear()
+        self._campo_cli_cedula.clear()
+        self._campo_cli_tel.clear()
         # Reemplazar todas las lineas por una sola vacía
         for ln in self._lineas:
             ln.widget.setParent(None)

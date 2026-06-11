@@ -31,6 +31,13 @@ class Venta:
     numero_factura: int | None = None
     # Hora de registro en formato "HH:MM". Vacío en ventas históricas.
     hora: str = ""
+    # Campos del comprobante de venta
+    vendedor: str = ""
+    cliente_nombre: str = ""
+    cliente_cedula: str = ""
+    cliente_tel: str = ""
+    descuento: int = 0   # descuento total del carrito en pesos (solo en v0)
+    sku: str = ""        # código/serial del producto
 
     # ------------------------------------------------------------------
     # Propiedades derivadas (sin acceso a BD)

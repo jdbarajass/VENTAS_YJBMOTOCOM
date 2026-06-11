@@ -1432,6 +1432,9 @@ class VentaForm(QWidget):
         self.campo_sub_transferencia.setCurrentIndex(0)
         self.campo_sub_transferencia.setVisible(False)
         self.campo_notas.clear()
+        # Resetear barra de escaneo
+        self._campo_scan.clear()
+        self._lbl_scan_status.setText("")
         # Resetear modo combinado
         self._btn_combinado.setChecked(False)
         self._limpiar_filas_pago()

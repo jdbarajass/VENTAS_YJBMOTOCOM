@@ -659,7 +659,26 @@ class VentaForm(QWidget):
 
         layout.addSpacing(8)
 
-        # Botón guardar
+        # Fila de botones: Limpiar + Registrar Venta
+        _fila_btns = QHBoxLayout()
+        _fila_btns.setSpacing(10)
+
+        self.btn_limpiar = QPushButton("Limpiar")
+        self.btn_limpiar.setFixedHeight(42)
+        self.btn_limpiar.setFixedWidth(110)
+        self.btn_limpiar.setCursor(Qt.PointingHandCursor)
+        font_btn2 = QFont()
+        font_btn2.setPointSize(11)
+        font_btn2.setBold(True)
+        self.btn_limpiar.setFont(font_btn2)
+        self.btn_limpiar.setStyleSheet(
+            "QPushButton { background-color: #F1F5F9; color: #374151;"
+            "border: 1px solid #CBD5E1; border-radius: 6px; }"
+            "QPushButton:hover { background-color: #E2E8F0; }"
+            "QPushButton:pressed { background-color: #CBD5E1; }"
+        )
+        _fila_btns.addWidget(self.btn_limpiar)
+
         self.btn_guardar = QPushButton("Registrar Venta")
         self.btn_guardar.setFixedHeight(42)
         font_btn = QFont()
@@ -673,7 +692,9 @@ class VentaForm(QWidget):
             "QPushButton:pressed { background-color: #1E40AF; }"
             "QPushButton:disabled { background-color: #93C5FD; }"
         )
-        layout.addWidget(self.btn_guardar)
+        _fila_btns.addWidget(self.btn_guardar, stretch=1)
+
+        layout.addLayout(_fila_btns)
         layout.addStretch()
 
         return panel
@@ -931,6 +952,7 @@ class VentaForm(QWidget):
         self.campo_metodo.currentTextChanged.connect(self._on_metodo_changed)
         self.campo_sub_transferencia.currentTextChanged.connect(self._actualizar_preview)
         self.btn_guardar.clicked.connect(self._on_guardar)
+        self.btn_limpiar.clicked.connect(self._limpiar_form)
         self._btn_combinado.toggled.connect(self._on_toggle_combinado)
         self.campo_vendedor.currentIndexChanged.connect(self._on_vendedor_changed)
         self._chk_descuento.toggled.connect(self._on_toggle_descuento)

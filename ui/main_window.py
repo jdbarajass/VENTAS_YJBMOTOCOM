@@ -644,7 +644,7 @@ class MainWindow(QMainWindow):
             return
         self._paginas_desbloqueadas.clear()
         pagina_actual = self._stack.currentIndex()
-        _PAGINAS_PROTEGIDAS = {PAGE_CONFIG, PAGE_EXPORTAR}
+        _PAGINAS_PROTEGIDAS = {PAGE_CONFIG, PAGE_EXPORTAR, PAGE_CUENTAS}
         if pagina_actual in _PAGINAS_PROTEGIDAS:
             self._stack.setCurrentIndex(PAGE_REGISTRAR)
             for idx, btn in self._nav_buttons.items():

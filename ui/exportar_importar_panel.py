@@ -681,8 +681,7 @@ class ExportarImportarPanel(QWidget):
             eliminar_ventas_por_mes(año_m, mes_m)
         cfg_para_calc = res.configuracion if res.configuracion else cfg_actual
         for v in res.ventas:
-            if v.pagos_combinados or v.metodo_pago != "Combinado":
-                completar_venta(v, cfg_para_calc)
+            completar_venta(v, cfg_para_calc)
             insertar_venta(v)
 
         # Préstamos

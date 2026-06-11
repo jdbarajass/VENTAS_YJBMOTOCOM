@@ -624,7 +624,7 @@ class HistorialPanel(QWidget):
             self.tabla_detalle.setItem(row, 5, item_gn)
 
             # Margen %
-            ingresos = v.precio * v.cantidad
+            ingresos = v.precio * v.cantidad - (getattr(v, "descuento", 0) or 0)
             if ingresos > 0:
                 margen = round(v.ganancia_neta / ingresos * 100, 1)
                 margen_txt = f"{margen:+.1f}%"
@@ -696,7 +696,7 @@ class HistorialPanel(QWidget):
             )
             self.tabla_detalle.setItem(row, 5, item_gn)
             # Margen %
-            ingresos = v.precio * v.cantidad
+            ingresos = v.precio * v.cantidad - (getattr(v, "descuento", 0) or 0)
             if ingresos > 0:
                 margen = round(v.ganancia_neta / ingresos * 100, 1)
                 margen_txt = f"{margen:+.1f}%"

@@ -160,6 +160,7 @@ def codigo_para_variante_existente(
 # ── Helpers privados ──────────────────────────────────────────────────────────
 
 def _talla_a_digito(talla: str) -> str:
+    """Convierte la talla legible (ej. 'XL') al dígito T del código de barras."""
     return _TALLA_DIGITO.get(talla.lower().strip(), "0")
 
 
@@ -174,15 +175,18 @@ def _codigos_validos(productos: list) -> list[str]:
 
 
 def _codigos_de_categoria(productos: list, cc: str) -> list[str]:
+    """Retorna todos los códigos válidos cuya categoría (CC) coincide con `cc`."""
     return [c for c in _codigos_validos(productos) if c[:2] == cc]
 
 
 def _codigos_de_modelo(productos: list, cc: str, mm: str, nnn: str) -> list[str]:
+    """Retorna los códigos cuya categoría, subtipo y modelo (CC+MM+NNN) coinciden exactamente."""
     prefix = cc + mm + nnn
     return [c for c in _codigos_validos(productos) if c[:7] == prefix]
 
 
 def _mm_mas_frecuente(codigos: list[str]) -> str | None:
+    """Retorna el subtipo MM más repetido en la lista de códigos, o None si está vacía."""
     if not codigos:
         return None
     freq: dict[str, int] = {}

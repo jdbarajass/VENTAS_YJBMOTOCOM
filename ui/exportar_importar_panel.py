@@ -1,8 +1,9 @@
 """
 ui/exportar_importar_panel.py
 Centro unificado de exportación e importación de datos.
-Un solo archivo Excel con hasta 8 hojas: Ventas | Préstamos | Inventario |
-Facturas | Abonos | Gastos | Notas | Configuración.
+Un solo archivo Excel con hasta 11 hojas: Ventas | Préstamos | Inventario |
+Facturas | Abonos | Gastos | Notas | Configuración | Fiado | Abonos Fiado |
+Mov. Inventario.
 """
 
 from datetime import date as _date

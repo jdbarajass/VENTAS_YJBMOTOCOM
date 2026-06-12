@@ -918,6 +918,7 @@ _ANCHOS_MOV_INV  = [6, 12, 10, 36, 14, 16, 14, 10, 24]
 
 
 def _escribir_hoja_fiado(ws, fiados: list) -> None:
+    """Escribe la hoja de clientes deudores (fiado) con encabezado y filas formateadas."""
     lado = Side(style="thin", color="CCCCCC")
     borde = Border(left=lado, right=lado, top=lado, bottom=lado)
     ncols = len(_HEADERS_FIADO)
@@ -964,6 +965,7 @@ def _escribir_hoja_fiado(ws, fiados: list) -> None:
 
 
 def _escribir_hoja_abonos_fiado(ws, abonos: list) -> None:
+    """Escribe la hoja de abonos realizados por clientes deudores con encabezado y filas formateadas."""
     lado = Side(style="thin", color="CCCCCC")
     borde = Border(left=lado, right=lado, top=lado, bottom=lado)
     ncols = len(_HEADERS_ABONOS_FIADO)
@@ -1009,6 +1011,7 @@ def _escribir_hoja_abonos_fiado(ws, abonos: list) -> None:
 
 
 def _escribir_hoja_movimientos_inventario(ws, movimientos: list) -> None:
+    """Escribe la hoja de movimientos de inventario (entradas, salidas, ajustes) con encabezado y filas formateadas."""
     lado = Side(style="thin", color="CCCCCC")
     borde = Border(left=lado, right=lado, top=lado, bottom=lado)
     ncols = len(_HEADERS_MOV_INV)
@@ -1080,7 +1083,8 @@ def exportar_todo(
 ) -> None:
     """
     Genera un .xlsx con las hojas que se pasen (None = omitir esa hoja).
-    Hojas disponibles: Ventas | Préstamos | Inventario | Facturas | Gastos | Configuración
+    Hojas disponibles: Ventas | Préstamos | Inventario | Facturas | Gastos | Configuración |
+    Fiado | Abonos Fiado | Mov. Inventario
     """
     wb = openpyxl.Workbook()
     primera_hoja_usada = False

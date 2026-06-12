@@ -1,6 +1,7 @@
 """
 ui/inventario_panel.py
-Panel de gestión de inventario: tabla, formulario, importación desde Excel.
+Panel de gestión de inventario con pestañas: Detalle, Inventario General,
+Movimientos, Ingresar y Cambios.
 """
 
 import re as _re
@@ -922,6 +923,7 @@ class InventarioPanel(QWidget):
     # ──────────────────────────────────────────────────────────────────────
 
     def _build_tab_ingresar(self) -> QWidget:
+        """Construye la pestaña de ingreso rápido de nuevos productos al inventario."""
         tab = QWidget()
         root = QHBoxLayout(tab)
         root.setContentsMargins(24, 20, 24, 20)
@@ -1142,6 +1144,7 @@ class InventarioPanel(QWidget):
         self._ing_barras.setText(codigo)
 
     def _ingresar_actualizar_codigo(self, _=None) -> None:
+        """Recalcula y muestra el código de barras sugerido según nombre y talla actuales."""
         from services.inventario_gen import generar_codigo_barras_auto
         nombre = self._ing_nombre.text().strip()
         talla  = self._ing_talla.currentText()
@@ -1189,6 +1192,7 @@ class InventarioPanel(QWidget):
             self._ing_tabla_sim.setItem(row, 3, it_cant)
 
     def _on_ingresar_guardar(self) -> None:
+        """Valida el formulario y persiste el nuevo producto en la base de datos."""
         nombre = self._ing_nombre.text().strip()
         if not nombre:
             QMessageBox.warning(self, "Campo requerido", "Ingresa el nombre del producto.")
@@ -1240,6 +1244,7 @@ class InventarioPanel(QWidget):
     # ──────────────────────────────────────────────────────────────────────
 
     def _build_tab_cambios(self) -> QWidget:
+        """Construye la pestaña de cambio entre dos productos del inventario."""
         tab = QWidget()
         root = QVBoxLayout(tab)
         root.setContentsMargins(24, 20, 24, 20)
@@ -1293,6 +1298,7 @@ class InventarioPanel(QWidget):
         border: str,
         color_titulo: str,
     ) -> QFrame:
+        """Crea el panel de búsqueda y detalle para uno de los dos lados del cambio (sale/entra)."""
         frame = QFrame()
         frame.setObjectName(f"cambioFrame_{prefijo}")
         frame.setStyleSheet(
@@ -1390,6 +1396,7 @@ class InventarioPanel(QWidget):
         return frame
 
     def _cambio_buscar_por_barras(self, prefijo: str) -> None:
+        """Busca el producto del lado `prefijo` usando el código de barras escaneado."""
         scanner: QLineEdit = getattr(self, f"_cambio_{prefijo}_scanner")
         barras = scanner.text().strip()
         if not barras:
@@ -1398,6 +1405,7 @@ class InventarioPanel(QWidget):
         self._cambio_mostrar_producto(prefijo, p, barras)
 
     def _cambio_buscar_por_nombre(self, prefijo: str) -> None:
+        """Filtra productos del lado `prefijo` por nombre y muestra sugerencias en lista."""
         campo: QLineEdit = getattr(self, f"_cambio_{prefijo}_nombre")
         lista: QListWidget = getattr(self, f"_cambio_{prefijo}_lista")
         texto = campo.text().strip()
@@ -1442,6 +1450,7 @@ class InventarioPanel(QWidget):
         setattr(self, f"_cambio_{prefijo}_producto", None)
 
     def _cambio_on_item_seleccionado(self, prefijo: str) -> None:
+        """Carga el producto elegido de la lista de sugerencias y la oculta."""
         lista: QListWidget = getattr(self, f"_cambio_{prefijo}_lista")
         matches: list = getattr(self, f"_cambio_{prefijo}_matches", [])
         idx = lista.currentRow()
@@ -1454,6 +1463,7 @@ class InventarioPanel(QWidget):
     def _cambio_mostrar_producto(
         self, prefijo: str, producto, consulta: str = ""
     ) -> None:
+        """Muestra los datos del producto encontrado (o mensaje de error si es None) en el panel `prefijo`."""
         # Ocultar lista si estaba visible
         lista = getattr(self, f"_cambio_{prefijo}_lista", None)
         if lista is not None:
@@ -1472,6 +1482,7 @@ class InventarioPanel(QWidget):
         )
 
     def _on_confirmar_cambio(self) -> None:
+        """Registra el cambio físico: descuenta el producto que sale y suma el que entra."""
         prod_sale  = getattr(self, "_cambio_sale_producto", None)
         prod_entra = getattr(self, "_cambio_entra_producto", None)
 

@@ -387,24 +387,26 @@ class _FacturasPorPagarPanel(QWidget):
             "QDateEdit:focus { border:2px solid #F59E0B; }"
         )
 
-        # Fecha de vencimiento — checkbox + date picker
-        from PySide6.QtWidgets import QCheckBox as _QCheckBox
-        self._chk_vence = _QCheckBox("Fecha límite:")
-        self._chk_vence.setStyleSheet(
-            "color:#374151; font-size:11px; background:transparent; border:none;"
-        )
+        # Fecha vencimiento — siempre editable; botón para activar/desactivar
         self._f_vence = QDateEdit()
         self._f_vence.setDate(QDate.currentDate().addDays(30))
         self._f_vence.setCalendarPopup(True)
         self._f_vence.setFixedHeight(30); self._f_vence.setFixedWidth(140)
         self._f_vence.setDisplayFormat("dd/MM/yyyy")
-        self._f_vence.setEnabled(False)
         self._f_vence.setStyleSheet(
             "QDateEdit { border-radius:4px; padding:0 8px; }"
             "QDateEdit:focus { border:2px solid #F59E0B; }"
-            "QDateEdit:disabled { color:#9CA3AF; }"
         )
-        self._chk_vence.toggled.connect(self._f_vence.setEnabled)
+        self._tiene_fecha_vence = True   # estado: ¿hay fecha límite activa?
+
+        self._btn_limpiar_vence = QPushButton("× Sin fecha")
+        self._btn_limpiar_vence.setFixedHeight(30)
+        self._btn_limpiar_vence.setStyleSheet(
+            "QPushButton { background:#FEF3C7; color:#92400E; border:1px solid #FDE68A;"
+            "border-radius:4px; font-size:10px; padding:0 6px; }"
+            "QPushButton:hover { background:#FDE68A; }"
+        )
+        self._btn_limpiar_vence.clicked.connect(self._toggle_fecha_vence)
 
         self._f_notas = _field("Observaciones (opcional)")
         self._f_notas.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
@@ -430,9 +432,14 @@ class _FacturasPorPagarPanel(QWidget):
         col_fl.addWidget(_lbl("Fecha llegada:")); col_fl.addWidget(self._f_fecha)
         fila2.addLayout(col_fl)
 
-        # Fecha vencimiento (checkbox inline + picker)
+        # Fecha vencimiento (siempre visible + botón para quitar)
         col_fv = QVBoxLayout(); col_fv.setSpacing(2)
-        col_fv.addWidget(self._chk_vence); col_fv.addWidget(self._f_vence)
+        fila_vence_lbl = QHBoxLayout(); fila_vence_lbl.setSpacing(4)
+        fila_vence_lbl.addWidget(_lbl("Fecha límite:"))
+        fila_vence_lbl.addWidget(self._btn_limpiar_vence)
+        fila_vence_lbl.addStretch()
+        col_fv.addLayout(fila_vence_lbl)
+        col_fv.addWidget(self._f_vence)
         fila2.addLayout(col_fv)
 
         # Notas
@@ -770,11 +777,22 @@ class _FacturasPorPagarPanel(QWidget):
         self._f_fecha.setDate(qd)
         self._f_notas.setText(f.notas)
         if f.fecha_vencimiento:
-            self._chk_vence.setChecked(True)
+            self._tiene_fecha_vence = True
+            self._f_vence.setEnabled(True)
+            self._f_vence.setStyleSheet(
+                "QDateEdit { border-radius:4px; padding:0 8px; }"
+                "QDateEdit:focus { border:2px solid #F59E0B; }"
+            )
+            self._btn_limpiar_vence.setText("× Sin fecha")
             qv = QDate(f.fecha_vencimiento.year, f.fecha_vencimiento.month, f.fecha_vencimiento.day)
             self._f_vence.setDate(qv)
         else:
-            self._chk_vence.setChecked(False)
+            self._tiene_fecha_vence = False
+            self._f_vence.setEnabled(False)
+            self._f_vence.setStyleSheet(
+                "QDateEdit { border-radius:4px; padding:0 8px; color:#9CA3AF; }"
+            )
+            self._btn_limpiar_vence.setText("+ Con fecha")
             self._f_vence.setDate(QDate.currentDate().addDays(30))
         self._frame_form.setVisible(True)
         self._f_descripcion.setFocus()
@@ -794,7 +812,7 @@ class _FacturasPorPagarPanel(QWidget):
         fecha = date(qd.year(), qd.month(), qd.day())
 
         fecha_venc = None
-        if self._chk_vence.isChecked():
+        if self._tiene_fecha_vence:
             qv = self._f_vence.date()
             fecha_venc = date(qv.year(), qv.month(), qv.day())
 
@@ -900,14 +918,32 @@ class _FacturasPorPagarPanel(QWidget):
         dlg.abono_registrado.connect(self._cargar_datos)
         dlg.exec()
 
+    def _toggle_fecha_vence(self) -> None:
+        self._tiene_fecha_vence = not self._tiene_fecha_vence
+        self._f_vence.setEnabled(self._tiene_fecha_vence)
+        if self._tiene_fecha_vence:
+            self._btn_limpiar_vence.setText("× Sin fecha")
+            self._f_vence.setDate(QDate.currentDate().addDays(30))
+        else:
+            self._btn_limpiar_vence.setText("+ Con fecha")
+            self._f_vence.setStyleSheet(
+                "QDateEdit { border-radius:4px; padding:0 8px; color:#9CA3AF; }"
+            )
+
     def _limpiar_form(self) -> None:
         self._f_descripcion.clear()
         self._f_proveedor.clear()
         self._f_monto.clear()
         self._f_fecha.setDate(QDate.currentDate())
         self._f_notas.clear()
-        self._chk_vence.setChecked(False)
+        self._tiene_fecha_vence = True
+        self._f_vence.setEnabled(True)
         self._f_vence.setDate(QDate.currentDate().addDays(30))
+        self._f_vence.setStyleSheet(
+            "QDateEdit { border-radius:4px; padding:0 8px; }"
+            "QDateEdit:focus { border:2px solid #F59E0B; }"
+        )
+        self._btn_limpiar_vence.setText("× Sin fecha")
 
 
 # ──────────────────────────────────────────────────────────────────────────────

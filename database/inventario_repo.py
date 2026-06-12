@@ -169,6 +169,28 @@ def decrementar_cantidad(nombre_producto: str, cantidad: int) -> bool:
     return cursor.rowcount > 0
 
 
+def actualizar_cantidad_con_tipo(
+    prod_id: int,
+    nombre: str,
+    nueva_cantidad: int,
+    tipo: str,
+    notas: str = "",
+) -> None:
+    """Actualiza solo la cantidad de un producto y registra el movimiento con el tipo indicado.
+    Usar cuando se necesita un tipo específico (Cambio, Entrada, etc.) en lugar de 'Ajuste'."""
+    conn = DatabaseConnection.get()
+    row = conn.execute(
+        "SELECT cantidad FROM inventario WHERE id = ?", (prod_id,)
+    ).fetchone()
+    cant_ant = row["cantidad"] if row else 0
+    conn.execute(
+        "UPDATE inventario SET cantidad = ? WHERE id = ?",
+        (nueva_cantidad, prod_id),
+    )
+    conn.commit()
+    registrar_movimiento(prod_id, nombre, tipo, cant_ant, nueva_cantidad, notas=notas)
+
+
 # ------------------------------------------------------------------
 # DELETE
 # ------------------------------------------------------------------

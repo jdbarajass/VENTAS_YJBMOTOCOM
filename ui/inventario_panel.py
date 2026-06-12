@@ -10,7 +10,7 @@ from PySide6.QtWidgets import (
     QLineEdit, QTableWidget, QTableWidgetItem, QHeaderView,
     QAbstractItemView, QFrame, QMessageBox, QInputDialog,
     QSpinBox, QSizePolicy, QCheckBox, QScrollArea, QTabWidget,
-    QComboBox, QCompleter,
+    QComboBox, QCompleter, QListWidget, QListWidgetItem,
 )
 from PySide6.QtCore import Qt, Signal, QStringListModel
 from PySide6.QtGui import QFont, QColor
@@ -1300,7 +1300,7 @@ class InventarioPanel(QWidget):
         )
         lay = QVBoxLayout(frame)
         lay.setContentsMargins(18, 16, 18, 16)
-        lay.setSpacing(10)
+        lay.setSpacing(8)
 
         lbl_titulo = QLabel(titulo)
         f_t3 = QFont(); f_t3.setPointSize(12); f_t3.setBold(True)
@@ -1318,7 +1318,7 @@ class InventarioPanel(QWidget):
         # Campo de búsqueda / scanner
         lay.addWidget(_lbl("Escanea o ingresa el código de barras:"))
         campo_scanner = QLineEdit()
-        campo_scanner.setPlaceholderText("Código de barras…")
+        campo_scanner.setPlaceholderText("Código de barras… (Enter para buscar)")
         campo_scanner.setFixedHeight(36)
         campo_scanner.setStyleSheet(
             f"QLineEdit {{ border:2px solid {border}; border-radius:6px; padding:0 10px;"
@@ -1328,41 +1328,62 @@ class InventarioPanel(QWidget):
         lay.addWidget(campo_scanner)
 
         # Búsqueda por nombre
-        lay.addWidget(_lbl("O busca por nombre:"))
+        lay.addWidget(_lbl("O busca por nombre (escribe 2+ letras):"))
         campo_nombre = QLineEdit()
         campo_nombre.setPlaceholderText("Nombre del producto…")
         campo_nombre.setFixedHeight(32)
         campo_nombre.setStyleSheet(
             "QLineEdit { border:1px solid #D1D5DB; border-radius:5px; padding:0 8px; }"
+            "QLineEdit:focus { border:2px solid #6366F1; }"
         )
         lay.addWidget(campo_nombre)
 
-        # Info del producto encontrado
+        # Lista de resultados (oculta por defecto)
+        lista = QListWidget()
+        lista.setFixedHeight(160)
+        lista.setStyleSheet(
+            "QListWidget { border:1px solid #A5B4FC; border-radius:5px;"
+            "background:white; font-size:11px; }"
+            "QListWidget::item { padding:5px 8px; }"
+            "QListWidget::item:hover { background:#EEF2FF; }"
+            "QListWidget::item:selected { background:#6366F1; color:white; }"
+        )
+        lista.hide()
+        lay.addWidget(lista)
+
+        # Info del producto seleccionado
         lbl_info = QLabel("—  ningún producto seleccionado  —")
         lbl_info.setAlignment(Qt.AlignCenter)
         lbl_info.setWordWrap(True)
-        lbl_info.setFixedHeight(60)
+        lbl_info.setMinimumHeight(52)
         lbl_info.setStyleSheet(
             f"background:{bg}; border:1px dashed {border}; border-radius:6px;"
             "padding:6px; font-size:12px; color:#374151;"
         )
         lay.addWidget(lbl_info)
 
+        lay.addStretch()
+
         # Guardar referencias
         setattr(self, f"_cambio_{prefijo}_scanner", campo_scanner)
         setattr(self, f"_cambio_{prefijo}_nombre", campo_nombre)
+        setattr(self, f"_cambio_{prefijo}_lista", lista)
         setattr(self, f"_cambio_{prefijo}_info", lbl_info)
         setattr(self, f"_cambio_{prefijo}_producto", None)
+        setattr(self, f"_cambio_{prefijo}_matches", [])
 
         # Conectar señales
         campo_scanner.returnPressed.connect(
             lambda p=prefijo: self._cambio_buscar_por_barras(p)
         )
-        campo_nombre.returnPressed.connect(
-            lambda p=prefijo: self._cambio_buscar_por_nombre(p)
-        )
         campo_nombre.textChanged.connect(
             lambda t, p=prefijo: self._cambio_buscar_por_nombre(p)
+        )
+        lista.itemClicked.connect(
+            lambda item, p=prefijo: self._cambio_on_item_seleccionado(p)
+        )
+        lista.itemActivated.connect(
+            lambda item, p=prefijo: self._cambio_on_item_seleccionado(p)
         )
 
         return frame
@@ -1377,21 +1398,66 @@ class InventarioPanel(QWidget):
 
     def _cambio_buscar_por_nombre(self, prefijo: str) -> None:
         campo: QLineEdit = getattr(self, f"_cambio_{prefijo}_nombre")
-        texto = campo.text().strip().lower()
-        if not texto or len(texto) < 3:
+        lista: QListWidget = getattr(self, f"_cambio_{prefijo}_lista")
+        texto = campo.text().strip()
+
+        if len(texto) < 2:
+            lista.hide()
+            setattr(self, f"_cambio_{prefijo}_matches", [])
             return
-        coincidencias = [p for p in self._productos if texto in p.producto.lower()]
-        if len(coincidencias) == 1:
-            self._cambio_mostrar_producto(prefijo, coincidencias[0])
-        elif len(coincidencias) > 1:
-            # Mostrar brevemente el número de coincidencias
+
+        texto_lc = texto.lower()
+        coincidencias = [
+            p for p in self._productos
+            if texto_lc in p.producto.lower()
+        ]
+
+        if not coincidencias:
+            lista.hide()
             lbl: QLabel = getattr(self, f"_cambio_{prefijo}_info")
-            lbl.setText(f"{len(coincidencias)} productos coinciden — sé más específico")
+            lbl.setText(f"Sin resultados para: '{texto}'")
             setattr(self, f"_cambio_{prefijo}_producto", None)
+            setattr(self, f"_cambio_{prefijo}_matches", [])
+            return
+
+        if len(coincidencias) == 1:
+            lista.hide()
+            self._cambio_mostrar_producto(prefijo, coincidencias[0])
+            return
+
+        # Múltiples coincidencias → mostrar lista seleccionable
+        limite = coincidencias[:12]
+        setattr(self, f"_cambio_{prefijo}_matches", limite)
+        lista.clear()
+        for p in limite:
+            txt = f"{p.producto[:50]}  |  T:{p.talla}  |  Stock:{p.cantidad}"
+            item = QListWidgetItem(txt)
+            item.setToolTip(p.producto)
+            lista.addItem(item)
+        lista.show()
+
+        lbl = getattr(self, f"_cambio_{prefijo}_info")
+        lbl.setText(f"{len(coincidencias)} coincidencias — selecciona de la lista")
+        setattr(self, f"_cambio_{prefijo}_producto", None)
+
+    def _cambio_on_item_seleccionado(self, prefijo: str) -> None:
+        lista: QListWidget = getattr(self, f"_cambio_{prefijo}_lista")
+        matches: list = getattr(self, f"_cambio_{prefijo}_matches", [])
+        idx = lista.currentRow()
+        if 0 <= idx < len(matches):
+            self._cambio_mostrar_producto(prefijo, matches[idx])
+            lista.hide()
+            campo: QLineEdit = getattr(self, f"_cambio_{prefijo}_nombre")
+            campo.clear()
 
     def _cambio_mostrar_producto(
         self, prefijo: str, producto, consulta: str = ""
     ) -> None:
+        # Ocultar lista si estaba visible
+        lista = getattr(self, f"_cambio_{prefijo}_lista", None)
+        if lista is not None:
+            lista.hide()
+
         lbl: QLabel = getattr(self, f"_cambio_{prefijo}_info")
         if producto is None:
             lbl.setText(f"No encontrado: '{consulta}'")
@@ -1441,26 +1507,27 @@ class InventarioPanel(QWidget):
         if resp != QMessageBox.Yes:
             return
 
-        from database.inventario_repo import actualizar_producto
-        from database.inventario_mov_repo import registrar_movimiento
+        from database.inventario_repo import actualizar_cantidad_con_tipo
 
-        # Ajustar stock
-        prod_sale.cantidad  -= 1
-        prod_entra.cantidad += 1
-        actualizar_producto(prod_sale)
-        actualizar_producto(prod_entra)
+        # Guardar cantidades originales antes de modificar
+        cant_sale_ant  = prod_sale.cantidad
+        cant_entra_ant = prod_entra.cantidad
 
-        # Registrar movimientos
-        registrar_movimiento(
-            prod_sale.id, prod_sale.producto, "Cambio",
-            prod_sale.cantidad + 1, prod_sale.cantidad,
-            notas=f"Cambio → entró: {prod_entra.producto}",
+        # Actualizar stock y registrar movimiento tipo "Cambio" (sin doble registro)
+        actualizar_cantidad_con_tipo(
+            prod_sale.id, prod_sale.producto,
+            cant_sale_ant - 1, "Cambio",
+            notas=f"Sale en cambio — entra: {prod_entra.producto}",
         )
-        registrar_movimiento(
-            prod_entra.id, prod_entra.producto, "Cambio",
-            prod_entra.cantidad - 1, prod_entra.cantidad,
-            notas=f"Cambio ← salió: {prod_sale.producto}",
+        actualizar_cantidad_con_tipo(
+            prod_entra.id, prod_entra.producto,
+            cant_entra_ant + 1, "Cambio",
+            notas=f"Entra en cambio — sale: {prod_sale.producto}",
         )
+
+        # Actualizar objetos locales para el mensaje final
+        prod_sale.cantidad  = cant_sale_ant - 1
+        prod_entra.cantidad = cant_entra_ant + 1
 
         self.refresh()
         self.inventario_actualizado.emit()

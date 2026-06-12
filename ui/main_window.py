@@ -29,6 +29,7 @@ from ui.facturas_panel import FacturasPanel
 from ui.presupuesto_panel import PresupuestoPanel
 from ui.notas_panel import NotasPanel
 from ui.cuentas_panel import CuentasPanel
+from ui.fiado_panel import FiadoPanel
 
 
 # Índices de página en el QStackedWidget
@@ -45,6 +46,7 @@ PAGE_FACTURAS     = 9
 PAGE_PRESUPUESTO  = 10
 PAGE_NOTAS        = 11
 PAGE_CUENTAS      = 12
+PAGE_FIADO        = 13
 
 
 class MainWindow(QMainWindow):
@@ -225,6 +227,7 @@ class MainWindow(QMainWindow):
             (PAGE_HISTORIAL,   "📅  Historial Mensual"),
             (PAGE_INVENTARIO,  "📦  Inventario"),
             (PAGE_PRESTAMOS,   "🤝  Préstamos"),
+            (PAGE_FIADO,       "💸  Clientes Deudores"),
             (PAGE_FACTURAS,    "🧾  Facturas"),
             (PAGE_PRESUPUESTO, "💰  Presupuesto"),
             (PAGE_NOTAS,       "📝  Notas y Pendientes"),
@@ -376,9 +379,14 @@ class MainWindow(QMainWindow):
         self._cuentas = CuentasPanel()
         self._stack.addWidget(self._cuentas)
 
+        # Página 13 — Clientes Deudores (Fiado)
+        self._fiado = FiadoPanel()
+        self._stack.addWidget(self._fiado)
+
         # Señales
         self._form_venta.venta_guardada.connect(self._on_venta_guardada)
         self._config.configuracion_guardada.connect(self._on_config_guardada)
+        self._dashboard.navegar_a.connect(self._navegar)
         self._historial.venta_modificada.connect(self._on_venta_modificada_en_historial)
         self._inventario.inventario_actualizado.connect(self._form_venta.actualizar_inventario)
         self._inventario.inventario_actualizado.connect(self._actualizar_badge_stock)
@@ -469,16 +477,25 @@ class MainWindow(QMainWindow):
     # ------------------------------------------------------------------
 
     def _actualizar_badge_stock(self) -> None:
-        """Actualiza el texto del botón Inventario con alerta si hay stock bajo (≤ 2 ud.)."""
+        """Alerta de stock bajo: usa stock_minimo por producto; fallback ≤ 2 si no hay mínimo."""
         from database.inventario_repo import obtener_todos_productos
         prods = obtener_todos_productos()
-        bajo_stock = [p for p in prods if 0 < p.cantidad <= 2]
+        bajo_stock = [
+            p for p in prods
+            if p.stock_minimo > 0 and p.cantidad < p.stock_minimo
+            or p.stock_minimo == 0 and 0 < p.cantidad <= 2
+        ]
         btn = self._nav_buttons[PAGE_INVENTARIO]
         if bajo_stock:
             btn.setText(f"📦  Inventario  ⚠{len(bajo_stock)}")
+            lines = []
+            for p in bajo_stock[:10]:
+                if p.stock_minimo > 0:
+                    lines.append(f"  • {p.producto}: {p.cantidad}/{p.stock_minimo} ud.")
+                else:
+                    lines.append(f"  • {p.producto}: {p.cantidad} ud.")
             btn.setToolTip(
-                f"{len(bajo_stock)} producto(s) con stock bajo (≤ 2 unidades):\n"
-                + "\n".join(f"  • {p.producto}: {p.cantidad} ud." for p in bajo_stock[:10])
+                f"{len(bajo_stock)} producto(s) con stock bajo:\n" + "\n".join(lines)
             )
         else:
             btn.setText("📦  Inventario")

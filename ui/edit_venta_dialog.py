@@ -473,14 +473,23 @@ class EditVentaDialog(QDialog):
                     )
 
             metodo = "Combinado" if pagos else self._metodo_completo()
+            costo  = float(self._int(self.campo_costo.text()))
+            precio = float(self._int(self.campo_precio.text()))
+            cantidad = self.campo_cantidad.value()
+
+            # Recalcular comisión y ganancia con los valores actuales del formulario
+            preview = self._ctrl.calcular_preview(costo, precio, metodo, cantidad, pagos)
+
             venta = Venta(
                 id=self._venta_original.id,
                 fecha=date(fq.year(), fq.month(), fq.day()),
                 producto=self.campo_producto.text().strip(),
-                costo=float(self._int(self.campo_costo.text())),
-                precio=float(self._int(self.campo_precio.text())),
+                costo=costo,
+                precio=precio,
                 metodo_pago=metodo,
-                cantidad=self.campo_cantidad.value(),
+                cantidad=cantidad,
+                comision=preview["comision"],
+                ganancia_neta=preview["ganancia_neta"],
                 notas=self.campo_notas.toPlainText().strip(),
                 pagos_combinados=pagos,
             )

@@ -20,7 +20,7 @@ from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QGridLayout,
     QLabel, QPushButton, QDateEdit, QFrame, QSizePolicy, QScrollArea,
 )
-from PySide6.QtCore import Qt, QDate, QRect
+from PySide6.QtCore import Qt, QDate, QRect, Signal
 from PySide6.QtGui import QFont, QPainter, QColor, QPen, QBrush
 
 from controllers.dashboard_controller import DashboardController
@@ -285,6 +285,8 @@ class _TendenciaWidget(QWidget):
 class DashboardPanel(QWidget):
     """Vista de dashboard con métricas del día, desglose y proyección mensual."""
 
+    navegar_a = Signal(int)   # emite el índice de página al hacer clic en una alerta
+
     def __init__(self, parent=None):
         super().__init__(parent)
         self._ctrl = DashboardController()
@@ -405,31 +407,51 @@ class DashboardPanel(QWidget):
     def _banner_alertas(self) -> QFrame:
         self._banner = QFrame()
         self._banner.setVisible(False)
+        self._banner.setCursor(Qt.PointingHandCursor)
         self._banner.setStyleSheet(
             "QFrame { background:#FFFBEB; border:1px solid #FDE68A; border-radius:7px; }"
+            "QFrame:hover { background:#FEF9C3; border-color:#F59E0B; }"
         )
         lay = QHBoxLayout(self._banner)
         lay.setContentsMargins(14, 8, 14, 8)
         self._lbl_alertas = QLabel("")
         self._lbl_alertas.setStyleSheet("color:#92400E; font-size:12px;")
         lay.addWidget(self._lbl_alertas)
+        lbl_hint = QLabel("→ Ver Facturas")
+        lbl_hint.setStyleSheet("color:#B45309; font-size:11px; font-weight:bold;")
         lay.addStretch()
+        lay.addWidget(lbl_hint)
+        self._banner.mousePressEvent = lambda _: self._on_clic_alerta_facturas()
         return self._banner
+
+    def _on_clic_alerta_facturas(self) -> None:
+        from ui.main_window import PAGE_FACTURAS
+        self.navegar_a.emit(PAGE_FACTURAS)
+
+    def _on_clic_alerta_urgente(self) -> None:
+        from ui.main_window import PAGE_FACTURAS
+        self.navegar_a.emit(PAGE_FACTURAS)
 
     # ── Banner de urgencias (rojo) ────────────────────────────────────────────
 
     def _banner_urgente(self) -> QFrame:
         self._banner_urgente_frame = QFrame()
         self._banner_urgente_frame.setVisible(False)
+        self._banner_urgente_frame.setCursor(Qt.PointingHandCursor)
         self._banner_urgente_frame.setStyleSheet(
             "QFrame { background:#FEE2E2; border:1px solid #FECACA; border-radius:7px; }"
+            "QFrame:hover { background:#FECACA; border-color:#F87171; }"
         )
         lay = QHBoxLayout(self._banner_urgente_frame)
         lay.setContentsMargins(14, 8, 14, 8)
         self._lbl_urgente = QLabel("")
         self._lbl_urgente.setStyleSheet("color:#991B1B; font-size:12px; font-weight:bold;")
         lay.addWidget(self._lbl_urgente)
+        lbl_hint = QLabel("→ Ver Facturas")
+        lbl_hint.setStyleSheet("color:#7F1D1D; font-size:11px; font-weight:bold;")
         lay.addStretch()
+        lay.addWidget(lbl_hint)
+        self._banner_urgente_frame.mousePressEvent = lambda _: self._on_clic_alerta_urgente()
         return self._banner_urgente_frame
 
     # ── Fila 1: 4 tarjetas pequeñas ──────────────────────────────────────────

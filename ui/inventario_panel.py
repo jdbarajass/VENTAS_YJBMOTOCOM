@@ -17,6 +17,7 @@ from PySide6.QtGui import QFont, QColor
 from database.inventario_repo import (
     obtener_todos_productos, insertar_producto,
     actualizar_producto, eliminar_producto,
+    obtener_productos_bajo_stock,
 )
 from models.producto import Producto
 from ui.venta_form import MoneyLineEdit
@@ -189,11 +190,21 @@ class InventarioPanel(QWidget):
             col.addWidget(_lbl(l)); col.addWidget(w)
             fila1.addLayout(col)
 
-        # Fila 2: cantidad | código de barras
+        # Fila 2: talla | cantidad | stock mínimo | código de barras
+        self._f_talla = _field("Talla (XS/S/M/L/XL…)", 100)
+
         self._f_cantidad = QSpinBox()
         self._f_cantidad.setMinimum(0); self._f_cantidad.setMaximum(99999)
         self._f_cantidad.setFixedHeight(30); self._f_cantidad.setFixedWidth(100)
         self._f_cantidad.setStyleSheet(
+            "QSpinBox { border-radius:4px; padding:0 6px; }"
+        )
+
+        self._f_stock_min = QSpinBox()
+        self._f_stock_min.setMinimum(0); self._f_stock_min.setMaximum(9999)
+        self._f_stock_min.setFixedHeight(30); self._f_stock_min.setFixedWidth(100)
+        self._f_stock_min.setToolTip("Alerta en Dashboard cuando el stock baje de este valor. 0 = sin alerta.")
+        self._f_stock_min.setStyleSheet(
             "QSpinBox { border-radius:4px; padding:0 6px; }"
         )
 
@@ -216,8 +227,10 @@ class InventarioPanel(QWidget):
         btn_cancelar.clicked.connect(self._on_cancelar_form)
 
         for w, l in [
-            (self._f_cantidad, "Cantidad:"),
-            (self._f_barras,   "Código de barras:"),
+            (self._f_talla,     "Talla:"),
+            (self._f_cantidad,  "Cantidad:"),
+            (self._f_stock_min, "Stock mínimo:"),
+            (self._f_barras,    "Código de barras:"),
         ]:
             col = QVBoxLayout(); col.setSpacing(2)
             col.addWidget(_lbl(l)); col.addWidget(w)
@@ -529,11 +542,14 @@ class InventarioPanel(QWidget):
 
             self._celda(row, 4, cop(p.costo_unitario), Qt.AlignRight | Qt.AlignVCenter)
 
-            # Cantidad con color (col 5)
+            # Cantidad con color (col 5) — rojo si bajo mínimo, naranja si stock ≤ 3 sin mínimo
             item_cant = QTableWidgetItem(str(p.cantidad))
             item_cant.setTextAlignment(Qt.AlignCenter)
             if p.cantidad == 0:
                 item_cant.setForeground(QColor("#DC2626"))
+            elif p.bajo_stock:
+                item_cant.setForeground(QColor("#DC2626"))
+                item_cant.setToolTip(f"⚠ Bajo mínimo: {p.cantidad}/{p.stock_minimo} ud.")
             elif p.cantidad <= 3:
                 item_cant.setForeground(QColor("#D97706"))
             else:
@@ -634,9 +650,14 @@ class InventarioPanel(QWidget):
         self._lbl_form_titulo.setText("Editar Producto")
         self._btn_guardar_form.setText("Actualizar")
         self._f_serial.setText(p.serial)
-        self._f_producto.setText(p.producto)
+        # Mostrar nombre sin el sufijo -T:TALLA en el campo producto
+        import re as _re2
+        nombre_limpio = _re2.sub(r"\s*-T:\S+$", "", p.producto, flags=_re2.IGNORECASE).strip()
+        self._f_producto.setText(nombre_limpio)
+        self._f_talla.setText(p.talla)
         self._f_costo.set_valor(int(p.costo_unitario))
         self._f_cantidad.setValue(p.cantidad)
+        self._f_stock_min.setValue(p.stock_minimo)
         self._f_barras.setText(p.codigo_barras)
         self._frame_form.setVisible(True)
         self._f_producto.setFocus()
@@ -651,6 +672,11 @@ class InventarioPanel(QWidget):
 
         costo = float(self._f_costo.valor_int())
 
+        # Incorporar la talla al nombre si fue indicada
+        talla = self._f_talla.text().strip().upper()
+        if talla:
+            producto_nombre = f"{producto_nombre} -T:{talla}"
+
         try:
             p = Producto(
                 serial=self._f_serial.text().strip(),
@@ -658,6 +684,7 @@ class InventarioPanel(QWidget):
                 costo_unitario=costo,
                 cantidad=self._f_cantidad.value(),
                 codigo_barras=self._f_barras.text().strip(),
+                stock_minimo=self._f_stock_min.value(),
                 id=self._editando_id,
             )
         except ValueError as exc:
@@ -692,6 +719,8 @@ class InventarioPanel(QWidget):
     def _limpiar_form(self) -> None:
         self._f_serial.clear()
         self._f_producto.clear()
+        self._f_talla.clear()
         self._f_costo.clear()
         self._f_cantidad.setValue(0)
+        self._f_stock_min.setValue(0)
         self._f_barras.clear()

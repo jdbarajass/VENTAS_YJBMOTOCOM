@@ -16,6 +16,7 @@ class Producto:
     cantidad: int = 0
     serial: str = ""
     codigo_barras: str = ""
+    stock_minimo: int = 0
     id: int | None = None
 
     def __post_init__(self) -> None:
@@ -28,6 +29,11 @@ class Producto:
 
     @property
     def talla(self) -> str:
-        """Extrae la talla del nombre del producto (formato -T:M). 'N/A' si no aplica."""
+        """Extrae la talla del nombre del producto (formato -T:M). '' si no aplica."""
         m = _PAT_TALLA.search(self.producto or "")
-        return m.group(1) if m else "N/A"
+        return m.group(1) if m else ""
+
+    @property
+    def bajo_stock(self) -> bool:
+        """True si la cantidad actual está por debajo del stock mínimo configurado."""
+        return self.stock_minimo > 0 and self.cantidad < self.stock_minimo

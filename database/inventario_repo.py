@@ -16,6 +16,7 @@ def _row_to_producto(row: sqlite3.Row) -> Producto:
         costo_unitario=row["costo_unitario"],
         cantidad=row["cantidad"],
         codigo_barras=row["codigo_barras"] or "",
+        stock_minimo=row["stock_minimo"] if "stock_minimo" in row.keys() else 0,
     )
 
 
@@ -27,10 +28,10 @@ def insertar_producto(p: Producto) -> int:
     conn = DatabaseConnection.get()
     cursor = conn.execute(
         """
-        INSERT INTO inventario (serial, producto, costo_unitario, cantidad, codigo_barras)
-        VALUES (?, ?, ?, ?, ?)
+        INSERT INTO inventario (serial, producto, costo_unitario, cantidad, codigo_barras, stock_minimo)
+        VALUES (?, ?, ?, ?, ?, ?)
         """,
-        (p.serial, p.producto.strip(), p.costo_unitario, p.cantidad, p.codigo_barras),
+        (p.serial, p.producto.strip(), p.costo_unitario, p.cantidad, p.codigo_barras, p.stock_minimo),
     )
     conn.commit()
     p.id = cursor.lastrowid
@@ -105,13 +106,25 @@ def actualizar_producto(p: Producto) -> bool:
             producto       = ?,
             costo_unitario = ?,
             cantidad       = ?,
-            codigo_barras  = ?
+            codigo_barras  = ?,
+            stock_minimo   = ?
         WHERE id = ?
         """,
-        (p.serial, p.producto.strip(), p.costo_unitario, p.cantidad, p.codigo_barras, p.id),
+        (p.serial, p.producto.strip(), p.costo_unitario, p.cantidad,
+         p.codigo_barras, p.stock_minimo, p.id),
     )
     conn.commit()
     return cursor.rowcount > 0
+
+
+def obtener_productos_bajo_stock() -> list[Producto]:
+    """Retorna productos cuya cantidad es menor al stock_minimo configurado (> 0)."""
+    conn = DatabaseConnection.get()
+    rows = conn.execute(
+        "SELECT * FROM inventario WHERE stock_minimo > 0 AND cantidad < stock_minimo"
+        " ORDER BY producto ASC"
+    ).fetchall()
+    return [_row_to_producto(r) for r in rows]
 
 
 def decrementar_cantidad(nombre_producto: str, cantidad: int) -> bool:

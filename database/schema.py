@@ -20,7 +20,7 @@ from database.connection import DatabaseConnection
 
 # ── Versión actual del esquema ────────────────────────────────────────────────
 # Incrementar este número cada vez que se añada una migración a _MIGRACIONES.
-_VERSION_ACTUAL = 16
+_VERSION_ACTUAL = 18
 
 
 # ── Lista de migraciones (forward-only) ───────────────────────────────────────
@@ -128,6 +128,29 @@ _MIGRACIONES = [
         "ALTER TABLE ventas ADD COLUMN cliente_tel TEXT NOT NULL DEFAULT ''",
         "ALTER TABLE ventas ADD COLUMN descuento INTEGER NOT NULL DEFAULT 0",
         "ALTER TABLE ventas ADD COLUMN sku TEXT NOT NULL DEFAULT ''",
+    ]),
+    (17, "Crear módulo de clientes deudores (fiado y abonos_fiado)", [
+        """CREATE TABLE IF NOT EXISTS fiado (
+            id              INTEGER PRIMARY KEY AUTOINCREMENT,
+            cliente_nombre  TEXT    NOT NULL,
+            cliente_cedula  TEXT    NOT NULL DEFAULT '',
+            cliente_tel     TEXT    NOT NULL DEFAULT '',
+            descripcion     TEXT    NOT NULL,
+            monto_total     REAL    NOT NULL DEFAULT 0,
+            fecha           TEXT    NOT NULL,
+            estado          TEXT    NOT NULL DEFAULT 'pendiente',
+            notas           TEXT    NOT NULL DEFAULT ''
+        )""",
+        """CREATE TABLE IF NOT EXISTS abonos_fiado (
+            id        INTEGER PRIMARY KEY AUTOINCREMENT,
+            fiado_id  INTEGER NOT NULL REFERENCES fiado(id) ON DELETE CASCADE,
+            monto     REAL    NOT NULL DEFAULT 0,
+            fecha     TEXT    NOT NULL,
+            notas     TEXT    NOT NULL DEFAULT ''
+        )""",
+    ]),
+    (18, "Agregar stock_minimo a inventario para alertas de reabastecimiento", [
+        "ALTER TABLE inventario ADD COLUMN stock_minimo INTEGER NOT NULL DEFAULT 0",
     ]),
 ]
 

@@ -216,17 +216,17 @@ class _Recibo:
         # ── Observaciones (si hay notas) ─────────────────────────────────
         notas = getattr(v0, "notas", "") or ""
         if notas:
-            obs_lines = simpleSplit(_safe(notas), FONT_NORMAL, FONT_SMALL, COL_W)
+            obs_lines = simpleSplit(_safe(notas), FONT_BOLD, FONT_SMALL, COL_W)
             av(LINE_H_SM)                         # "Observaciones:" label
             av(len(obs_lines) * LINE_H_SM)
 
         av(2 * mm); av(1); av(2 * mm)
 
         # ── Texto garantía ───────────────────────────────────────────────
-        av(len(simpleSplit(_safe(_GARANTIA), FONT_NORMAL, FONT_SMALL, COL_W)) * LINE_H_SM + 1)
+        av(len(simpleSplit(_safe(_GARANTIA), FONT_BOLD, FONT_SMALL, COL_W)) * LINE_H_SM + 1)
 
         # ── Texto legal ──────────────────────────────────────────────────
-        av(len(simpleSplit(_safe(_LEGAL), FONT_NORMAL, FONT_SMALL, COL_W)) * LINE_H_SM + 1)
+        av(len(simpleSplit(_safe(_LEGAL), FONT_BOLD, FONT_SMALL, COL_W)) * LINE_H_SM + 1)
 
         av(LINE_H)                 # "!Gracias por su compra!"
         av(4 * mm)                 # margen inferior
@@ -236,7 +236,7 @@ class _Recibo:
     def _altura_fila(self, v: Venta) -> float:
         """Altura de la fila de un producto (nombre + opcional SKU + detalle precio)."""
         nombre = _safe(v.producto)
-        lineas = simpleSplit(nombre, FONT_NORMAL, FONT_BODY, COL_W - 6 * mm)
+        lineas = simpleSplit(nombre, FONT_BOLD, FONT_BODY, COL_W - 6 * mm)
         height = max(len(lineas), 1) * LINE_H + LINE_H_SM + 3
         if getattr(v, "sku", ""):
             height += LINE_H_SM
@@ -263,10 +263,9 @@ class _Recibo:
             cur[0] += 1
 
         def kv(llave: str, valor: str) -> None:
-            """Dibuja par clave:valor con llave en negrita y valor alineado a la derecha."""
+            """Dibuja par clave:valor ambos en negrita, valor alineado a la derecha."""
             c.setFont(FONT_BOLD, FONT_BODY)
             c.drawString(MARGIN_X, y(), _safe(llave))
-            c.setFont(FONT_NORMAL, FONT_BODY)
             c.drawRightString(PAGE_W - MARGIN_R, y(), _safe(valor))
             nl(LINE_H_SM)
 
@@ -295,7 +294,7 @@ class _Recibo:
 
         v_off_t = (header_h - LINE_H_SM * 4) / 2
         text_y  = y() - v_off_t - FONT_SMALL * 0.85
-        c.setFont(FONT_NORMAL, FONT_SMALL)
+        c.setFont(FONT_BOLD, FONT_SMALL)
         c.setFillColorRGB(0, 0, 0)
         for linea in (NEGOCIO_NIT, NEGOCIO_DIR, NEGOCIO_TEL, NEGOCIO_EMAIL):
             c.drawCentredString(text_cx, text_y, _safe(linea))
@@ -306,11 +305,10 @@ class _Recibo:
         nl(2 * mm); sep(); nl(2 * mm)
 
         # ── Régimen IVA ───────────────────────────────────────────────────
-        c.setFont(FONT_NORMAL, FONT_SMALL)
-        c.setFillColorRGB(0.25, 0.25, 0.25)
+        c.setFont(FONT_BOLD, FONT_SMALL)
+        c.setFillColorRGB(0, 0, 0)
         c.drawCentredString(PAGE_W / 2, y(), _safe(NEGOCIO_REGIMEN))
         nl(LINE_H_SM)
-        c.setFillColorRGB(0, 0, 0)
 
         # ── Cliente ───────────────────────────────────────────────────────
         cli_nombre = getattr(v0, "cliente_nombre", "") or ""
@@ -369,7 +367,6 @@ class _Recibo:
             # Línea 1: número + nombre del producto (puede wrappear)
             c.setFont(FONT_BOLD, FONT_BODY)
             c.drawString(MARGIN_X, y(), f"{idx}.")
-            c.setFont(FONT_NORMAL, FONT_BODY)
             base_y = y()
             for i, linea in enumerate(lineas_nombre):
                 c.drawString(MARGIN_X + 6 * mm, base_y - i * LINE_H, linea)
@@ -378,16 +375,15 @@ class _Recibo:
             # Línea SKU (si existe)
             sku = getattr(v, "sku", "") or ""
             if sku:
-                c.setFont(FONT_NORMAL, FONT_SMALL)
-                c.setFillColorRGB(0.4, 0.4, 0.4)
-                c.drawString(MARGIN_X + 6 * mm, y(), _safe(f"SKU: {sku}"))
+                c.setFont(FONT_BOLD, FONT_SMALL)
                 c.setFillColorRGB(0, 0, 0)
+                c.drawString(MARGIN_X + 6 * mm, y(), _safe(f"SKU: {sku}"))
                 nl(LINE_H_SM)
 
             # Línea 2: cant × precio_unit = total  (todo en pequeño, alineado derecha)
             total_linea = v.precio * v.cantidad
             detalle = f"{v.cantidad}u x {cop(v.precio)} = {cop(total_linea)}"
-            c.setFont(FONT_NORMAL, FONT_SMALL)
+            c.setFont(FONT_BOLD, FONT_SMALL)
             c.drawRightString(PAGE_W - MARGIN_R, y(), _safe(detalle))
             nl(LINE_H_SM + 3)
 
@@ -399,24 +395,23 @@ class _Recibo:
         total_final = subtotal - desc
         total_com = sum(v.comision for v in self._ventas)
 
-        c.setFont(FONT_NORMAL, FONT_BODY)
+        c.setFont(FONT_BOLD, FONT_BODY)
         c.drawString(MARGIN_X, y(), "Subtotal:")
         c.drawRightString(PAGE_W - MARGIN_R, y(), _safe(cop(subtotal)))
         nl(LINE_H)
 
         if desc > 0:
             pct = desc / subtotal * 100 if subtotal > 0 else 0
-            c.setFont(FONT_NORMAL, FONT_BODY)
-            c.drawString(MARGIN_X, y(), _safe(f"Descuento ({pct:.0f}%):"))
-            c.setFillColorRGB(0.8, 0.1, 0.1)
-            c.drawRightString(PAGE_W - MARGIN_R, y(), _safe(f"- {cop(desc)}"))
+            c.setFont(FONT_BOLD, FONT_BODY)
             c.setFillColorRGB(0, 0, 0)
+            c.drawString(MARGIN_X, y(), _safe(f"Descuento ({pct:.0f}%):"))
+            c.drawRightString(PAGE_W - MARGIN_R, y(), _safe(f"- {cop(desc)}"))
             nl(LINE_H_SM)
 
         if total_com > 0:
             metodo_com = (v0.metodo_pago.split()[0]
                          if not v0.pagos_combinados else "Comb.")
-            c.setFont(FONT_NORMAL, FONT_SMALL)
+            c.setFont(FONT_BOLD, FONT_SMALL)
             c.drawString(MARGIN_X, y(), _safe(f"Comision ({metodo_com}):"))
             c.drawRightString(PAGE_W - MARGIN_R, y(), _safe(cop(total_com)))
             nl(LINE_H_SM)
@@ -431,7 +426,7 @@ class _Recibo:
         # ── Resumen ────────────────────────────────────────────────────────
         metodo_display = "Combinado" if v0.pagos_combinados else v0.metodo_pago
         total_items = sum(v.cantidad for v in self._ventas)
-        c.setFont(FONT_NORMAL, FONT_BODY)
+        c.setFont(FONT_BOLD, FONT_BODY)
         c.drawString(MARGIN_X, y(), "Forma de pago:")
         c.drawRightString(PAGE_W - MARGIN_R, y(), _safe(metodo_display))
         nl(LINE_H_SM)
@@ -445,28 +440,26 @@ class _Recibo:
             c.setFont(FONT_BOLD, FONT_SMALL)
             c.drawString(MARGIN_X, y(), "Observaciones:")
             nl(LINE_H_SM)
-            c.setFont(FONT_NORMAL, FONT_SMALL)
-            for linea in simpleSplit(_safe(notas), FONT_NORMAL, FONT_SMALL, COL_W):
+            c.setFont(FONT_BOLD, FONT_SMALL)
+            for linea in simpleSplit(_safe(notas), FONT_BOLD, FONT_SMALL, COL_W):
                 c.drawString(MARGIN_X, y(), linea)
                 nl(LINE_H_SM)
 
         nl(2 * mm); sep(); nl(2 * mm)
 
         # ── Garantía y política de devoluciones ────────────────────────────
-        c.setFont(FONT_NORMAL, FONT_SMALL)
-        c.setFillColorRGB(0.15, 0.15, 0.15)
-        for linea in simpleSplit(_safe(_GARANTIA), FONT_NORMAL, FONT_SMALL, COL_W):
+        c.setFont(FONT_BOLD, FONT_SMALL)
+        c.setFillColorRGB(0, 0, 0)
+        for linea in simpleSplit(_safe(_GARANTIA), FONT_BOLD, FONT_SMALL, COL_W):
             c.drawCentredString(PAGE_W / 2, y(), linea)
             nl(LINE_H_SM)
         nl(1)
 
         # ── Texto legal ────────────────────────────────────────────────────
-        c.setFillColorRGB(0.35, 0.35, 0.35)
-        for linea in simpleSplit(_safe(_LEGAL), FONT_NORMAL, FONT_SMALL, COL_W):
+        for linea in simpleSplit(_safe(_LEGAL), FONT_BOLD, FONT_SMALL, COL_W):
             c.drawCentredString(PAGE_W / 2, y(), linea)
             nl(LINE_H_SM)
         nl(1)
-        c.setFillColorRGB(0, 0, 0)
 
         c.setFont(FONT_BOLD, FONT_BODY)
         c.drawCentredString(PAGE_W / 2, y(), "!Gracias por su compra!")

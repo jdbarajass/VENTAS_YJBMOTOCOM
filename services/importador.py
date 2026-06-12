@@ -155,6 +155,7 @@ def _leer_inventario(ws) -> list[Producto]:
         except (ValueError, TypeError):
             cantidad = 0
         cod = str(_get("codigo_barras", "") or "").strip()
+        cat = str(_get("categoria", "") or "").strip()
 
         try:
             productos.append(Producto(
@@ -163,6 +164,7 @@ def _leer_inventario(ws) -> list[Producto]:
                 costo_unitario=costo,
                 cantidad=cantidad,
                 codigo_barras=cod,
+                categoria=cat,
             ))
         except ValueError:
             pass

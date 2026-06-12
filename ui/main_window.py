@@ -30,6 +30,7 @@ from ui.presupuesto_panel import PresupuestoPanel
 from ui.notas_panel import NotasPanel
 from ui.cuentas_panel import CuentasPanel
 from ui.fiado_panel import FiadoPanel
+from ui.resumen_vendedor_panel import ResumenVendedorPanel
 
 
 # Índices de página en el QStackedWidget
@@ -47,6 +48,7 @@ PAGE_PRESUPUESTO  = 10
 PAGE_NOTAS        = 11
 PAGE_CUENTAS      = 12
 PAGE_FIADO        = 13
+PAGE_RESUMEN      = 14
 
 
 class MainWindow(QMainWindow):
@@ -223,6 +225,7 @@ class MainWindow(QMainWindow):
             (PAGE_REGISTRAR,   "＋  Registrar Venta"),
             (PAGE_CALCULADORA, "🧮  Calculadora"),
             (PAGE_VENTAS_DIA,  "📋  Ventas del Día"),
+            (PAGE_RESUMEN,     "📈  Resumen Vendedor"),
             (PAGE_DASHBOARD,   "📊  Dashboard"),
             (PAGE_HISTORIAL,   "📅  Historial Mensual"),
             (PAGE_INVENTARIO,  "📦  Inventario"),
@@ -383,8 +386,13 @@ class MainWindow(QMainWindow):
         self._fiado = FiadoPanel()
         self._stack.addWidget(self._fiado)
 
+        # Página 14 — Resumen Vendedor
+        self._resumen_vendedor = ResumenVendedorPanel()
+        self._stack.addWidget(self._resumen_vendedor)
+
         # Señales
         self._form_venta.venta_guardada.connect(self._on_venta_guardada)
+        self._form_venta.venta_guardada.connect(self._resumen_vendedor.refresh)
         self._config.configuracion_guardada.connect(self._on_config_guardada)
         self._dashboard.navegar_a.connect(self._navegar)
         self._historial.venta_modificada.connect(self._on_venta_modificada_en_historial)
@@ -450,6 +458,8 @@ class MainWindow(QMainWindow):
         self._stack.setCurrentIndex(page_idx)
         for idx, btn in self._nav_buttons.items():
             btn.setChecked(idx == page_idx)
+        if page_idx == PAGE_RESUMEN:
+            self._resumen_vendedor.refresh()
 
     def set_page(self, page_idx: int) -> None:
         """API pública para cambiar de página desde controllers."""
@@ -535,29 +545,68 @@ class MainWindow(QMainWindow):
             btn.setToolTip("")
 
     def _alertar_facturas_vencimiento(self) -> None:
-        """Muestra un aviso al arrancar si hay facturas con vencimiento inminente."""
-        from database.facturas_repo import obtener_facturas_proximas_a_vencer
+        """Muestra recordatorios al arrancar: facturas, notas y fiados urgentes."""
         from datetime import date as _date
-        proximas = obtener_facturas_proximas_a_vencer(dias=7)
-        if not proximas:
-            return
         hoy = _date.today()
-        lineas = []
-        for f in proximas[:10]:
-            dias_restantes = (f.fecha_vencimiento - hoy).days if f.fecha_vencimiento else 0
-            if dias_restantes < 0:
-                estado_txt = "VENCIDA"
-            elif dias_restantes == 0:
-                estado_txt = "vence HOY"
-            else:
-                estado_txt = f"vence en {dias_restantes} día(s)"
-            lineas.append(f"  • {f.descripcion} ({f.proveedor}) — {estado_txt}")
+        secciones: list[str] = []
+
+        # 1. Facturas próximas a vencer o vencidas
+        try:
+            from database.facturas_repo import obtener_facturas_proximas_a_vencer
+            proximas = obtener_facturas_proximas_a_vencer(dias=7)
+            if proximas:
+                lineas_f = []
+                for f in proximas[:8]:
+                    d = (f.fecha_vencimiento - hoy).days if f.fecha_vencimiento else 0
+                    estado = "VENCIDA" if d < 0 else ("hoy" if d == 0 else f"{d}d")
+                    lineas_f.append(f"  • {f.descripcion[:40]} — {estado}")
+                secciones.append(
+                    f"📋 FACTURAS ({len(proximas)} próximas a vencer):\n" + "\n".join(lineas_f)
+                )
+        except Exception:
+            pass
+
+        # 2. Notas con fecha_limite en los próximos 3 días
+        try:
+            from database.notas_repo import obtener_notas_proximas
+            urgentes_notas = obtener_notas_proximas(dias=3)
+            if urgentes_notas:
+                lineas_n = [
+                    f"  • {n.texto[:40]} — {n.fecha_limite}"
+                    for n in urgentes_notas[:6]
+                ]
+                secciones.append(
+                    f"📝 NOTAS ({len(urgentes_notas)} con fecha límite próxima):\n"
+                    + "\n".join(lineas_n)
+                )
+        except Exception:
+            pass
+
+        # 3. Fiados pendientes con más de 30 días
+        try:
+            from database.fiado_repo import obtener_fiados_pendientes
+            fiados = obtener_fiados_pendientes()
+            viejos = [f for f in fiados if f.dias_transcurridos > 30]
+            if viejos:
+                lineas_fiad = [
+                    f"  • {f.cliente_nombre[:30]} — {f.dias_transcurridos}d sin saldar"
+                    for f in sorted(viejos, key=lambda x: -x.dias_transcurridos)[:6]
+                ]
+                secciones.append(
+                    f"💸 FIADOS ({len(viejos)} con más de 30 días pendientes):\n"
+                    + "\n".join(lineas_fiad)
+                )
+        except Exception:
+            pass
+
+        if not secciones:
+            return
+
         QMessageBox.warning(
             self,
-            "Facturas próximas a vencer",
-            f"Tienes {len(proximas)} factura(s) pendientes con vencimiento próximo:\n\n"
-            + "\n".join(lineas)
-            + "\n\nRevisa el panel de Facturas para gestionarlas.",
+            "Recordatorios — YJBMOTOCOM",
+            "Hay elementos que requieren atención:\n\n"
+            + "\n\n".join(secciones),
         )
 
     # ------------------------------------------------------------------

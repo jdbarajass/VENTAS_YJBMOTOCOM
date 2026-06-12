@@ -17,6 +17,7 @@ class Producto:
     serial: str = ""
     codigo_barras: str = ""
     stock_minimo: int = 0
+    categoria: str = ""
     id: int | None = None
 
     def __post_init__(self) -> None:

@@ -17,6 +17,10 @@ from reportlab.lib.enums import TA_CENTER, TA_RIGHT, TA_LEFT
 from reportlab.platypus import (
     SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, HRFlowable,
 )
+from reportlab.graphics.shapes import Drawing, String, Rect, Line, Group
+from reportlab.graphics import renderPDF
+from reportlab.graphics.charts.barcharts import VerticalBarChart
+from reportlab.graphics.charts.piecharts import Pie
 
 from services.reportes import ResumenMensual
 from utils.formatters import cop, MESES_ES
@@ -40,8 +44,11 @@ _MORADO_CLARO = colors.HexColor("#EDE9FE")
 
 # ── Utilidad de categorización ────────────────────────────────────────────────
 
-def _categoria(nombre: str) -> str:
-    """Extrae la categoría como la primera palabra del nombre (sin talla)."""
+def _categoria(p) -> str:
+    """Categoría explícita si existe; si no, inferida de la primera palabra del nombre."""
+    if hasattr(p, "categoria") and p.categoria:
+        return p.categoria.strip().upper()
+    nombre = p.producto if hasattr(p, "producto") else str(p)
     limpio = _re.sub(r"\s*-T:\S*", "", nombre, flags=_re.IGNORECASE).strip()
     return limpio.split()[0].upper() if limpio else "OTRO"
 
@@ -112,6 +119,19 @@ def generar_reporte_mensual_pdf(
     elementos.append(_titulo_seccion("Resumen por Día", estilos))
     elementos.append(_tabla_diaria(resumen))
     elementos.append(Spacer(1, 0.5 * cm))
+
+    # ── 7.5. Gráficas ─────────────────────────────────────────────────────────
+    grafica_dias = _grafica_ingresos_diarios(resumen)
+    if grafica_dias is not None:
+        elementos.append(_titulo_seccion("Ingresos Diarios", estilos))
+        elementos.append(grafica_dias)
+        elementos.append(Spacer(1, 0.5 * cm))
+
+    grafica_metodos = _grafica_metodos_pago(ventas)
+    if grafica_metodos is not None:
+        elementos.append(_titulo_seccion("Ingresos por Método de Pago", estilos))
+        elementos.append(grafica_metodos)
+        elementos.append(Spacer(1, 0.5 * cm))
 
     # ── 8. Inventario general (si se proveen productos) ───────────────────────
     if productos:
@@ -593,7 +613,7 @@ def _tabla_inventario_general(productos) -> Table:
     """Inventario agrupado por categoría (primera palabra del nombre)."""
     grupos: dict[str, dict] = defaultdict(lambda: {"referencias": 0, "unidades": 0, "valor": 0.0})
     for p in productos:
-        cat = _categoria(p.producto)
+        cat = _categoria(p)
         grupos[cat]["referencias"] += 1
         grupos[cat]["unidades"] += p.cantidad
         grupos[cat]["valor"] += p.costo_unitario * p.cantidad
@@ -641,3 +661,247 @@ def _tabla_inventario_general(productos) -> Table:
     ]
     t.setStyle(TableStyle(estilos_t))
     return t
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Gráficas
+# ─────────────────────────────────────────────────────────────────────────────
+
+def _grafica_ingresos_diarios(resumen: ResumenMensual) -> Drawing | None:
+    """
+    Gráfica de barras verticales con ingresos por día.
+    Retorna None si no hay datos.
+    """
+    dias = resumen.resumen_por_dia
+    if not dias:
+        return None
+
+    W, H = 480, 200
+    drawing = Drawing(W, H)
+
+    valores = [rd.total_ingresos for rd in dias]
+    etiquetas = [str(rd.fecha.day) for rd in dias]
+    maximo = max(valores) if any(v > 0 for v in valores) else 1
+
+    bar_w = (W - 60) / max(len(valores), 1)
+    barra_ancho = bar_w * 0.65
+    inicio_x = 50
+
+    # Eje Y — líneas de guía y etiquetas
+    for factor in (0, 0.25, 0.5, 0.75, 1.0):
+        y = 30 + factor * (H - 50)
+        drawing.add(Line(45, y, W - 10, y,
+                         strokeColor=colors.HexColor("#E5E7EB"), strokeWidth=0.5))
+        monto = maximo * factor
+        lbl = String(40, y - 4, cop(monto) if monto > 0 else "0",
+                     fontSize=6, fillColor=colors.HexColor("#9CA3AF"),
+                     textAnchor="end")
+        drawing.add(lbl)
+
+    # Barras
+    for i, (val, dia_lbl) in enumerate(zip(valores, etiquetas)):
+        x = inicio_x + i * bar_w + (bar_w - barra_ancho) / 2
+        h_barra = (val / maximo) * (H - 50) if maximo > 0 else 0
+        color_barra = colors.HexColor("#2563EB") if val > 0 else colors.HexColor("#E5E7EB")
+        drawing.add(Rect(x, 30, barra_ancho, h_barra,
+                         fillColor=color_barra, strokeColor=None))
+        # Etiqueta día
+        drawing.add(String(x + barra_ancho / 2, 18, dia_lbl,
+                           fontSize=6, fillColor=colors.HexColor("#6B7280"),
+                           textAnchor="middle"))
+
+    return drawing
+
+
+def _grafica_metodos_pago(ventas) -> Drawing | None:
+    """
+    Gráfica de barras horizontales con ingresos por método de pago.
+    Retorna None si no hay ventas.
+    """
+    from collections import defaultdict
+    por_metodo: dict[str, float] = defaultdict(float)
+    for v in ventas:
+        metodo = (v.metodo_pago or "Otro").strip()
+        ingreso = v.precio * v.cantidad - (getattr(v, "descuento", 0) or 0)
+        por_metodo[metodo] += ingreso
+
+    if not por_metodo:
+        return None
+
+    ordenados = sorted(por_metodo.items(), key=lambda x: -x[1])[:8]
+    maximo = ordenados[0][1] if ordenados else 1
+
+    W, H = 480, max(80, len(ordenados) * 30 + 20)
+    drawing = Drawing(W, H)
+
+    COLORES_BARRAS = [
+        "#2563EB", "#15803D", "#D97706", "#7C3AED",
+        "#0891B2", "#DC2626", "#065F46", "#92400E",
+    ]
+    barra_h = 18
+    inicio_y = H - 20
+    inicio_x = 140
+
+    for i, (metodo, monto) in enumerate(ordenados):
+        y = inicio_y - i * 30
+        ancho_barra = (monto / maximo) * (W - inicio_x - 80) if maximo > 0 else 0
+        color_b = colors.HexColor(COLORES_BARRAS[i % len(COLORES_BARRAS)])
+
+        # Etiqueta método
+        drawing.add(String(inicio_x - 4, y - 5, metodo[:22],
+                           fontSize=7.5, fillColor=colors.HexColor("#374151"),
+                           textAnchor="end"))
+
+        # Barra
+        drawing.add(Rect(inicio_x, y - barra_h + 4, ancho_barra, barra_h,
+                         fillColor=color_b, strokeColor=None))
+
+        # Valor al final
+        drawing.add(String(inicio_x + ancho_barra + 4, y - 5, cop(monto),
+                           fontSize=7, fillColor=color_b, textAnchor="start"))
+
+    return drawing
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# PDF Listado de Inventario
+# ─────────────────────────────────────────────────────────────────────────────
+
+def generar_pdf_inventario(
+    productos,          # list[Producto]
+    ruta: Path,
+    nombre_negocio: str = "YJBMOTOCOM",
+    solo_con_stock: bool = False,
+) -> None:
+    """Genera un PDF con el listado completo de productos del inventario."""
+    from datetime import datetime
+
+    doc = SimpleDocTemplate(
+        str(ruta),
+        pagesize=letter,
+        leftMargin=1.8 * cm,
+        rightMargin=1.8 * cm,
+        topMargin=1.8 * cm,
+        bottomMargin=1.8 * cm,
+        title=f"Inventario — {nombre_negocio}",
+    )
+
+    estilos = getSampleStyleSheet()
+    elementos = []
+
+    # ── Encabezado ────────────────────────────────────────────────────────────
+    elementos.append(Paragraph(
+        f'<font color="#1E293B"><b>{nombre_negocio}</b></font>',
+        ParagraphStyle("titulo", fontName="Helvetica-Bold", fontSize=18,
+                       alignment=TA_LEFT, spaceAfter=2),
+    ))
+    elementos.append(Paragraph(
+        "Listado de Inventario",
+        ParagraphStyle("subtitulo", fontName="Helvetica", fontSize=13,
+                       textColor=colors.HexColor("#2563EB"), spaceAfter=4),
+    ))
+    ahora = datetime.now().strftime("%d/%m/%Y  %H:%M")
+    filtro_txt = "Solo con stock" if solo_con_stock else "Todos los productos"
+    elementos.append(Paragraph(
+        f'Generado: {ahora}  •  {filtro_txt}',
+        ParagraphStyle("meta", fontName="Helvetica", fontSize=8,
+                       textColor=colors.HexColor("#6B7280"), spaceAfter=6),
+    ))
+    elementos.append(HRFlowable(width="100%", thickness=1, color=_AZUL_OSCURO,
+                                spaceAfter=10))
+
+    # ── Resumen superior ──────────────────────────────────────────────────────
+    prods_filtrados = [p for p in productos if not solo_con_stock or p.cantidad > 0]
+    total_refs  = len(prods_filtrados)
+    total_uds   = sum(p.cantidad for p in prods_filtrados)
+    total_costo = sum(p.costo_unitario * p.cantidad for p in prods_filtrados)
+
+    resumen_data = [
+        ["REFERENCIAS", "UNIDADES EN STOCK", "VALOR EN COSTO"],
+        [str(total_refs), str(total_uds), cop(total_costo)],
+    ]
+    col_w_res = [4.5*cm, 5.0*cm, 5.0*cm]
+    t_res = Table(resumen_data, colWidths=col_w_res)
+    t_res.setStyle(TableStyle([
+        ("BACKGROUND",    (0, 0), (-1, 0), _AZUL_OSCURO),
+        ("TEXTCOLOR",     (0, 0), (-1, 0), colors.white),
+        ("FONTNAME",      (0, 0), (-1, 0), "Helvetica-Bold"),
+        ("FONTSIZE",      (0, 0), (-1, 0), 8),
+        ("ALIGN",         (0, 0), (-1, -1), "CENTER"),
+        ("FONTNAME",      (0, 1), (-1, 1), "Helvetica-Bold"),
+        ("FONTSIZE",      (0, 1), (-1, 1), 11),
+        ("TEXTCOLOR",     (1, 1), (1, 1), _VERDE),
+        ("TEXTCOLOR",     (2, 1), (2, 1), _AZUL_MEDIO),
+        ("GRID",          (0, 0), (-1, -1), 0.4, _GRIS_BORDE),
+        ("TOPPADDING",    (0, 0), (-1, -1), 6),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
+    ]))
+    elementos.append(t_res)
+    elementos.append(Spacer(1, 0.5 * cm))
+
+    # ── Tabla de productos ────────────────────────────────────────────────────
+    if not prods_filtrados:
+        elementos.append(Paragraph(
+            "No hay productos para mostrar.",
+            ParagraphStyle("vacio", fontName="Helvetica", fontSize=11,
+                           textColor=colors.HexColor("#9CA3AF"), alignment=TA_CENTER),
+        ))
+    else:
+        encabezado = [["#", "PRODUCTO", "SERIAL", "STOCK", "COSTO UNIT.", "VALOR TOTAL"]]
+        filas = []
+        for i, p in enumerate(sorted(prods_filtrados, key=lambda x: x.producto.upper()), 1):
+            valor_total = p.costo_unitario * p.cantidad
+            alerta = " ⚠" if (p.stock_minimo > 0 and p.cantidad < p.stock_minimo) or \
+                              (p.stock_minimo == 0 and 0 < p.cantidad <= 2) else ""
+            filas.append([
+                str(i),
+                (p.producto or "")[:40] + alerta,
+                p.serial or "—",
+                str(p.cantidad),
+                cop(p.costo_unitario),
+                cop(valor_total),
+            ])
+
+        datos_tabla = encabezado + filas
+        col_w_t = [0.7*cm, 6.5*cm, 2.5*cm, 1.4*cm, 2.8*cm, 2.9*cm]
+        t = Table(datos_tabla, colWidths=col_w_t, repeatRows=1)
+        n = len(datos_tabla)
+
+        estilos_inv = [
+            ("BACKGROUND",    (0, 0), (-1, 0), _AZUL_OSCURO),
+            ("TEXTCOLOR",     (0, 0), (-1, 0), colors.white),
+            ("FONTNAME",      (0, 0), (-1, 0), "Helvetica-Bold"),
+            ("FONTSIZE",      (0, 0), (-1, 0), 7.5),
+            ("ALIGN",         (0, 0), (-1, 0), "CENTER"),
+            ("FONTSIZE",      (0, 1), (-1, -1), 8),
+            ("ALIGN",         (0, 1), (0, -1), "CENTER"),
+            ("ALIGN",         (3, 1), (3, -1), "CENTER"),
+            ("ALIGN",         (4, 1), (-1, -1), "RIGHT"),
+            ("FONTNAME",      (0, 1), (-1, -1), "Helvetica"),
+            ("GRID",          (0, 0), (-1, -1), 0.4, _GRIS_BORDE),
+            ("ROWBACKGROUNDS",(0, 1), (-1, n-1), [colors.white, _GRIS_CLARO]),
+            ("TOPPADDING",    (0, 0), (-1, -1), 4),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+            ("LEFTPADDING",   (0, 1), (1, -1), 6),
+        ]
+        for i, p in enumerate(sorted(prods_filtrados, key=lambda x: x.producto.upper()), 1):
+            bajo = (p.stock_minimo > 0 and p.cantidad < p.stock_minimo) or \
+                   (p.stock_minimo == 0 and 0 < p.cantidad <= 2)
+            if bajo:
+                estilos_inv.append(("TEXTCOLOR", (3, i), (3, i), _ROJO))
+                estilos_inv.append(("FONTNAME",  (3, i), (3, i), "Helvetica-Bold"))
+
+        t.setStyle(TableStyle(estilos_inv))
+        elementos.append(t)
+
+    # ── Pie de página ─────────────────────────────────────────────────────────
+    elementos.append(Spacer(1, 0.6 * cm))
+    elementos.append(HRFlowable(width="100%", thickness=0.5, color=_GRIS_BORDE))
+    elementos.append(Paragraph(
+        f'{nombre_negocio}  •  Inventario generado el {ahora}',
+        ParagraphStyle("pie", fontName="Helvetica", fontSize=7,
+                       textColor=colors.HexColor("#9CA3AF"), alignment=TA_CENTER,
+                       spaceBefore=4),
+    ))
+
+    doc.build(elementos)

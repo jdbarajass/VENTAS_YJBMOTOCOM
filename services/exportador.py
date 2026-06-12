@@ -250,8 +250,8 @@ def _escribir_hoja_prestamos(ws, prestamos: list) -> None:
         ws.column_dimensions[get_column_letter(i)].width = ancho
 
 
-_HEADERS_INVENTARIO = ["Serial", "Producto", "Talla", "Costo unitario", "Cantidad", "Código barras"]
-_ANCHOS_INVENTARIO  = [12, 38, 8, 16, 12, 20]
+_HEADERS_INVENTARIO = ["Serial", "Producto", "Talla", "Costo unitario", "Cantidad", "Código barras", "Categoría"]
+_ANCHOS_INVENTARIO  = [12, 38, 8, 16, 12, 20, 18]
 
 
 def _escribir_hoja_inventario(ws, productos: list) -> None:
@@ -262,7 +262,7 @@ def _escribir_hoja_inventario(ws, productos: list) -> None:
     hoy = _date.today().strftime("%d/%m/%Y")
 
     # Título
-    ws.merge_cells("A1:F1")
+    ws.merge_cells("A1:G1")
     t = ws["A1"]
     t.value = f"YJBMOTOCOM — Inventario ({hoy})"
     t.font = Font(name="Calibri", bold=True, size=13, color="FFFFFF")
@@ -272,7 +272,7 @@ def _escribir_hoja_inventario(ws, productos: list) -> None:
 
     # Encabezados
     ws.append(_HEADERS_INVENTARIO)
-    for col_idx in range(1, 7):
+    for col_idx in range(1, 8):
         cell = ws.cell(row=2, column=col_idx)
         cell.font = Font(bold=True, color="FFFFFF", name="Calibri", size=10)
         cell.fill = PatternFill("solid", fgColor="0284C7")
@@ -292,10 +292,11 @@ def _escribir_hoja_inventario(ws, productos: list) -> None:
             p.costo_unitario,
             p.cantidad,
             p.codigo_barras or "",
+            getattr(p, "categoria", "") or "",
         ])
         row = ws.max_row
         fondo = "F0F9FF" if i % 2 == 0 else "FFFFFF"
-        for col_idx in range(1, 7):
+        for col_idx in range(1, 8):
             c = ws.cell(row=row, column=col_idx)
             c.fill = PatternFill("solid", fgColor=fondo)
             c.border = borde
@@ -318,9 +319,10 @@ def _escribir_hoja_inventario(ws, productos: list) -> None:
         total_valor_inv,
         total_unidades,
         "",
+        "",
     ])
     total_row = ws.max_row
-    for col_idx in range(1, 7):
+    for col_idx in range(1, 8):
         c = ws.cell(row=total_row, column=col_idx)
         c.font = Font(bold=True, name="Calibri", size=10)
         c.fill = PatternFill("solid", fgColor="E0F2FE")

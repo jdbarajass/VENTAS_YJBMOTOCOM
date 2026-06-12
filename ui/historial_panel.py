@@ -32,6 +32,7 @@ class HistorialPanel(QWidget):
         self._ctrl = HistorialController()
         self._venta_ctrl = VentaController()
         self._resumen: ResumenMensual | None = None
+        self._resumen_ant: ResumenMensual | None = None
         self._ventas: list[Venta] = []
         self._cfg = None
         self._fecha_seleccionada: date | None = None
@@ -58,7 +59,9 @@ class HistorialPanel(QWidget):
 
         root.addLayout(self._barra_superior())
         root.addLayout(self._fila_resumen())
+        root.addWidget(self._panel_comparativa())
         root.addWidget(self._panel_comisiones())
+        root.addWidget(self._panel_rentabilidad())
         root.addWidget(self._panel_resumen_diario())
         root.addWidget(self._panel_detalle_dia(), stretch=1)
 
@@ -132,6 +135,16 @@ class HistorialPanel(QWidget):
         )
         self._btn_modo_rango.toggled.connect(self._on_toggle_modo_rango)
 
+        # Botón rentabilidad por producto
+        self._btn_rentabilidad = QPushButton("📊 Rentabilidad")
+        self._btn_rentabilidad.setCheckable(True)
+        self._btn_rentabilidad.setFixedHeight(32)
+        self._btn_rentabilidad.setStyleSheet(
+            "QPushButton { border-radius:5px; padding:0 10px; font-size:11px; }"
+            "QPushButton:checked { background:#7C3AED; color:white; font-weight:bold; }"
+        )
+        self._btn_rentabilidad.toggled.connect(self._on_toggle_rentabilidad)
+
         fila1.addWidget(titulo)
         fila1.addSpacing(8)
         fila1.addWidget(btn_prev)
@@ -140,6 +153,7 @@ class HistorialPanel(QWidget):
         fila1.addWidget(btn_next)
         fila1.addSpacing(8)
         fila1.addWidget(self._btn_modo_rango)
+        fila1.addWidget(self._btn_rentabilidad)
         fila1.addStretch()
         fila1.addWidget(self._btn_pdf)
         fila1.addWidget(self._btn_imprimir)
@@ -244,6 +258,53 @@ class HistorialPanel(QWidget):
         w._color_base = color
         return w
 
+    # ---- Panel comparativa mes anterior ----
+
+    def _panel_comparativa(self) -> QFrame:
+        frame = QFrame()
+        frame.setObjectName("panelComparativa")
+        frame.setFrameShape(QFrame.StyledPanel)
+        frame.setStyleSheet(
+            "QFrame#panelComparativa { background:#F8FAFC; border:1px solid #E2E8F0;"
+            " border-radius:10px; }"
+        )
+        lay = QHBoxLayout(frame)
+        lay.setContentsMargins(16, 7, 16, 7)
+        lay.setSpacing(6)
+
+        self._lbl_comp_titulo = QLabel("vs. —")
+        self._lbl_comp_titulo.setStyleSheet(
+            "color:#64748B; font-size:10px; font-weight:bold;"
+        )
+        lay.addWidget(self._lbl_comp_titulo)
+
+        sep = QFrame(); sep.setFrameShape(QFrame.VLine)
+        sep.setFixedHeight(20); sep.setStyleSheet("color:#CBD5E1;")
+        lay.addWidget(sep)
+
+        self._comp_chips: dict[str, QLabel] = {}
+        for clave, etiqueta in [
+            ("ventas",   "Ventas"),
+            ("ingresos", "Ingresos"),
+            ("g_neta",   "G. Neta"),
+            ("utilidad", "Utilidad"),
+        ]:
+            chip = QLabel(f"{etiqueta}: —")
+            chip.setStyleSheet(
+                "background:#E2E8F0; color:#475569; border-radius:10px;"
+                " padding:2px 10px; font-size:11px;"
+            )
+            chip.setVisible(False)
+            lay.addWidget(chip)
+            self._comp_chips[clave] = chip
+
+        self._lbl_comp_vacio = QLabel("Sin datos del mes anterior")
+        self._lbl_comp_vacio.setStyleSheet("color:#94A3B8; font-size:11px;")
+        lay.addWidget(self._lbl_comp_vacio)
+        lay.addStretch()
+        frame.setFixedHeight(42)
+        return frame
+
     # ---- Panel resumen comisiones ----
 
     def _panel_comisiones(self) -> QFrame:
@@ -291,6 +352,108 @@ class HistorialPanel(QWidget):
         lay.addWidget(self._lbl_total_comisiones)
 
         return frame
+
+    # ---- Panel rentabilidad por producto ----
+
+    def _panel_rentabilidad(self) -> QFrame:
+        frame = QFrame()
+        frame.setObjectName("panelRentabilidad")
+        frame.setFrameShape(QFrame.StyledPanel)
+        frame.setStyleSheet(
+            "QFrame#panelRentabilidad { background:#FFFFFF; border:1px solid #E5E7EB;"
+            " border-radius:10px; }"
+        )
+        lay = QVBoxLayout(frame)
+        lay.setContentsMargins(0, 0, 0, 0)
+
+        enc = QLabel("  📊 Rentabilidad por Producto del Mes")
+        f = QFont(); f.setPointSize(11); f.setBold(True)
+        enc.setFont(f)
+        enc.setContentsMargins(16, 10, 16, 4)
+        lay.addWidget(enc)
+
+        self._tabla_rent = QTableWidget()
+        self._tabla_rent.setColumnCount(6)
+        self._tabla_rent.setHorizontalHeaderLabels([
+            "Producto", "Unidades", "Ingresos", "Costos", "G. Neta", "Margen %"
+        ])
+        self._tabla_rent.setEditTriggers(QAbstractItemView.NoEditTriggers)
+        self._tabla_rent.setSelectionBehavior(QAbstractItemView.SelectRows)
+        self._tabla_rent.verticalHeader().setVisible(False)
+        self._tabla_rent.setShowGrid(False)
+        self._tabla_rent.setAlternatingRowColors(True)
+        self._tabla_rent.setMaximumHeight(220)
+        self._tabla_rent.setStyleSheet("""
+            QTableWidget { border:none; font-size:12px; }
+            QTableWidget::item { padding:3px 8px; }
+            QHeaderView::section {
+                background:#4C1D95; color:white; font-weight:bold;
+                font-size:11px; padding:5px; border:none;
+            }
+            QTableWidget::item:selected { background:#EDE9FE; color:#3730A3; }
+        """)
+        hh = self._tabla_rent.horizontalHeader()
+        hh.setSectionResizeMode(0, QHeaderView.Stretch)
+        hh.setSectionResizeMode(1, QHeaderView.Interactive); self._tabla_rent.setColumnWidth(1, 80)
+        hh.setSectionResizeMode(2, QHeaderView.Interactive); self._tabla_rent.setColumnWidth(2, 110)
+        hh.setSectionResizeMode(3, QHeaderView.Interactive); self._tabla_rent.setColumnWidth(3, 110)
+        hh.setSectionResizeMode(4, QHeaderView.Interactive); self._tabla_rent.setColumnWidth(4, 110)
+        hh.setSectionResizeMode(5, QHeaderView.Interactive); self._tabla_rent.setColumnWidth(5, 85)
+
+        lay.addWidget(self._tabla_rent)
+        frame.setVisible(False)
+        self._frame_rentabilidad = frame
+        return frame
+
+    def _on_toggle_rentabilidad(self, activo: bool) -> None:
+        self._frame_rentabilidad.setVisible(activo)
+        if activo:
+            self._poblar_rentabilidad()
+
+    def _poblar_rentabilidad(self) -> None:
+        from collections import defaultdict
+        grupos: dict[str, dict] = defaultdict(
+            lambda: {"uds": 0, "ingresos": 0.0, "costos": 0.0, "g_neta": 0.0}
+        )
+        for v in self._ventas:
+            nombre = v.producto
+            ingresos = v.precio * v.cantidad - (getattr(v, "descuento", 0) or 0)
+            grupos[nombre]["uds"] += v.cantidad
+            grupos[nombre]["ingresos"] += ingresos
+            grupos[nombre]["costos"] += v.costo * v.cantidad
+            grupos[nombre]["g_neta"] += v.ganancia_neta
+
+        ordenados = sorted(grupos.items(), key=lambda x: -x[1]["g_neta"])
+
+        self._tabla_rent.setRowCount(0)
+        self._tabla_rent.setRowCount(len(ordenados))
+        for row, (nombre, d) in enumerate(ordenados):
+            self._tabla_rent.setRowHeight(row, 28)
+            item_n = QTableWidgetItem(nombre)
+            item_n.setToolTip(nombre)
+            self._tabla_rent.setItem(row, 0, item_n)
+
+            item_u = QTableWidgetItem(str(d["uds"]))
+            item_u.setTextAlignment(Qt.AlignCenter)
+            self._tabla_rent.setItem(row, 1, item_u)
+
+            for col, val in [(2, d["ingresos"]), (3, d["costos"]), (4, d["g_neta"])]:
+                it = QTableWidgetItem(cop(val))
+                it.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
+                if col == 4:
+                    it.setForeground(QColor("#16A34A") if val >= 0 else QColor("#DC2626"))
+                self._tabla_rent.setItem(row, col, it)
+
+            if d["ingresos"] > 0:
+                pct = round(d["g_neta"] / d["ingresos"] * 100, 1)
+                item_pct = QTableWidgetItem(f"{pct:+.1f}%")
+                item_pct.setTextAlignment(Qt.AlignCenter)
+                item_pct.setForeground(
+                    QColor("#15803D") if pct >= 20 else
+                    QColor("#D97706") if pct >= 10 else
+                    QColor("#DC2626")
+                )
+                self._tabla_rent.setItem(row, 5, item_pct)
 
     # ---- Tabla resumen por día (reemplaza gráfica) ----
 
@@ -381,6 +544,16 @@ class HistorialPanel(QWidget):
         )
         self._campo_busqueda_hist.textChanged.connect(self._on_busqueda_hist)
 
+        self._btn_eliminar_sel = QPushButton("🗑 Eliminar seleccionadas")
+        self._btn_eliminar_sel.setFixedHeight(26)
+        self._btn_eliminar_sel.setStyleSheet(
+            "QPushButton { background:#FEF2F2; color:#DC2626; border:1px solid #FECACA;"
+            "border-radius:4px; padding:0 10px; font-size:11px; font-weight:bold; }"
+            "QPushButton:hover { background:#FEE2E2; }"
+        )
+        self._btn_eliminar_sel.clicked.connect(self._on_eliminar_seleccionadas)
+        self._btn_eliminar_sel.setVisible(False)
+
         self._btn_cerrar_detalle = QPushButton("X Cerrar")
         self._btn_cerrar_detalle.setFixedHeight(26)
         self._btn_cerrar_detalle.setStyleSheet(
@@ -404,6 +577,8 @@ class HistorialPanel(QWidget):
         hb_lay.addStretch()
         hb_lay.addWidget(self._campo_busqueda_hist)
         hb_lay.addSpacing(8)
+        hb_lay.addWidget(self._btn_eliminar_sel)
+        hb_lay.addSpacing(4)
         hb_lay.addWidget(self._btn_vista_dia)
         hb_lay.addSpacing(4)
         hb_lay.addWidget(self._btn_cerrar_detalle)
@@ -425,6 +600,7 @@ class HistorialPanel(QWidget):
         ])
         self.tabla_detalle.setEditTriggers(QAbstractItemView.NoEditTriggers)
         self.tabla_detalle.setSelectionBehavior(QAbstractItemView.SelectRows)
+        self.tabla_detalle.setSelectionMode(QAbstractItemView.ExtendedSelection)
         self.tabla_detalle.setAlternatingRowColors(True)
         self.tabla_detalle.verticalHeader().setVisible(False)
         self.tabla_detalle.setShowGrid(False)
@@ -475,6 +651,10 @@ class HistorialPanel(QWidget):
             año = self.spin_año.value()
             self._resumen = self._ctrl.cargar_resumen_mes(año, mes)
             self._ventas  = self._ctrl.cargar_ventas_mes(año, mes)
+            # Cargar mes anterior para comparativa
+            mes_ant = mes - 1 if mes > 1 else 12
+            año_ant = año if mes > 1 else año - 1
+            self._resumen_ant = self._ctrl.cargar_resumen_mes(año_ant, mes_ant)
             self._actualizar_ui()
 
     def _actualizar_ui(self) -> None:
@@ -542,8 +722,11 @@ class HistorialPanel(QWidget):
             item_est.setForeground(QColor("#15803D") if rd.es_positivo else QColor("#DC2626"))
             self.tabla_diaria.setItem(row, 6, item_est)
 
-        # ---- Actualizar chips de comisiones ----
+        # ---- Actualizar chips de comisiones, comparativa y rentabilidad ----
         self._actualizar_chips_comisiones()
+        self._actualizar_comparativa()
+        if self._frame_rentabilidad.isVisible():
+            self._poblar_rentabilidad()
 
         # ---- Refrescar detalle si había un día seleccionado ----
         if self._fecha_seleccionada is not None:
@@ -586,6 +769,7 @@ class HistorialPanel(QWidget):
         self.tabla_detalle.setVisible(True)
         self._btn_cerrar_detalle.setVisible(True)
         self._btn_vista_dia.setVisible(True)
+        self._btn_eliminar_sel.setVisible(True)
         self._lbl_detalle_titulo.setText(
             f"  Ventas del {fecha_corta(fecha)}  —  {len(ventas)} venta(s)"
         )
@@ -593,9 +777,10 @@ class HistorialPanel(QWidget):
         for row, v in enumerate(ventas):
             self.tabla_detalle.setRowHeight(row, 32)
 
-            # Producto — con tooltip para ver nombre completo al posar el mouse
+            # Producto — con tooltip; UserRole guarda el ID para eliminación masiva
             item_prod = QTableWidgetItem(v.producto)
             item_prod.setToolTip(v.producto)
+            item_prod.setData(Qt.UserRole, v.id)
             self.tabla_detalle.setItem(row, 0, item_prod)
 
             self._celda_det(row, 1, str(v.cantidad), Qt.AlignCenter)
@@ -677,6 +862,7 @@ class HistorialPanel(QWidget):
             self.tabla_detalle.setRowHeight(row, 32)
             item_prod = QTableWidgetItem(v.producto)
             item_prod.setToolTip(v.producto)
+            item_prod.setData(Qt.UserRole, v.id)
             self.tabla_detalle.setItem(row, 0, item_prod)
             self._celda_det(row, 1, str(v.cantidad), Qt.AlignCenter)
             self._celda_det(row, 2, cop(v.costo), Qt.AlignRight | Qt.AlignVCenter)
@@ -726,7 +912,38 @@ class HistorialPanel(QWidget):
         self._lbl_placeholder.setVisible(True)
         self._btn_cerrar_detalle.setVisible(False)
         self._btn_vista_dia.setVisible(False)
+        self._btn_eliminar_sel.setVisible(False)
         self._lbl_detalle_titulo.setText("  Detalle del Día")
+
+    def _on_eliminar_seleccionadas(self) -> None:
+        filas = sorted(set(
+            idx.row() for idx in self.tabla_detalle.selectedIndexes()
+        ))
+        if not filas:
+            return
+        ids = []
+        for fila in filas:
+            item_prod = self.tabla_detalle.item(fila, 0)
+            if item_prod:
+                vid = item_prod.data(Qt.UserRole)
+                if vid is not None:
+                    ids.append(vid)
+
+        if not ids:
+            return
+        resp = QMessageBox.question(
+            self,
+            "Eliminar ventas",
+            f"¿Eliminar <b>{len(ids)}</b> venta(s) seleccionada(s)?<br>"
+            "Esta acción no se puede deshacer.",
+            QMessageBox.Yes | QMessageBox.No,
+            QMessageBox.No,
+        )
+        if resp == QMessageBox.Yes:
+            for vid in ids:
+                self._venta_ctrl.eliminar_venta(vid)
+            self.refresh()
+            self.venta_modificada.emit()
 
     def _on_abrir_vista_dia(self) -> None:
         if self._fecha_seleccionada is None:
@@ -798,6 +1015,70 @@ class HistorialPanel(QWidget):
     # ------------------------------------------------------------------
     # Navegación de mes
     # ------------------------------------------------------------------
+
+    # ------------------------------------------------------------------
+    # Comparativa mes anterior
+    # ------------------------------------------------------------------
+
+    def _actualizar_comparativa(self) -> None:
+        en_rango = getattr(self, "_modo_rango", False)
+        r = self._resumen
+        ant = self._resumen_ant
+
+        # En modo rango no hay "mes anterior" claro — ocultar todo
+        if en_rango or ant is None or r is None:
+            for chip in self._comp_chips.values():
+                chip.setVisible(False)
+            self._lbl_comp_vacio.setVisible(True)
+            self._lbl_comp_titulo.setText("vs. —")
+            return
+
+        # Nombre del mes anterior
+        nombre_ant = MESES_ES.get(ant.mes, str(ant.mes))
+        self._lbl_comp_titulo.setText(f"vs. {nombre_ant} {ant.año}")
+
+        # Sin ventas el mes anterior → mostrar aviso
+        if ant.cantidad_ventas == 0:
+            for chip in self._comp_chips.values():
+                chip.setVisible(False)
+            self._lbl_comp_vacio.setText(f"Sin ventas en {nombre_ant}")
+            self._lbl_comp_vacio.setVisible(True)
+            return
+
+        self._lbl_comp_vacio.setVisible(False)
+
+        def _delta_chip(clave: str, etiqueta: str, actual: float,
+                        anterior: float, dinero: bool = False) -> None:
+            delta = actual - anterior
+            pct = round(delta / abs(anterior) * 100, 1) if anterior != 0 else 0.0
+            if dinero:
+                valor_txt = f"{'+' if delta >= 0 else ''}{cop(delta)}"
+            else:
+                valor_txt = f"{'+' if delta >= 0 else ''}{int(delta)}"
+            pct_txt = f" ({'+' if pct >= 0 else ''}{pct:.0f}%)"
+            chip = self._comp_chips[clave]
+            chip.setText(f"{etiqueta}: {valor_txt}{pct_txt}")
+            if delta > 0:
+                chip.setStyleSheet(
+                    "background:#DCFCE7; color:#15803D; border-radius:10px;"
+                    " padding:2px 10px; font-size:11px;"
+                )
+            elif delta < 0:
+                chip.setStyleSheet(
+                    "background:#FEE2E2; color:#DC2626; border-radius:10px;"
+                    " padding:2px 10px; font-size:11px;"
+                )
+            else:
+                chip.setStyleSheet(
+                    "background:#E2E8F0; color:#475569; border-radius:10px;"
+                    " padding:2px 10px; font-size:11px;"
+                )
+            chip.setVisible(True)
+
+        _delta_chip("ventas",   "Ventas",   r.cantidad_ventas, ant.cantidad_ventas, False)
+        _delta_chip("ingresos", "Ingresos", r.total_ingresos,  ant.total_ingresos,  True)
+        _delta_chip("g_neta",   "G. Neta",  r.ganancia_neta,   ant.ganancia_neta,   True)
+        _delta_chip("utilidad", "Utilidad", r.utilidad_real,   ant.utilidad_real,   True)
 
     # ------------------------------------------------------------------
     # Comisiones por método

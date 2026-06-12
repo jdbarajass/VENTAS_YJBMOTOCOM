@@ -6,9 +6,11 @@ CRUD para la tabla `inventario`.
 import sqlite3
 from models.producto import Producto
 from database.connection import DatabaseConnection
+from database.inventario_mov_repo import registrar_movimiento
 
 
 def _row_to_producto(row: sqlite3.Row) -> Producto:
+    keys = row.keys()
     return Producto(
         id=row["id"],
         serial=row["serial"] or "",
@@ -16,7 +18,8 @@ def _row_to_producto(row: sqlite3.Row) -> Producto:
         costo_unitario=row["costo_unitario"],
         cantidad=row["cantidad"],
         codigo_barras=row["codigo_barras"] or "",
-        stock_minimo=row["stock_minimo"] if "stock_minimo" in row.keys() else 0,
+        stock_minimo=row["stock_minimo"] if "stock_minimo" in keys else 0,
+        categoria=row["categoria"] if "categoria" in keys else "",
     )
 
 
@@ -28,10 +31,11 @@ def insertar_producto(p: Producto) -> int:
     conn = DatabaseConnection.get()
     cursor = conn.execute(
         """
-        INSERT INTO inventario (serial, producto, costo_unitario, cantidad, codigo_barras, stock_minimo)
-        VALUES (?, ?, ?, ?, ?, ?)
+        INSERT INTO inventario (serial, producto, costo_unitario, cantidad, codigo_barras, stock_minimo, categoria)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
         """,
-        (p.serial, p.producto.strip(), p.costo_unitario, p.cantidad, p.codigo_barras, p.stock_minimo),
+        (p.serial, p.producto.strip(), p.costo_unitario, p.cantidad,
+         p.codigo_barras, p.stock_minimo, p.categoria.strip()),
     )
     conn.commit()
     p.id = cursor.lastrowid
@@ -99,6 +103,12 @@ def actualizar_producto(p: Producto) -> bool:
     if p.id is None:
         raise ValueError("No se puede actualizar un producto sin id.")
     conn = DatabaseConnection.get()
+    # Leer cantidad actual antes de actualizar (para el historial)
+    row_ant = conn.execute(
+        "SELECT cantidad FROM inventario WHERE id = ?", (p.id,)
+    ).fetchone()
+    cant_ant = row_ant["cantidad"] if row_ant else 0
+
     cursor = conn.execute(
         """
         UPDATE inventario SET
@@ -107,13 +117,16 @@ def actualizar_producto(p: Producto) -> bool:
             costo_unitario = ?,
             cantidad       = ?,
             codigo_barras  = ?,
-            stock_minimo   = ?
+            stock_minimo   = ?,
+            categoria      = ?
         WHERE id = ?
         """,
         (p.serial, p.producto.strip(), p.costo_unitario, p.cantidad,
-         p.codigo_barras, p.stock_minimo, p.id),
+         p.codigo_barras, p.stock_minimo, p.categoria.strip(), p.id),
     )
     conn.commit()
+    if cursor.rowcount > 0 and cant_ant != p.cantidad:
+        registrar_movimiento(p.id, p.producto.strip(), "Ajuste", cant_ant, p.cantidad)
     return cursor.rowcount > 0
 
 
@@ -133,6 +146,11 @@ def decrementar_cantidad(nombre_producto: str, cantidad: int) -> bool:
     El stock nunca baja de 0. Retorna True si encontró el producto.
     """
     conn = DatabaseConnection.get()
+    row_ant = conn.execute(
+        "SELECT id, cantidad FROM inventario WHERE LOWER(producto) = LOWER(?) LIMIT 1",
+        (nombre_producto,),
+    ).fetchone()
+
     cursor = conn.execute(
         """
         UPDATE inventario
@@ -142,6 +160,12 @@ def decrementar_cantidad(nombre_producto: str, cantidad: int) -> bool:
         (cantidad, nombre_producto),
     )
     conn.commit()
+    if cursor.rowcount > 0 and row_ant is not None:
+        cant_ant = row_ant["cantidad"]
+        cant_nva = max(0, cant_ant - cantidad)
+        registrar_movimiento(
+            row_ant["id"], nombre_producto, "Venta", cant_ant, cant_nva
+        )
     return cursor.rowcount > 0
 
 

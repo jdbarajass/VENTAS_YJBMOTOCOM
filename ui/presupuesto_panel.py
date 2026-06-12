@@ -60,6 +60,7 @@ class PresupuestoPanel(QWidget):
         root.setSpacing(16)
 
         root.addLayout(self._barra_superior())
+        root.addWidget(self._panel_alerta_presup())
         root.addWidget(self._panel_gastos_fijos())
         root.addWidget(self._panel_tabla())
         root.addStretch()
@@ -130,6 +131,38 @@ class PresupuestoPanel(QWidget):
         lay.addWidget(btn_copiar)
         lay.addStretch()
         return lay
+
+    # ---- Banner de alerta al 80% ----
+
+    def _panel_alerta_presup(self) -> QFrame:
+        frame = QFrame()
+        frame.setObjectName("alertaPresup")
+        frame.setFrameShape(QFrame.StyledPanel)
+        frame.setStyleSheet(
+            "QFrame#alertaPresup { background:#FFFBEB; border:1px solid #FDE68A;"
+            " border-radius:8px; }"
+        )
+        lay = QHBoxLayout(frame)
+        lay.setContentsMargins(14, 8, 14, 8)
+        lay.setSpacing(8)
+
+        icono = QLabel("⚠")
+        icono.setStyleSheet(
+            "font-size:16px; color:#D97706; background:transparent; border:none;"
+        )
+        icono.setFixedWidth(20)
+        lay.addWidget(icono)
+
+        self._lbl_alerta_presup = QLabel("")
+        self._lbl_alerta_presup.setStyleSheet(
+            "color:#92400E; font-size:12px; background:transparent; border:none;"
+        )
+        self._lbl_alerta_presup.setWordWrap(True)
+        lay.addWidget(self._lbl_alerta_presup, stretch=1)
+
+        self._frame_alerta_presup = frame
+        frame.setVisible(False)
+        return frame
 
     # ---- Panel gastos fijos (info de configuración) ----
 
@@ -442,6 +475,40 @@ class PresupuestoPanel(QWidget):
         else:
             self._lbl_total_pct.setText("—")
             self._lbl_total_pct.setStyleSheet("font-size:13px; color:#6B7280;")
+
+        # ---- Alerta al 80% ----
+        alertas: list[str] = []
+        for cat, refs in self._filas.items():
+            presup = self._parse_campo(refs["campo"])
+            real   = refs.get("_real", 0.0)
+            if presup > 0 and real > 0:
+                pct = real / presup * 100
+                if pct >= 80:
+                    estado = "SUPERADO" if pct > 100 else f"{pct:.0f}%"
+                    alertas.append(f"{cat} ({estado})")
+        if alertas:
+            self._lbl_alerta_presup.setText(
+                "Categorías en zona de alerta (≥ 80%): " + ", ".join(alertas)
+            )
+            if any("SUPERADO" in a for a in alertas):
+                self._frame_alerta_presup.setStyleSheet(
+                    "QFrame#alertaPresup { background:#FEE2E2; border:1px solid #FECACA;"
+                    " border-radius:8px; }"
+                )
+                self._lbl_alerta_presup.setStyleSheet(
+                    "color:#991B1B; font-size:12px; background:transparent; border:none;"
+                )
+            else:
+                self._frame_alerta_presup.setStyleSheet(
+                    "QFrame#alertaPresup { background:#FFFBEB; border:1px solid #FDE68A;"
+                    " border-radius:8px; }"
+                )
+                self._lbl_alerta_presup.setStyleSheet(
+                    "color:#92400E; font-size:12px; background:transparent; border:none;"
+                )
+            self._frame_alerta_presup.setVisible(True)
+        else:
+            self._frame_alerta_presup.setVisible(False)
 
     # ------------------------------------------------------------------
     # Acciones

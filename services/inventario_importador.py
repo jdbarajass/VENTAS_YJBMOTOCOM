@@ -109,6 +109,7 @@ _KW_PRODUCTO  = {"nombre", "producto", "artículo", "articulo", "descripcion", "
 _KW_COSTO     = {"costo", "precio", "valor"}
 _KW_CANTIDAD  = {"cantidad", "stock", "bodega", "existencia", "unidades"}
 _KW_BARRAS    = {"codigo", "código", "barras", "ean", "upc", "barra"}
+_KW_CATEGORIA = {"categoria", "categoría", "tipo", "linea", "línea", "grupo"}
 
 
 @dataclass
@@ -125,7 +126,7 @@ def _detectar_columnas(fila_headers: list) -> dict[str, int | None]:
     """
     mapa: dict[str, int | None] = {
         "serial": None, "producto": None, "costo": None,
-        "cantidad": None, "codigo_barras": None,
+        "cantidad": None, "codigo_barras": None, "categoria": None,
     }
 
     for idx, cell in enumerate(fila_headers):
@@ -148,6 +149,9 @@ def _detectar_columnas(fila_headers: list) -> dict[str, int | None]:
         if any(kw in valor for kw in _KW_BARRAS):
             if mapa["codigo_barras"] is None:
                 mapa["codigo_barras"] = idx
+        if any(kw in valor for kw in _KW_CATEGORIA):
+            if mapa["categoria"] is None:
+                mapa["categoria"] = idx
 
     return mapa
 
@@ -237,6 +241,9 @@ def importar_inventario_excel(ruta: Path) -> ResultadoInventario:
         # Código de barras
         cod = str(_get("codigo_barras", "") or "").strip()
 
+        # Categoría
+        cat = str(_get("categoria", "") or "").strip()
+
         try:
             p = Producto(
                 serial=serial,
@@ -244,6 +251,7 @@ def importar_inventario_excel(ruta: Path) -> ResultadoInventario:
                 costo_unitario=costo,
                 cantidad=cantidad,
                 codigo_barras=cod,
+                categoria=cat,
             )
             resultado.productos.append(p)
         except ValueError as exc:

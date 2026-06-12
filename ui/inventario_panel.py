@@ -86,8 +86,13 @@ class InventarioPanel(QWidget):
         # ── Tab 2: Inventario General ─────────────────────────────────────
         tab_general = self._build_tab_general()
 
+        # ── Tab 3: Movimientos ────────────────────────────────────────────
+        tab_mov = self._build_tab_movimientos()
+
         self._tabs.addTab(tab_detalle, "📦  Detalle")
         self._tabs.addTab(tab_general, "📊  Inventario General")
+        self._tabs.addTab(tab_mov, "📋  Movimientos")
+        self._tabs.currentChanged.connect(self._on_tab_changed)
         outer.addWidget(self._tabs)
 
     def _barra_superior(self) -> QHBoxLayout:
@@ -121,12 +126,23 @@ class InventarioPanel(QWidget):
         )
         btn_nuevo.clicked.connect(self._on_nuevo)
 
+        btn_pdf = QPushButton("📄 PDF")
+        btn_pdf.setFixedHeight(34)
+        btn_pdf.setStyleSheet(
+            "QPushButton { border:1px solid #64748B; border-radius:5px; padding:0 12px;"
+            "color:#374151; font-size:12px; }"
+            "QPushButton:hover { background:#F1F5F9; }"
+        )
+        btn_pdf.clicked.connect(self._on_exportar_pdf)
+
         lay.addWidget(titulo)
         lay.addSpacing(16)
         lay.addWidget(self._campo_busqueda)
         lay.addSpacing(12)
         lay.addWidget(self._chk_solo_stock)
         lay.addStretch()
+        lay.addWidget(btn_pdf)
+        lay.addSpacing(8)
         lay.addWidget(btn_nuevo)
         return lay
 
@@ -208,7 +224,8 @@ class InventarioPanel(QWidget):
             "QSpinBox { border-radius:4px; padding:0 6px; }"
         )
 
-        self._f_barras = _field("Código de barras", 180)
+        self._f_barras    = _field("Código de barras", 180)
+        self._f_categoria = _field("Categoría (ej: Cascos)", 160)
 
         self._btn_guardar_form = QPushButton("Guardar")
         self._btn_guardar_form.setFixedHeight(30)
@@ -231,6 +248,7 @@ class InventarioPanel(QWidget):
             (self._f_cantidad,  "Cantidad:"),
             (self._f_stock_min, "Stock mínimo:"),
             (self._f_barras,    "Código de barras:"),
+            (self._f_categoria, "Categoría:"),
         ]:
             col = QVBoxLayout(); col.setSpacing(2)
             col.addWidget(_lbl(l)); col.addWidget(w)
@@ -252,10 +270,10 @@ class InventarioPanel(QWidget):
 
     def _build_tabla(self) -> QTableWidget:
         self.tabla = QTableWidget()
-        self.tabla.setColumnCount(8)
+        self.tabla.setColumnCount(9)
         self.tabla.setHorizontalHeaderLabels([
             "ID", "Serial", "Producto", "Talla",
-            "Costo Unitario", "Cantidad", "Código de Barras", "Acciones"
+            "Costo Unitario", "Cantidad", "Código de Barras", "Categoría", "Acciones"
         ])
         self.tabla.setColumnHidden(0, True)
         self.tabla.setEditTriggers(QAbstractItemView.NoEditTriggers)
@@ -282,12 +300,13 @@ class InventarioPanel(QWidget):
         hh = self.tabla.horizontalHeader()
         hh.setMinimumSectionSize(60)
         hh.setSectionResizeMode(1, QHeaderView.Fixed);        self.tabla.setColumnWidth(1, 90)
-        hh.setSectionResizeMode(2, QHeaderView.Interactive);  self.tabla.setColumnWidth(2, 220)
+        hh.setSectionResizeMode(2, QHeaderView.Interactive);  self.tabla.setColumnWidth(2, 200)
         hh.setSectionResizeMode(3, QHeaderView.Fixed);        self.tabla.setColumnWidth(3, 58)
-        hh.setSectionResizeMode(4, QHeaderView.Fixed);        self.tabla.setColumnWidth(4, 130)
-        hh.setSectionResizeMode(5, QHeaderView.Fixed);        self.tabla.setColumnWidth(5, 90)
-        hh.setSectionResizeMode(6, QHeaderView.Interactive);  self.tabla.setColumnWidth(6, 140)
-        hh.setSectionResizeMode(7, QHeaderView.Fixed);        self.tabla.setColumnWidth(7, 145)
+        hh.setSectionResizeMode(4, QHeaderView.Fixed);        self.tabla.setColumnWidth(4, 120)
+        hh.setSectionResizeMode(5, QHeaderView.Fixed);        self.tabla.setColumnWidth(5, 80)
+        hh.setSectionResizeMode(6, QHeaderView.Interactive);  self.tabla.setColumnWidth(6, 130)
+        hh.setSectionResizeMode(7, QHeaderView.Interactive);  self.tabla.setColumnWidth(7, 110)
+        hh.setSectionResizeMode(8, QHeaderView.Fixed);        self.tabla.setColumnWidth(8, 145)
         self.tabla.setHorizontalScrollMode(QAbstractItemView.ScrollPerPixel)
         self.tabla.setMinimumHeight(180)
 
@@ -422,7 +441,11 @@ class InventarioPanel(QWidget):
         lay.addWidget(scroll)
         return tab
 
-    def _categoria_producto(self, nombre: str) -> str:
+    def _categoria_producto(self, p) -> str:
+        """Categoría explícita si existe, si no inferida de la primera palabra del nombre."""
+        if hasattr(p, "categoria") and p.categoria:
+            return p.categoria.strip().upper()
+        nombre = p.producto if hasattr(p, "producto") else str(p)
         limpio = _re.sub(r"\s*-T:\S*", "", nombre, flags=_re.IGNORECASE).strip()
         return limpio.split()[0].upper() if limpio else "OTRO"
 
@@ -433,7 +456,7 @@ class InventarioPanel(QWidget):
 
         grupos: dict[str, dict] = defaultdict(lambda: {"refs": 0, "uds": 0, "valor": 0.0})
         for p in fuente:
-            cat = self._categoria_producto(p.producto)
+            cat = self._categoria_producto(p)
             grupos[cat]["refs"] += 1
             grupos[cat]["uds"] += p.cantidad
             grupos[cat]["valor"] += p.costo_unitario * p.cantidad
@@ -484,6 +507,125 @@ class InventarioPanel(QWidget):
 
     def _filtrar_general(self, _texto: str = "") -> None:
         self._poblar_tabla_general()
+
+    # ── Tab 3: Movimientos ────────────────────────────────────────────────
+
+    def _build_tab_movimientos(self) -> QWidget:
+        tab = QWidget()
+        root = QVBoxLayout(tab)
+        root.setContentsMargins(24, 16, 24, 16)
+        root.setSpacing(10)
+
+        # Barra superior
+        barra = QHBoxLayout()
+        titulo = QLabel("Historial de Movimientos")
+        f = QFont(); f.setPointSize(14); f.setBold(True)
+        titulo.setFont(f)
+
+        self._busq_mov = QLineEdit()
+        self._busq_mov.setPlaceholderText("Filtrar por producto…")
+        self._busq_mov.setFixedHeight(32)
+        self._busq_mov.setFixedWidth(220)
+        self._busq_mov.setStyleSheet(
+            "QLineEdit { border:1px solid #D1D5DB; border-radius:5px; padding:0 10px; }"
+        )
+        self._busq_mov.textChanged.connect(self._filtrar_movimientos)
+
+        btn_refrescar = QPushButton("↻ Actualizar")
+        btn_refrescar.setFixedHeight(32)
+        btn_refrescar.setStyleSheet(
+            "QPushButton { border-radius:5px; padding:0 12px; font-size:11px; }"
+        )
+        btn_refrescar.clicked.connect(self._cargar_movimientos)
+
+        barra.addWidget(titulo)
+        barra.addSpacing(16)
+        barra.addWidget(self._busq_mov)
+        barra.addStretch()
+        barra.addWidget(btn_refrescar)
+        root.addLayout(barra)
+
+        # Tabla
+        self._tabla_mov = QTableWidget()
+        self._tabla_mov.setColumnCount(8)
+        self._tabla_mov.setHorizontalHeaderLabels([
+            "Fecha", "Hora", "Producto", "Tipo", "Anterior", "Nuevo", "Cambio", "Notas"
+        ])
+        self._tabla_mov.setEditTriggers(QAbstractItemView.NoEditTriggers)
+        self._tabla_mov.setSelectionBehavior(QAbstractItemView.SelectRows)
+        self._tabla_mov.verticalHeader().setVisible(False)
+        self._tabla_mov.setShowGrid(False)
+        self._tabla_mov.setAlternatingRowColors(True)
+        self._tabla_mov.setStyleSheet("""
+            QTableWidget { border:1px solid #E5E7EB; border-radius:8px; font-size:12px; }
+            QHeaderView::section {
+                background:#1E293B; color:white; font-weight:bold;
+                font-size:11px; padding:5px; border:none;
+            }
+            QTableWidget::item:selected { background:#DBEAFE; color:#1E3A5F; }
+        """)
+        hh = self._tabla_mov.horizontalHeader()
+        hh.setSectionResizeMode(0, QHeaderView.Interactive); self._tabla_mov.setColumnWidth(0, 90)
+        hh.setSectionResizeMode(1, QHeaderView.Interactive); self._tabla_mov.setColumnWidth(1, 75)
+        hh.setSectionResizeMode(2, QHeaderView.Stretch)
+        hh.setSectionResizeMode(3, QHeaderView.Interactive); self._tabla_mov.setColumnWidth(3, 80)
+        hh.setSectionResizeMode(4, QHeaderView.Interactive); self._tabla_mov.setColumnWidth(4, 75)
+        hh.setSectionResizeMode(5, QHeaderView.Interactive); self._tabla_mov.setColumnWidth(5, 75)
+        hh.setSectionResizeMode(6, QHeaderView.Interactive); self._tabla_mov.setColumnWidth(6, 75)
+        hh.setSectionResizeMode(7, QHeaderView.Interactive); self._tabla_mov.setColumnWidth(7, 160)
+
+        root.addWidget(self._tabla_mov, stretch=1)
+        self._movimientos_cache: list[dict] = []
+        return tab
+
+    def _on_tab_changed(self, idx: int) -> None:
+        if self._tabs.tabText(idx).startswith("📋"):
+            self._cargar_movimientos()
+
+    def _cargar_movimientos(self) -> None:
+        from database.inventario_mov_repo import obtener_movimientos_recientes
+        self._movimientos_cache = obtener_movimientos_recientes(300)
+        self._filtrar_movimientos(self._busq_mov.text())
+
+    def _filtrar_movimientos(self, texto: str = "") -> None:
+        texto = texto.strip().lower()
+        datos = [
+            m for m in self._movimientos_cache
+            if not texto or texto in m["producto"].lower()
+        ]
+        self._tabla_mov.setRowCount(0)
+        self._tabla_mov.setRowCount(len(datos))
+        for row, m in enumerate(datos):
+            self._tabla_mov.setRowHeight(row, 28)
+            self._tabla_mov.setItem(row, 0, QTableWidgetItem(m["fecha"]))
+            self._tabla_mov.setItem(row, 1, QTableWidgetItem(m["hora"]))
+
+            item_prod = QTableWidgetItem(m["producto"])
+            item_prod.setToolTip(m["producto"])
+            self._tabla_mov.setItem(row, 2, item_prod)
+
+            item_tipo = QTableWidgetItem(m["tipo"])
+            item_tipo.setTextAlignment(Qt.AlignCenter)
+            color_tipo = {
+                "Venta": QColor("#DC2626"),
+                "Ajuste": QColor("#2563EB"),
+                "Entrada": QColor("#15803D"),
+            }.get(m["tipo"], QColor("#374151"))
+            item_tipo.setForeground(color_tipo)
+            self._tabla_mov.setItem(row, 3, item_tipo)
+
+            for col, val in [(4, m["cantidad_ant"]), (5, m["cantidad_nva"])]:
+                it = QTableWidgetItem(str(val))
+                it.setTextAlignment(Qt.AlignCenter)
+                self._tabla_mov.setItem(row, col, it)
+
+            dif = m["diferencia"]
+            item_dif = QTableWidgetItem(f"{'+' if dif > 0 else ''}{dif}")
+            item_dif.setTextAlignment(Qt.AlignCenter)
+            item_dif.setForeground(QColor("#15803D") if dif > 0 else QColor("#DC2626"))
+            self._tabla_mov.setItem(row, 6, item_dif)
+
+            self._tabla_mov.setItem(row, 7, QTableWidgetItem(m.get("notas", "")))
 
     # ------------------------------------------------------------------
     # Datos
@@ -558,8 +700,17 @@ class InventarioPanel(QWidget):
 
             self._celda(row, 6, p.codigo_barras or "", Qt.AlignCenter)
 
+            # Categoría (col 7)
+            cat_item = QTableWidgetItem(p.categoria or "")
+            cat_item.setTextAlignment(Qt.AlignCenter)
+            if p.categoria:
+                cat_item.setForeground(QColor("#7C3AED"))
+            else:
+                cat_item.setForeground(QColor("#9CA3AF"))
+            self.tabla.setItem(row, 7, cat_item)
+
             # Acciones
-            self.tabla.setCellWidget(row, 7, self._widget_acciones(p.id))
+            self.tabla.setCellWidget(row, 8, self._widget_acciones(p.id))
 
     def _celda(self, row, col, texto, alin=Qt.AlignLeft | Qt.AlignVCenter):
         item = QTableWidgetItem(texto)
@@ -659,6 +810,7 @@ class InventarioPanel(QWidget):
         self._f_cantidad.setValue(p.cantidad)
         self._f_stock_min.setValue(p.stock_minimo)
         self._f_barras.setText(p.codigo_barras)
+        self._f_categoria.setText(p.categoria)
         self._frame_form.setVisible(True)
         self._f_producto.setFocus()
 
@@ -685,6 +837,7 @@ class InventarioPanel(QWidget):
                 cantidad=self._f_cantidad.value(),
                 codigo_barras=self._f_barras.text().strip(),
                 stock_minimo=self._f_stock_min.value(),
+                categoria=self._f_categoria.text().strip(),
                 id=self._editando_id,
             )
         except ValueError as exc:
@@ -716,6 +869,31 @@ class InventarioPanel(QWidget):
             self.refresh()
             self.inventario_actualizado.emit()
 
+    def _on_exportar_pdf(self) -> None:
+        from pathlib import Path
+        from PySide6.QtWidgets import QFileDialog
+        from services.pdf_reporte import generar_pdf_inventario
+
+        ruta, _ = QFileDialog.getSaveFileName(
+            self, "Guardar PDF de inventario",
+            str(Path.home() / "inventario.pdf"),
+            "PDF (*.pdf)",
+        )
+        if not ruta:
+            return
+        try:
+            generar_pdf_inventario(
+                self._productos,
+                Path(ruta),
+                solo_con_stock=self._solo_con_stock,
+            )
+            import subprocess, sys
+            if sys.platform == "win32":
+                subprocess.Popen(["start", "", ruta], shell=True)
+            QMessageBox.information(self, "PDF generado", f"Guardado en:\n{ruta}")
+        except Exception as e:
+            QMessageBox.critical(self, "Error al generar PDF", str(e))
+
     def _limpiar_form(self) -> None:
         self._f_serial.clear()
         self._f_producto.clear()
@@ -724,3 +902,4 @@ class InventarioPanel(QWidget):
         self._f_cantidad.setValue(0)
         self._f_stock_min.setValue(0)
         self._f_barras.clear()
+        self._f_categoria.clear()

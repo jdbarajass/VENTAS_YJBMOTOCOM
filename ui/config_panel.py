@@ -143,19 +143,33 @@ class ConfigPanel(QWidget):
         form.setFieldGrowthPolicy(QFormLayout.ExpandingFieldsGrow)
 
         self.campo_addi          = self._campo_pct(5.0)
+        self.campo_nequi         = self._campo_pct(0.0)
+        self.campo_nu            = self._campo_pct(0.0)
+        self.campo_qr            = self._campo_pct(0.0)
+        self.campo_daviplata     = self._campo_pct(0.0)
         self.campo_transferencia = self._campo_pct(0.0)
 
         form.addRow("Addi (%):", self.campo_addi)
-        form.addRow("Transferencia (%):", self.campo_transferencia)
 
-        # Info efectivo
-        sep = QFrame(); sep.setFrameShape(QFrame.HLine)
-        sep.setStyleSheet("color: #E5E7EB; margin-top: 4px;")
+        sep1 = QFrame(); sep1.setFrameShape(QFrame.HLine)
+        sep1.setStyleSheet("color:#E5E7EB; margin:4px 0;")
+        form.addRow(sep1)
 
+        lbl_trans = QLabel("Transferencias — comisión por plataforma:")
+        lbl_trans.setStyleSheet("color:#374151; font-size:11px; font-weight:bold;")
+        form.addRow(lbl_trans)
+
+        form.addRow("Nequi (%):", self.campo_nequi)
+        form.addRow("NU (%):", self.campo_nu)
+        form.addRow("QR / Bancolombia (%):", self.campo_qr)
+        form.addRow("Daviplata (%):", self.campo_daviplata)
+        form.addRow("Otra transferencia (%):", self.campo_transferencia)
+
+        sep2 = QFrame(); sep2.setFrameShape(QFrame.HLine)
+        sep2.setStyleSheet("color:#E5E7EB; margin-top:4px;")
         info = QLabel("Efectivo / Otro: 0 % (sin comisión)")
-        info.setStyleSheet("color: #9CA3AF; font-size: 11px; padding-top: 4px;")
-
-        form.addRow(sep)
+        info.setStyleSheet("color:#9CA3AF; font-size:11px; padding-top:4px;")
+        form.addRow(sep2)
         form.addRow(info)
 
         return box
@@ -756,6 +770,10 @@ class ConfigPanel(QWidget):
         self.campo_dias.setValue(cfg.dias_mes)
 
         self.campo_addi.setValue(cfg.comision_addi)
+        self.campo_nequi.setValue(cfg.comision_nequi)
+        self.campo_nu.setValue(cfg.comision_nu)
+        self.campo_qr.setValue(cfg.comision_qr)
+        self.campo_daviplata.setValue(cfg.comision_daviplata)
         self.campo_transferencia.setValue(cfg.comision_transferencia)
 
         # Apariencia
@@ -806,6 +824,10 @@ class ConfigPanel(QWidget):
                 comision_bold=cfg_actual.comision_bold,
                 comision_addi=self.campo_addi.value(),
                 comision_transferencia=self.campo_transferencia.value(),
+                comision_nequi=self.campo_nequi.value(),
+                comision_nu=self.campo_nu.value(),
+                comision_qr=self.campo_qr.value(),
+                comision_daviplata=self.campo_daviplata.value(),
                 clave_inventario=cfg_actual.clave_inventario,
                 nombre_impresora=self._combo_impresora.currentText().strip(),
                 modo_oscuro=self._btn_modo_oscuro.isChecked(),
@@ -816,7 +838,24 @@ class ConfigPanel(QWidget):
             self._lbl_feedback.setStyleSheet("font-size:12px; color:#15803D;")
             self.configuracion_guardada.emit()
             import utils.auditoria as auditoria
-            auditoria.registrar("Configuración actualizada")
+            # Registrar campos que cambiaron
+            _cambios = []
+            _campos_cfg = [
+                ("arriendo", "Arriendo"), ("sueldo", "Sueldo"),
+                ("servicios", "Servicios"), ("otros_gastos", "Otros gastos"),
+                ("dias_mes", "Días/mes"),
+                ("comision_addi", "Com. Addi"), ("comision_transferencia", "Com. Trans."),
+                ("comision_nequi", "Com. Nequi"), ("comision_nu", "Com. NU"),
+                ("comision_qr", "Com. QR"), ("comision_daviplata", "Com. Daviplata"),
+                ("nombre_impresora", "Impresora"), ("timeout_minutos", "Timeout"),
+            ]
+            for attr, etiqueta in _campos_cfg:
+                v_ant = getattr(cfg_actual, attr, None)
+                v_nvo = getattr(cfg, attr, None)
+                if v_ant != v_nvo:
+                    _cambios.append(f"{etiqueta}: {v_ant}→{v_nvo}")
+            detalle = ", ".join(_cambios) if _cambios else "sin cambios"
+            auditoria.registrar("Configuración actualizada", detalle)
         except ValueError as exc:
             log.warning("Error de validación al guardar configuración: %s", exc)
             self._lbl_feedback.setText("")

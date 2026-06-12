@@ -20,7 +20,7 @@ from database.connection import DatabaseConnection
 
 # ── Versión actual del esquema ────────────────────────────────────────────────
 # Incrementar este número cada vez que se añada una migración a _MIGRACIONES.
-_VERSION_ACTUAL = 18
+_VERSION_ACTUAL = 22
 
 
 # ── Lista de migraciones (forward-only) ───────────────────────────────────────
@@ -151,6 +151,38 @@ _MIGRACIONES = [
     ]),
     (18, "Agregar stock_minimo a inventario para alertas de reabastecimiento", [
         "ALTER TABLE inventario ADD COLUMN stock_minimo INTEGER NOT NULL DEFAULT 0",
+    ]),
+    (19, "Comisiones diferenciadas por sub-tipo de transferencia", [
+        "ALTER TABLE configuracion ADD COLUMN comision_nequi     REAL NOT NULL DEFAULT 0",
+        "ALTER TABLE configuracion ADD COLUMN comision_nu        REAL NOT NULL DEFAULT 0",
+        "ALTER TABLE configuracion ADD COLUMN comision_qr        REAL NOT NULL DEFAULT 0",
+        "ALTER TABLE configuracion ADD COLUMN comision_daviplata REAL NOT NULL DEFAULT 0",
+    ]),
+    (20, "Crear tabla historial de movimientos de inventario", [
+        """CREATE TABLE IF NOT EXISTS inventario_movimientos (
+            id           INTEGER PRIMARY KEY AUTOINCREMENT,
+            fecha        TEXT    NOT NULL,
+            hora         TEXT    NOT NULL,
+            producto_id  INTEGER NOT NULL DEFAULT 0,
+            producto     TEXT    NOT NULL DEFAULT '',
+            tipo         TEXT    NOT NULL DEFAULT 'Ajuste',
+            cantidad_ant INTEGER NOT NULL DEFAULT 0,
+            cantidad_nva INTEGER NOT NULL DEFAULT 0,
+            diferencia   INTEGER NOT NULL DEFAULT 0,
+            notas        TEXT    NOT NULL DEFAULT ''
+        )""",
+    ]),
+    (21, "Crear tabla items de facturas (productos por factura)", [
+        """CREATE TABLE IF NOT EXISTS facturas_items (
+            id               INTEGER PRIMARY KEY AUTOINCREMENT,
+            factura_id       INTEGER NOT NULL REFERENCES facturas(id) ON DELETE CASCADE,
+            descripcion_item TEXT    NOT NULL DEFAULT '',
+            cantidad         REAL    NOT NULL DEFAULT 1,
+            precio_unitario  REAL    NOT NULL DEFAULT 0
+        )""",
+    ]),
+    (22, "Agregar columna categoria a inventario", [
+        "ALTER TABLE inventario ADD COLUMN categoria TEXT NOT NULL DEFAULT ''",
     ]),
 ]
 

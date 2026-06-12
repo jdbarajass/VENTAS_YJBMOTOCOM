@@ -168,12 +168,16 @@ class ExportarImportarPanel(QWidget):
         self._chk_abonos      = QCheckBox("Abonos de facturas")
         self._chk_config      = QCheckBox("Configuración")
         self._chk_presupuesto = QCheckBox("Presupuesto mensual")
-        self._chk_cuentas     = QCheckBox("Cuentas (saldos, movimientos y cierres)")
+        self._chk_cuentas      = QCheckBox("Cuentas (saldos, movimientos y cierres)")
+        self._chk_fiado        = QCheckBox("Clientes Deudores (Fiado)")
+        self._chk_abonos_fiado = QCheckBox("Abonos de Clientes (Fiado)")
+        self._chk_mov_inv      = QCheckBox("Movimientos de Inventario")
 
         for chk in (self._chk_prestamos, self._chk_inventario,
                     self._chk_facturas, self._chk_gastos,
                     self._chk_notas, self._chk_abonos, self._chk_config,
-                    self._chk_presupuesto, self._chk_cuentas):
+                    self._chk_presupuesto, self._chk_cuentas,
+                    self._chk_fiado, self._chk_abonos_fiado, self._chk_mov_inv):
             chk.setChecked(True)
             chk.setStyleSheet(chk_style)
             g_lay.addWidget(chk)
@@ -359,7 +363,9 @@ class ExportarImportarPanel(QWidget):
             self._chk_inventario.isChecked(), self._chk_facturas.isChecked(),
             self._chk_gastos.isChecked(), self._chk_notas.isChecked(),
             self._chk_abonos.isChecked(), self._chk_config.isChecked(),
-            self._chk_presupuesto.isChecked(),
+            self._chk_presupuesto.isChecked(), self._chk_cuentas.isChecked(),
+            self._chk_fiado.isChecked(), self._chk_abonos_fiado.isChecked(),
+            self._chk_mov_inv.isChecked(),
         ]):
             QMessageBox.warning(
                 self, "Sin selección",
@@ -432,11 +438,27 @@ class ExportarImportarPanel(QWidget):
                 movimientos_export = _movimientos_all(limite=999_999)
                 cierres_export     = _cierres_all()
 
+            fiado_export = None
+            if self._chk_fiado.isChecked():
+                from database.fiado_repo import obtener_todos_fiados as _get_fiado
+                fiado_export = _get_fiado()
+
+            abonos_fiado_export = None
+            if self._chk_abonos_fiado.isChecked():
+                from database.fiado_repo import obtener_todos_abonos_fiado as _get_abonos_fiado
+                abonos_fiado_export = _get_abonos_fiado()
+
+            mov_inv_export = None
+            if self._chk_mov_inv.isChecked():
+                from database.inventario_mov_repo import obtener_todos_movimientos as _get_mov_inv
+                mov_inv_export = _get_mov_inv()
+
             with CargandoModal(self, "Exportando datos…"):
                 exportar_todo(Path(ruta), ventas, prestamos, productos,
                               facturas, gastos, configuracion, notas, abonos,
                               usuarios_export, presupuestos_export,
-                              cuentas_export, movimientos_export, cierres_export)
+                              cuentas_export, movimientos_export, cierres_export,
+                              fiado_export, abonos_fiado_export, mov_inv_export)
 
             # Construir resumen para el mensaje
             lineas = []
@@ -463,6 +485,12 @@ class ExportarImportarPanel(QWidget):
                 lineas.append(f"  • {len(cuentas_export)} cuenta(s) — saldos, "
                               f"{len(movimientos_export)} movimiento(s), "
                               f"{len(cierres_export)} cierre(s)")
+            if fiado_export is not None:
+                lineas.append(f"  • {len(fiado_export)} cliente(s) deudor(es) (fiado)")
+            if abonos_fiado_export is not None:
+                lineas.append(f"  • {len(abonos_fiado_export)} abono(s) de clientes (fiado)")
+            if mov_inv_export is not None:
+                lineas.append(f"  • {len(mov_inv_export)} movimiento(s) de inventario")
 
             QMessageBox.information(
                 self,
@@ -551,6 +579,16 @@ class ExportarImportarPanel(QWidget):
                 from database.abonos_factura_repo import obtener_todos_abonos_con_factura as _get_abonos
                 from database.usuarios_repo import obtener_todos_usuarios as _get_usuarios
                 from database.presupuesto_repo import obtener_todos_presupuestos as _get_presupuestos
+                from database.cuentas_repo import (
+                    obtener_todas_incluyendo_inactivas as _bk_cuentas,
+                    obtener_movimientos as _bk_mov_cuentas,
+                    obtener_cierres as _bk_cierres,
+                )
+                from database.fiado_repo import (
+                    obtener_todos_fiados as _bk_fiado,
+                    obtener_todos_abonos_fiado as _bk_abonos_fiado,
+                )
+                from database.inventario_mov_repo import obtener_todos_movimientos as _bk_mov_inv
 
                 with CargandoModal(self, "Guardando respaldo…"):
                     _exportar_todo(
@@ -565,6 +603,12 @@ class ExportarImportarPanel(QWidget):
                         abonos=_get_abonos(),
                         usuarios=_get_usuarios(),
                         presupuestos=_get_presupuestos(),
+                        cuentas=_bk_cuentas(),
+                        movimientos_cuentas=_bk_mov_cuentas(limite=999_999),
+                        cierres_cuentas=_bk_cierres(),
+                        fiado=_bk_fiado(),
+                        abonos_fiado=_bk_abonos_fiado(),
+                        movimientos_inventario=_bk_mov_inv(),
                     )
                 QMessageBox.information(
                     self,

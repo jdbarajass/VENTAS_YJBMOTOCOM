@@ -907,6 +907,158 @@ def _escribir_hoja_presupuesto(ws, presupuestos: list) -> None:
         ws.column_dimensions[get_column_letter(i)].width = ancho
 
 
+_HEADERS_FIADO = ["#", "Cliente", "Cédula", "Teléfono", "Descripción", "Deuda total", "Fecha", "Estado", "Notas"]
+_ANCHOS_FIADO  = [6, 24, 14, 14, 32, 16, 12, 12, 24]
+
+_HEADERS_ABONOS_FIADO = ["#", "Cliente", "Descripción deuda", "Monto abono", "Fecha", "Notas"]
+_ANCHOS_ABONOS_FIADO  = [6, 24, 32, 16, 12, 24]
+
+_HEADERS_MOV_INV = ["#", "Fecha", "Hora", "Producto", "Tipo", "Cantidad anterior", "Cantidad nueva", "Cambio", "Notas"]
+_ANCHOS_MOV_INV  = [6, 12, 10, 36, 14, 16, 14, 10, 24]
+
+
+def _escribir_hoja_fiado(ws, fiados: list) -> None:
+    lado = Side(style="thin", color="CCCCCC")
+    borde = Border(left=lado, right=lado, top=lado, bottom=lado)
+    ncols = len(_HEADERS_FIADO)
+    ws.merge_cells(f"A1:{get_column_letter(ncols)}1")
+    t = ws["A1"]
+    t.value = "YJBMOTOCOM — Clientes Deudores (Fiado)"
+    t.font = Font(name="Calibri", bold=True, size=13, color="FFFFFF")
+    t.fill = PatternFill("solid", fgColor="7C3AED")
+    t.alignment = Alignment(horizontal="center", vertical="center")
+    ws.row_dimensions[1].height = 26
+    ws.append([])
+    ws.append(_HEADERS_FIADO)
+    for col_idx in range(1, ncols + 1):
+        c = ws.cell(row=3, column=col_idx)
+        c.font = Font(bold=True, color="FFFFFF", name="Calibri", size=10)
+        c.fill = PatternFill("solid", fgColor="7C3AED")
+        c.alignment = Alignment(horizontal="center", vertical="center")
+        c.border = borde
+    ws.row_dimensions[3].height = 20
+    for i, f in enumerate(fiados, start=1):
+        from models.fiado import Fiado
+        ws.append([
+            i,
+            f.cliente_nombre if hasattr(f, "cliente_nombre") else getattr(f, "cliente_nombre", ""),
+            getattr(f, "cliente_cedula", "") or "",
+            getattr(f, "cliente_tel", "") or "",
+            getattr(f, "descripcion", "") or "",
+            getattr(f, "monto_total", 0),
+            f.fecha.strftime("%d/%m/%Y") if hasattr(f, "fecha") and f.fecha else "",
+            getattr(f, "estado", "") or "",
+            getattr(f, "notas", "") or "",
+        ])
+        row = ws.max_row
+        fondo = _GRIS_FILA if i % 2 == 0 else "FFFFFF"
+        for col_idx in range(1, ncols + 1):
+            c = ws.cell(row=row, column=col_idx)
+            c.fill = PatternFill("solid", fgColor=fondo)
+            c.font = Font(name="Calibri", size=10)
+            c.border = borde
+            c.alignment = Alignment(vertical="center")
+        ws.row_dimensions[row].height = 18
+    for i, ancho in enumerate(_ANCHOS_FIADO, start=1):
+        ws.column_dimensions[get_column_letter(i)].width = ancho
+
+
+def _escribir_hoja_abonos_fiado(ws, abonos: list) -> None:
+    lado = Side(style="thin", color="CCCCCC")
+    borde = Border(left=lado, right=lado, top=lado, bottom=lado)
+    ncols = len(_HEADERS_ABONOS_FIADO)
+    ws.merge_cells(f"A1:{get_column_letter(ncols)}1")
+    t = ws["A1"]
+    t.value = "YJBMOTOCOM — Abonos de Clientes Deudores"
+    t.font = Font(name="Calibri", bold=True, size=13, color="FFFFFF")
+    t.fill = PatternFill("solid", fgColor="5B21B6")
+    t.alignment = Alignment(horizontal="center", vertical="center")
+    ws.row_dimensions[1].height = 26
+    ws.append([])
+    ws.append(_HEADERS_ABONOS_FIADO)
+    for col_idx in range(1, ncols + 1):
+        c = ws.cell(row=3, column=col_idx)
+        c.font = Font(bold=True, color="FFFFFF", name="Calibri", size=10)
+        c.fill = PatternFill("solid", fgColor="5B21B6")
+        c.alignment = Alignment(horizontal="center", vertical="center")
+        c.border = borde
+    ws.row_dimensions[3].height = 20
+    for i, a in enumerate(abonos, start=1):
+        fecha_str = a.get("fecha", "") if isinstance(a, dict) else getattr(a, "fecha", "")
+        if hasattr(fecha_str, "strftime"):
+            fecha_str = fecha_str.strftime("%d/%m/%Y")
+        ws.append([
+            i,
+            a.get("cliente_nombre", "") if isinstance(a, dict) else getattr(a, "cliente_nombre", ""),
+            a.get("descripcion", "") if isinstance(a, dict) else getattr(a, "descripcion", ""),
+            a.get("monto", 0) if isinstance(a, dict) else getattr(a, "monto", 0),
+            fecha_str,
+            a.get("notas", "") if isinstance(a, dict) else getattr(a, "notas", ""),
+        ])
+        row = ws.max_row
+        fondo = _GRIS_FILA if i % 2 == 0 else "FFFFFF"
+        for col_idx in range(1, ncols + 1):
+            c = ws.cell(row=row, column=col_idx)
+            c.fill = PatternFill("solid", fgColor=fondo)
+            c.font = Font(name="Calibri", size=10)
+            c.border = borde
+            c.alignment = Alignment(vertical="center")
+        ws.row_dimensions[row].height = 18
+    for i, ancho in enumerate(_ANCHOS_ABONOS_FIADO, start=1):
+        ws.column_dimensions[get_column_letter(i)].width = ancho
+
+
+def _escribir_hoja_movimientos_inventario(ws, movimientos: list) -> None:
+    lado = Side(style="thin", color="CCCCCC")
+    borde = Border(left=lado, right=lado, top=lado, bottom=lado)
+    ncols = len(_HEADERS_MOV_INV)
+    ws.merge_cells(f"A1:{get_column_letter(ncols)}1")
+    t = ws["A1"]
+    t.value = "YJBMOTOCOM — Movimientos de Inventario"
+    t.font = Font(name="Calibri", bold=True, size=13, color="FFFFFF")
+    t.fill = PatternFill("solid", fgColor="0F766E")
+    t.alignment = Alignment(horizontal="center", vertical="center")
+    ws.row_dimensions[1].height = 26
+    ws.append([])
+    ws.append(_HEADERS_MOV_INV)
+    for col_idx in range(1, ncols + 1):
+        c = ws.cell(row=3, column=col_idx)
+        c.font = Font(bold=True, color="FFFFFF", name="Calibri", size=10)
+        c.fill = PatternFill("solid", fgColor="0F766E")
+        c.alignment = Alignment(horizontal="center", vertical="center")
+        c.border = borde
+    ws.row_dimensions[3].height = 20
+    for i, m in enumerate(movimientos, start=1):
+        d = m if isinstance(m, dict) else vars(m)
+        diferencia = d.get("diferencia", 0)
+        ws.append([
+            i,
+            d.get("fecha", ""),
+            d.get("hora", ""),
+            d.get("producto", ""),
+            d.get("tipo", ""),
+            d.get("cantidad_ant", ""),
+            d.get("cantidad_nva", ""),
+            f"+{diferencia}" if diferencia > 0 else str(diferencia),
+            d.get("notas", "") or "",
+        ])
+        row = ws.max_row
+        fondo = _GRIS_FILA if i % 2 == 0 else "FFFFFF"
+        for col_idx in range(1, ncols + 1):
+            c = ws.cell(row=row, column=col_idx)
+            c.fill = PatternFill("solid", fgColor=fondo)
+            c.font = Font(name="Calibri", size=10)
+            c.border = borde
+            c.alignment = Alignment(vertical="center")
+        if diferencia > 0:
+            ws.cell(row=row, column=8).font = Font(name="Calibri", size=10, color="15803D")
+        elif diferencia < 0:
+            ws.cell(row=row, column=8).font = Font(name="Calibri", size=10, color="DC2626")
+        ws.row_dimensions[row].height = 18
+    for i, ancho in enumerate(_ANCHOS_MOV_INV, start=1):
+        ws.column_dimensions[get_column_letter(i)].width = ancho
+
+
 def exportar_todo(
     ruta: Path,
     ventas: list | None = None,
@@ -922,6 +1074,9 @@ def exportar_todo(
     cuentas: list | None = None,
     movimientos_cuentas: list | None = None,
     cierres_cuentas: list | None = None,
+    fiado: list | None = None,
+    abonos_fiado: list | None = None,
+    movimientos_inventario: list | None = None,
 ) -> None:
     """
     Genera un .xlsx con las hojas que se pasen (None = omitir esa hoja).
@@ -1074,6 +1229,16 @@ def exportar_todo(
         _escribir_hoja_movimientos_cuentas(_hoja("Mov. Cuentas"), movimientos_cuentas)
     if cierres_cuentas is not None:
         _escribir_hoja_cierres_cuentas(_hoja("Cierres Cuentas"), cierres_cuentas)
+
+    # ── Hojas de fiado / deudores ──────────────────────────────────────────
+    if fiado is not None:
+        _escribir_hoja_fiado(_hoja("Fiado"), fiado)
+    if abonos_fiado is not None:
+        _escribir_hoja_abonos_fiado(_hoja("Abonos Fiado"), abonos_fiado)
+
+    # ── Movimientos de inventario ──────────────────────────────────────────
+    if movimientos_inventario is not None:
+        _escribir_hoja_movimientos_inventario(_hoja("Mov. Inventario"), movimientos_inventario)
 
     # Si ninguna hoja fue incluida, agregar una de aviso
     if not primera_hoja_usada:

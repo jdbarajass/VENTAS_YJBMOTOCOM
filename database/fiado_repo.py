@@ -142,6 +142,21 @@ def total_abonado_fiado(fiado_id: int) -> float:
     return float(row[0]) if row else 0.0
 
 
+def obtener_todos_abonos_fiado() -> list:
+    """Retorna todos los abonos de fiado con nombre del cliente, ordenados por fecha."""
+    conn = DatabaseConnection.get()
+    rows = conn.execute(
+        """
+        SELECT af.id, af.fiado_id, af.monto, af.fecha, af.notas,
+               f.cliente_nombre, f.descripcion
+        FROM abonos_fiado af
+        JOIN fiado f ON f.id = af.fiado_id
+        ORDER BY af.fecha ASC
+        """
+    ).fetchall()
+    return [dict(r) for r in rows]
+
+
 def eliminar_abono_fiado(abono_id: int) -> bool:
     conn = DatabaseConnection.get()
     cur = conn.execute("DELETE FROM abonos_fiado WHERE id=?", (abono_id,))

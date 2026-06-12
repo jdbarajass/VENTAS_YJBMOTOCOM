@@ -57,6 +57,20 @@ def obtener_movimientos_recientes(limite: int = 200) -> list[dict]:
     return [dict(r) for r in rows]
 
 
+def obtener_todos_movimientos() -> list[dict]:
+    """Retorna todos los movimientos de inventario ordenados cronológicamente."""
+    conn = DatabaseConnection.get()
+    rows = conn.execute(
+        """
+        SELECT id, fecha, hora, producto_id, producto, tipo,
+               cantidad_ant, cantidad_nva, diferencia, notas
+        FROM inventario_movimientos
+        ORDER BY id ASC
+        """
+    ).fetchall()
+    return [dict(r) for r in rows]
+
+
 def obtener_movimientos_producto(producto_id: int, limite: int = 100) -> list[dict]:
     """Retorna los movimientos de un producto específico."""
     conn = DatabaseConnection.get()

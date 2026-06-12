@@ -10,8 +10,9 @@ from PySide6.QtWidgets import (
     QLineEdit, QTableWidget, QTableWidgetItem, QHeaderView,
     QAbstractItemView, QFrame, QMessageBox, QInputDialog,
     QSpinBox, QSizePolicy, QCheckBox, QScrollArea, QTabWidget,
+    QComboBox, QCompleter,
 )
-from PySide6.QtCore import Qt, Signal
+from PySide6.QtCore import Qt, Signal, QStringListModel
 from PySide6.QtGui import QFont, QColor
 
 from database.inventario_repo import (
@@ -89,9 +90,17 @@ class InventarioPanel(QWidget):
         # ── Tab 3: Movimientos ────────────────────────────────────────────
         tab_mov = self._build_tab_movimientos()
 
-        self._tabs.addTab(tab_detalle, "📦  Detalle")
-        self._tabs.addTab(tab_general, "📊  Inventario General")
-        self._tabs.addTab(tab_mov, "📋  Movimientos")
+        # ── Tab 4: Ingresar ───────────────────────────────────────────────
+        tab_ingresar = self._build_tab_ingresar()
+
+        # ── Tab 5: Cambios ────────────────────────────────────────────────
+        tab_cambios = self._build_tab_cambios()
+
+        self._tabs.addTab(tab_detalle,  "📦  Detalle")
+        self._tabs.addTab(tab_general,  "📊  Inventario General")
+        self._tabs.addTab(tab_mov,      "📋  Movimientos")
+        self._tabs.addTab(tab_ingresar, "➕  Ingresar")
+        self._tabs.addTab(tab_cambios,  "🔄  Cambios")
         self._tabs.currentChanged.connect(self._on_tab_changed)
         outer.addWidget(self._tabs)
 
@@ -579,8 +588,11 @@ class InventarioPanel(QWidget):
         return tab
 
     def _on_tab_changed(self, idx: int) -> None:
-        if self._tabs.tabText(idx).startswith("📋"):
+        texto = self._tabs.tabText(idx)
+        if texto.startswith("📋"):
             self._cargar_movimientos()
+        elif texto.startswith("➕"):
+            self._ingresar_refrescar_auto()
 
     def _cargar_movimientos(self) -> None:
         from database.inventario_mov_repo import obtener_movimientos_recientes
@@ -903,3 +915,567 @@ class InventarioPanel(QWidget):
         self._f_stock_min.setValue(0)
         self._f_barras.clear()
         self._f_categoria.clear()
+
+    # ──────────────────────────────────────────────────────────────────────
+    # Tab 4: Ingresar producto nuevo
+    # ──────────────────────────────────────────────────────────────────────
+
+    def _build_tab_ingresar(self) -> QWidget:
+        tab = QWidget()
+        root = QHBoxLayout(tab)
+        root.setContentsMargins(24, 20, 24, 20)
+        root.setSpacing(20)
+
+        # ── Panel izquierdo: formulario ───────────────────────────────────
+        izq = QFrame()
+        izq.setObjectName("ingresarForm")
+        izq.setStyleSheet(
+            "QFrame#ingresarForm { background:#F0FDF4; border:1px solid #BBF7D0;"
+            "border-radius:10px; }"
+        )
+        lay_izq = QVBoxLayout(izq)
+        lay_izq.setContentsMargins(20, 18, 20, 18)
+        lay_izq.setSpacing(12)
+
+        titulo_ing = QLabel("Ingresar nuevo producto")
+        f_t = QFont(); f_t.setPointSize(14); f_t.setBold(True)
+        titulo_ing.setFont(f_t)
+        titulo_ing.setStyleSheet("color:#15803D; background:transparent; border:none;")
+        lay_izq.addWidget(titulo_ing)
+
+        def _lbl(texto):
+            l = QLabel(texto)
+            l.setStyleSheet("color:#374151; font-size:11px; background:transparent; border:none;")
+            return l
+
+        def _field(placeholder, w=None):
+            f = QLineEdit()
+            f.setPlaceholderText(placeholder)
+            f.setFixedHeight(32)
+            if w:
+                f.setFixedWidth(w)
+            f.setStyleSheet(
+                "QLineEdit { border:1px solid #D1D5DB; border-radius:5px; padding:0 8px; }"
+                "QLineEdit:focus { border:2px solid #16A34A; }"
+            )
+            return f
+
+        # Nombre del producto con autocompletado
+        lay_izq.addWidget(_lbl("Nombre del producto:"))
+        self._ing_nombre = _field("Ej: Casco Integral HJC Rojo")
+        self._ing_nombre.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+        self._ing_completer = QCompleter([], self._ing_nombre)
+        self._ing_completer.setCaseSensitivity(Qt.CaseInsensitive)
+        self._ing_completer.setFilterMode(Qt.MatchContains)
+        self._ing_nombre.setCompleter(self._ing_completer)
+        self._ing_nombre.textChanged.connect(self._ingresar_on_nombre_cambiado)
+        lay_izq.addWidget(self._ing_nombre)
+
+        # Talla
+        lay_izq.addWidget(_lbl("Talla:"))
+        self._ing_talla = QComboBox()
+        self._ing_talla.addItems(["XS", "S", "M", "L", "XL", "2XL", "3XL", "N/A"])
+        self._ing_talla.setCurrentText("N/A")
+        self._ing_talla.setFixedHeight(32)
+        self._ing_talla.setStyleSheet(
+            "QComboBox { border:1px solid #D1D5DB; border-radius:5px; padding:0 8px;"
+            "font-size:12px; }"
+            "QComboBox:focus { border:2px solid #16A34A; }"
+        )
+        self._ing_talla.currentTextChanged.connect(self._ingresar_actualizar_codigo)
+        lay_izq.addWidget(self._ing_talla)
+
+        # Costo unitario y cantidad en la misma fila
+        fila_nums = QHBoxLayout(); fila_nums.setSpacing(12)
+
+        col_costo = QVBoxLayout(); col_costo.setSpacing(3)
+        col_costo.addWidget(_lbl("Costo unitario ($):"))
+        self._ing_costo = MoneyLineEdit()
+        self._ing_costo.setPlaceholderText("0")
+        self._ing_costo.setFixedHeight(32)
+        self._ing_costo.setStyleSheet(
+            "QLineEdit { border:1px solid #D1D5DB; border-radius:5px; padding:0 8px; }"
+            "QLineEdit:focus { border:2px solid #16A34A; }"
+        )
+        col_costo.addWidget(self._ing_costo)
+        fila_nums.addLayout(col_costo)
+
+        col_cant = QVBoxLayout(); col_cant.setSpacing(3)
+        col_cant.addWidget(_lbl("Cantidad a ingresar:"))
+        self._ing_cantidad = QSpinBox()
+        self._ing_cantidad.setMinimum(1); self._ing_cantidad.setMaximum(99999)
+        self._ing_cantidad.setValue(1)
+        self._ing_cantidad.setFixedHeight(32)
+        self._ing_cantidad.setStyleSheet(
+            "QSpinBox { border:1px solid #D1D5DB; border-radius:5px; padding:0 6px; }"
+        )
+        col_cant.addWidget(self._ing_cantidad)
+        fila_nums.addLayout(col_cant)
+
+        lay_izq.addLayout(fila_nums)
+
+        # Serial y código de barras (auto, editables)
+        fila_auto = QHBoxLayout(); fila_auto.setSpacing(12)
+
+        col_serial = QVBoxLayout(); col_serial.setSpacing(3)
+        col_serial.addWidget(_lbl("Serial (auto):"))
+        self._ing_serial = _field("Auto", 100)
+        self._ing_serial.setReadOnly(True)
+        self._ing_serial.setStyleSheet(
+            "QLineEdit { border:1px solid #BBF7D0; border-radius:5px; padding:0 8px;"
+            "background:#F0FDF4; color:#15803D; font-weight:bold; }"
+        )
+        col_serial.addWidget(self._ing_serial)
+        fila_auto.addLayout(col_serial)
+
+        col_barras = QVBoxLayout(); col_barras.setSpacing(3)
+        col_barras.addWidget(_lbl("Código de barras (auto):"))
+        self._ing_barras = _field("Auto")
+        self._ing_barras.setReadOnly(True)
+        self._ing_barras.setStyleSheet(
+            "QLineEdit { border:1px solid #BBF7D0; border-radius:5px; padding:0 8px;"
+            "background:#F0FDF4; color:#15803D; font-weight:bold; }"
+        )
+        col_barras.addWidget(self._ing_barras)
+        fila_auto.addLayout(col_barras)
+
+        lay_izq.addLayout(fila_auto)
+
+        nota_auto = QLabel(
+            "El serial y el código de barras se generan automáticamente. "
+            "Puedes editarlos si necesitas un valor específico."
+        )
+        nota_auto.setStyleSheet("font-size:10px; color:#6B7280; background:transparent; border:none;")
+        nota_auto.setWordWrap(True)
+        lay_izq.addWidget(nota_auto)
+
+        # Habilitar edición manual de serial y barras
+        def _toggle_editable(editable: bool) -> None:
+            for f in (self._ing_serial, self._ing_barras):
+                f.setReadOnly(not editable)
+                f.setStyleSheet(
+                    "QLineEdit { border:1px solid #D1D5DB; border-radius:5px; padding:0 8px; }"
+                    if editable else
+                    "QLineEdit { border:1px solid #BBF7D0; border-radius:5px; padding:0 8px;"
+                    "background:#F0FDF4; color:#15803D; font-weight:bold; }"
+                )
+
+        chk_editar_auto = QCheckBox("Editar serial / código manualmente")
+        chk_editar_auto.setStyleSheet("font-size:11px; color:#374151; background:transparent; border:none;")
+        chk_editar_auto.toggled.connect(_toggle_editable)
+        lay_izq.addWidget(chk_editar_auto)
+
+        lay_izq.addStretch()
+
+        # Botón guardar
+        self._btn_ingresar = QPushButton("✚  Ingresar al inventario")
+        self._btn_ingresar.setFixedHeight(42)
+        self._btn_ingresar.setStyleSheet(
+            "QPushButton { background:#16A34A; color:white; border-radius:8px;"
+            "font-size:13px; font-weight:bold; border:none; }"
+            "QPushButton:hover { background:#15803D; }"
+        )
+        self._btn_ingresar.clicked.connect(self._on_ingresar_guardar)
+        lay_izq.addWidget(self._btn_ingresar)
+
+        root.addWidget(izq, stretch=2)
+
+        # ── Panel derecho: productos similares ────────────────────────────
+        der = QFrame()
+        der.setObjectName("ingresarSimilares")
+        der.setStyleSheet(
+            "QFrame#ingresarSimilares { background:#F8FAFC; border:1px solid #E2E8F0;"
+            "border-radius:10px; }"
+        )
+        lay_der = QVBoxLayout(der)
+        lay_der.setContentsMargins(16, 16, 16, 16)
+        lay_der.setSpacing(8)
+
+        titulo_sim = QLabel("Productos similares")
+        f_s = QFont(); f_s.setPointSize(12); f_s.setBold(True)
+        titulo_sim.setFont(f_s)
+        titulo_sim.setStyleSheet("color:#374151; background:transparent; border:none;")
+        lay_der.addWidget(titulo_sim)
+
+        self._ing_lbl_cat = QLabel("(escribe el nombre para ver sugerencias)")
+        self._ing_lbl_cat.setStyleSheet(
+            "font-size:11px; color:#6B7280; background:transparent; border:none;"
+        )
+        self._ing_lbl_cat.setWordWrap(True)
+        lay_der.addWidget(self._ing_lbl_cat)
+
+        self._ing_tabla_sim = QTableWidget()
+        self._ing_tabla_sim.setColumnCount(4)
+        self._ing_tabla_sim.setHorizontalHeaderLabels(["Serial", "Producto", "Talla", "Cant."])
+        self._ing_tabla_sim.setEditTriggers(QAbstractItemView.NoEditTriggers)
+        self._ing_tabla_sim.setSelectionBehavior(QAbstractItemView.SelectRows)
+        self._ing_tabla_sim.verticalHeader().setVisible(False)
+        self._ing_tabla_sim.setShowGrid(False)
+        self._ing_tabla_sim.setAlternatingRowColors(True)
+        self._ing_tabla_sim.setStyleSheet("""
+            QTableWidget { border:none; font-size:11px; }
+            QHeaderView::section {
+                background:#334155; color:white; font-weight:bold;
+                font-size:10px; padding:4px; border:none;
+            }
+        """)
+        hh_sim = self._ing_tabla_sim.horizontalHeader()
+        hh_sim.setSectionResizeMode(0, QHeaderView.Fixed); self._ing_tabla_sim.setColumnWidth(0, 70)
+        hh_sim.setSectionResizeMode(1, QHeaderView.Stretch)
+        hh_sim.setSectionResizeMode(2, QHeaderView.Fixed); self._ing_tabla_sim.setColumnWidth(2, 55)
+        hh_sim.setSectionResizeMode(3, QHeaderView.Fixed); self._ing_tabla_sim.setColumnWidth(3, 50)
+        lay_der.addWidget(self._ing_tabla_sim, stretch=1)
+
+        root.addWidget(der, stretch=3)
+
+        return tab
+
+    def _ingresar_refrescar_auto(self) -> None:
+        """Actualiza serial y código cuando se abre el tab."""
+        from services.inventario_gen import generar_siguiente_serial, generar_codigo_barras_auto
+        siguiente = generar_siguiente_serial(self._productos)
+        self._ing_serial.setText(str(siguiente))
+        nombre = self._ing_nombre.text().strip()
+        talla  = self._ing_talla.currentText()
+        codigo = generar_codigo_barras_auto(nombre, talla, self._productos)
+        self._ing_barras.setText(codigo)
+
+    def _ingresar_actualizar_codigo(self, _=None) -> None:
+        from services.inventario_gen import generar_codigo_barras_auto
+        nombre = self._ing_nombre.text().strip()
+        talla  = self._ing_talla.currentText()
+        codigo = generar_codigo_barras_auto(nombre, talla, self._productos)
+        self._ing_barras.setText(codigo)
+
+    def _ingresar_on_nombre_cambiado(self, texto: str) -> None:
+        """Actualiza sugerencias de nombres, código de barras y tabla de similares."""
+        from services.inventario_gen import detectar_categoria, generar_codigo_barras_auto
+
+        # Sugerencias para el completer
+        nombres_existentes = sorted({p.producto for p in self._productos})
+        model = QStringListModel(nombres_existentes, self._ing_completer)
+        self._ing_completer.setModel(model)
+
+        # Código de barras
+        self._ingresar_actualizar_codigo()
+
+        # Filtrar similares por categoría detectada
+        cc = detectar_categoria(texto)
+        from services.inventario_gen import _CAT_PREFIJOS
+        nombre_cat = next(
+            (k.capitalize() for k, v in _CAT_PREFIJOS.items() if v == cc), "Accesorios"
+        )
+
+        similares = [
+            p for p in self._productos
+            if cc == detectar_categoria(p.producto)
+        ]
+        self._ing_lbl_cat.setText(
+            f"Categoría detectada: {nombre_cat}  ({len(similares)} producto(s))"
+        )
+
+        self._ing_tabla_sim.setRowCount(0)
+        self._ing_tabla_sim.setRowCount(len(similares))
+        for row, p in enumerate(similares):
+            self._ing_tabla_sim.setRowHeight(row, 26)
+            self._ing_tabla_sim.setItem(row, 0, QTableWidgetItem(p.serial or ""))
+            item_nom = QTableWidgetItem(p.producto)
+            item_nom.setToolTip(p.producto)
+            self._ing_tabla_sim.setItem(row, 1, item_nom)
+            self._ing_tabla_sim.setItem(row, 2, QTableWidgetItem(p.talla))
+            it_cant = QTableWidgetItem(str(p.cantidad))
+            it_cant.setTextAlignment(Qt.AlignCenter)
+            self._ing_tabla_sim.setItem(row, 3, it_cant)
+
+    def _on_ingresar_guardar(self) -> None:
+        nombre = self._ing_nombre.text().strip()
+        if not nombre:
+            QMessageBox.warning(self, "Campo requerido", "Ingresa el nombre del producto.")
+            self._ing_nombre.setFocus()
+            return
+
+        talla    = self._ing_talla.currentText()
+        costo    = float(self._ing_costo.valor_int())
+        cantidad = self._ing_cantidad.value()
+        serial   = self._ing_serial.text().strip()
+        barras   = self._ing_barras.text().strip()
+
+        # Nombre con talla embebida si no es N/A
+        nombre_completo = nombre
+        if talla and talla != "N/A":
+            nombre_completo = f"{nombre} -T:{talla}"
+
+        try:
+            p = Producto(
+                serial=serial,
+                producto=nombre_completo,
+                talla=talla,
+                costo_unitario=costo,
+                cantidad=cantidad,
+                codigo_barras=barras,
+            )
+        except ValueError as exc:
+            QMessageBox.warning(self, "Dato inválido", str(exc))
+            return
+
+        insertar_producto(p)
+        self.refresh()
+        self.inventario_actualizado.emit()
+
+        # Limpiar form y regenerar serial
+        self._ing_nombre.clear()
+        self._ing_talla.setCurrentText("N/A")
+        self._ing_costo.clear()
+        self._ing_cantidad.setValue(1)
+        self._ingresar_refrescar_auto()
+
+        QMessageBox.information(
+            self, "Producto ingresado",
+            f"✓ '{nombre_completo}' agregado con serial {serial}."
+        )
+
+    # ──────────────────────────────────────────────────────────────────────
+    # Tab 5: Cambios de producto
+    # ──────────────────────────────────────────────────────────────────────
+
+    def _build_tab_cambios(self) -> QWidget:
+        tab = QWidget()
+        root = QVBoxLayout(tab)
+        root.setContentsMargins(24, 20, 24, 20)
+        root.setSpacing(16)
+
+        titulo_cam = QLabel("Cambio de producto")
+        f_t2 = QFont(); f_t2.setPointSize(14); f_t2.setBold(True)
+        titulo_cam.setFont(f_t2)
+        root.addWidget(titulo_cam)
+
+        subtitulo = QLabel(
+            "El cliente devuelve un producto y lo cambia por otro. "
+            "Escanea o busca ambos artículos."
+        )
+        subtitulo.setStyleSheet("font-size:12px; color:#6B7280;")
+        root.addWidget(subtitulo)
+
+        columnas = QHBoxLayout(); columnas.setSpacing(20)
+
+        # ── Columna SALE ──────────────────────────────────────────────────
+        frame_sale = self._build_cambio_columna(
+            "sale", "Producto que SALE  (devuelve el cliente)", "#FEF2F2", "#FECACA", "#B91C1C"
+        )
+        # ── Columna ENTRA ─────────────────────────────────────────────────
+        frame_entra = self._build_cambio_columna(
+            "entra", "Producto que ENTRA  (quiere el cliente)", "#F0FDF4", "#BBF7D0", "#15803D"
+        )
+
+        columnas.addWidget(frame_sale)
+        columnas.addWidget(frame_entra)
+        root.addLayout(columnas)
+
+        # Botón confirmar
+        self._btn_confirmar_cambio = QPushButton("🔄  Confirmar cambio")
+        self._btn_confirmar_cambio.setFixedHeight(46)
+        self._btn_confirmar_cambio.setStyleSheet(
+            "QPushButton { background:#7C3AED; color:white; border-radius:8px;"
+            "font-size:14px; font-weight:bold; border:none; }"
+            "QPushButton:hover { background:#6D28D9; }"
+        )
+        self._btn_confirmar_cambio.clicked.connect(self._on_confirmar_cambio)
+        root.addWidget(self._btn_confirmar_cambio)
+
+        return tab
+
+    def _build_cambio_columna(
+        self,
+        prefijo: str,
+        titulo: str,
+        bg: str,
+        border: str,
+        color_titulo: str,
+    ) -> QFrame:
+        frame = QFrame()
+        frame.setObjectName(f"cambioFrame_{prefijo}")
+        frame.setStyleSheet(
+            f"QFrame#cambioFrame_{prefijo} {{ background:{bg}; border:1px solid {border};"
+            "border-radius:10px; }"
+        )
+        lay = QVBoxLayout(frame)
+        lay.setContentsMargins(18, 16, 18, 16)
+        lay.setSpacing(10)
+
+        lbl_titulo = QLabel(titulo)
+        f_t3 = QFont(); f_t3.setPointSize(12); f_t3.setBold(True)
+        lbl_titulo.setFont(f_t3)
+        lbl_titulo.setStyleSheet(
+            f"color:{color_titulo}; background:transparent; border:none;"
+        )
+        lay.addWidget(lbl_titulo)
+
+        def _lbl(t):
+            l = QLabel(t)
+            l.setStyleSheet("font-size:11px; color:#374151; background:transparent; border:none;")
+            return l
+
+        # Campo de búsqueda / scanner
+        lay.addWidget(_lbl("Escanea o ingresa el código de barras:"))
+        campo_scanner = QLineEdit()
+        campo_scanner.setPlaceholderText("Código de barras…")
+        campo_scanner.setFixedHeight(36)
+        campo_scanner.setStyleSheet(
+            f"QLineEdit {{ border:2px solid {border}; border-radius:6px; padding:0 10px;"
+            "font-size:13px; }"
+            f"QLineEdit:focus {{ border:2px solid {color_titulo}; }}"
+        )
+        lay.addWidget(campo_scanner)
+
+        # Búsqueda por nombre
+        lay.addWidget(_lbl("O busca por nombre:"))
+        campo_nombre = QLineEdit()
+        campo_nombre.setPlaceholderText("Nombre del producto…")
+        campo_nombre.setFixedHeight(32)
+        campo_nombre.setStyleSheet(
+            "QLineEdit { border:1px solid #D1D5DB; border-radius:5px; padding:0 8px; }"
+        )
+        lay.addWidget(campo_nombre)
+
+        # Info del producto encontrado
+        lbl_info = QLabel("—  ningún producto seleccionado  —")
+        lbl_info.setAlignment(Qt.AlignCenter)
+        lbl_info.setWordWrap(True)
+        lbl_info.setFixedHeight(60)
+        lbl_info.setStyleSheet(
+            f"background:{bg}; border:1px dashed {border}; border-radius:6px;"
+            "padding:6px; font-size:12px; color:#374151;"
+        )
+        lay.addWidget(lbl_info)
+
+        # Guardar referencias
+        setattr(self, f"_cambio_{prefijo}_scanner", campo_scanner)
+        setattr(self, f"_cambio_{prefijo}_nombre", campo_nombre)
+        setattr(self, f"_cambio_{prefijo}_info", lbl_info)
+        setattr(self, f"_cambio_{prefijo}_producto", None)
+
+        # Conectar señales
+        campo_scanner.returnPressed.connect(
+            lambda p=prefijo: self._cambio_buscar_por_barras(p)
+        )
+        campo_nombre.returnPressed.connect(
+            lambda p=prefijo: self._cambio_buscar_por_nombre(p)
+        )
+        campo_nombre.textChanged.connect(
+            lambda t, p=prefijo: self._cambio_buscar_por_nombre(p)
+        )
+
+        return frame
+
+    def _cambio_buscar_por_barras(self, prefijo: str) -> None:
+        scanner: QLineEdit = getattr(self, f"_cambio_{prefijo}_scanner")
+        barras = scanner.text().strip()
+        if not barras:
+            return
+        p = next((x for x in self._productos if x.codigo_barras == barras), None)
+        self._cambio_mostrar_producto(prefijo, p, barras)
+
+    def _cambio_buscar_por_nombre(self, prefijo: str) -> None:
+        campo: QLineEdit = getattr(self, f"_cambio_{prefijo}_nombre")
+        texto = campo.text().strip().lower()
+        if not texto or len(texto) < 3:
+            return
+        coincidencias = [p for p in self._productos if texto in p.producto.lower()]
+        if len(coincidencias) == 1:
+            self._cambio_mostrar_producto(prefijo, coincidencias[0])
+        elif len(coincidencias) > 1:
+            # Mostrar brevemente el número de coincidencias
+            lbl: QLabel = getattr(self, f"_cambio_{prefijo}_info")
+            lbl.setText(f"{len(coincidencias)} productos coinciden — sé más específico")
+            setattr(self, f"_cambio_{prefijo}_producto", None)
+
+    def _cambio_mostrar_producto(
+        self, prefijo: str, producto, consulta: str = ""
+    ) -> None:
+        lbl: QLabel = getattr(self, f"_cambio_{prefijo}_info")
+        if producto is None:
+            lbl.setText(f"No encontrado: '{consulta}'")
+            setattr(self, f"_cambio_{prefijo}_producto", None)
+            return
+        setattr(self, f"_cambio_{prefijo}_producto", producto)
+        lbl.setText(
+            f"<b>{producto.producto}</b><br>"
+            f"Serial: {producto.serial}  ·  Talla: {producto.talla}"
+            f"  ·  Stock: {producto.cantidad}"
+        )
+
+    def _on_confirmar_cambio(self) -> None:
+        prod_sale  = getattr(self, "_cambio_sale_producto", None)
+        prod_entra = getattr(self, "_cambio_entra_producto", None)
+
+        if prod_sale is None or prod_entra is None:
+            QMessageBox.warning(
+                self, "Datos incompletos",
+                "Debes seleccionar ambos productos para realizar el cambio."
+            )
+            return
+
+        if prod_sale.id == prod_entra.id:
+            QMessageBox.warning(
+                self, "Mismo producto",
+                "El producto que sale y el que entra son el mismo. Selecciona artículos diferentes."
+            )
+            return
+
+        if prod_sale.cantidad < 1:
+            QMessageBox.warning(
+                self, "Sin stock",
+                f"'{prod_sale.producto}' no tiene stock disponible para devolver."
+            )
+            return
+
+        resp = QMessageBox.question(
+            self,
+            "Confirmar cambio",
+            f"¿Confirmar el siguiente cambio?\n\n"
+            f"  Sale:   {prod_sale.producto}  (stock: {prod_sale.cantidad} → {prod_sale.cantidad - 1})\n"
+            f"  Entra:  {prod_entra.producto}  (stock: {prod_entra.cantidad} → {prod_entra.cantidad + 1})\n",
+            QMessageBox.Yes | QMessageBox.No,
+            QMessageBox.No,
+        )
+        if resp != QMessageBox.Yes:
+            return
+
+        from database.inventario_repo import actualizar_producto
+        from database.inventario_mov_repo import registrar_movimiento
+
+        # Ajustar stock
+        prod_sale.cantidad  -= 1
+        prod_entra.cantidad += 1
+        actualizar_producto(prod_sale)
+        actualizar_producto(prod_entra)
+
+        # Registrar movimientos
+        registrar_movimiento(
+            prod_sale.id, prod_sale.producto, "Cambio",
+            prod_sale.cantidad + 1, prod_sale.cantidad,
+            notas=f"Cambio → entró: {prod_entra.producto}",
+        )
+        registrar_movimiento(
+            prod_entra.id, prod_entra.producto, "Cambio",
+            prod_entra.cantidad - 1, prod_entra.cantidad,
+            notas=f"Cambio ← salió: {prod_sale.producto}",
+        )
+
+        self.refresh()
+        self.inventario_actualizado.emit()
+
+        # Limpiar columnas
+        for prefijo in ("sale", "entra"):
+            getattr(self, f"_cambio_{prefijo}_scanner").clear()
+            getattr(self, f"_cambio_{prefijo}_nombre").clear()
+            lbl: QLabel = getattr(self, f"_cambio_{prefijo}_info")
+            lbl.setText("—  ningún producto seleccionado  —")
+            setattr(self, f"_cambio_{prefijo}_producto", None)
+
+        QMessageBox.information(
+            self, "Cambio realizado",
+            f"✓ Cambio registrado correctamente.\n\n"
+            f"  Sale:   {prod_sale.producto}\n"
+            f"  Entra:  {prod_entra.producto}"
+        )

@@ -924,6 +924,10 @@ class _FacturasPorPagarPanel(QWidget):
         if self._tiene_fecha_vence:
             self._btn_limpiar_vence.setText("× Sin fecha")
             self._f_vence.setDate(QDate.currentDate().addDays(30))
+            self._f_vence.setStyleSheet(
+                "QDateEdit { border-radius:4px; padding:0 8px; color:#111827; }"
+                "QDateEdit:focus { border:2px solid #F59E0B; }"
+            )
         else:
             self._btn_limpiar_vence.setText("+ Con fecha")
             self._f_vence.setStyleSheet(

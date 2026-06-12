@@ -83,37 +83,47 @@ def generar_codigo_barras_auto(
     productos_existentes: list,
 ) -> str:
     """
-    Genera un código de barras de 10 dígitos siguiendo el formato CC+MM+NNN+VV+T.
+    Genera un código de barras de 10 dígitos único, siguiendo CC+MM+NNN+VV+T.
 
     Estrategia:
     1. CC  — se detecta del nombre del producto.
-    2. MM  — se usa el subtipo más frecuente en la misma categoría, o "01".
-    3. NNN — máximo NNN en esa CC+MM + 1 (nuevo modelo).
-    4. VV  — "01" (primera variante del modelo nuevo).
+    2. MM  — subtipo más frecuente en la misma categoría, o "01".
+    3. NNN — máximo NNN en ese CC+MM + 1 (nuevo modelo).
+    4. VV  — "01" (primera variante), incrementando si ya existe el código.
     5. T   — dígito correspondiente a la talla seleccionada.
+
+    Garantía de unicidad: si el código generado ya existe, incrementa VV;
+    si VV llega a 99, incrementa NNN y reinicia VV en 01.
     """
     cc = detectar_categoria(nombre)
     t_digit = _talla_a_digito(talla)
 
-    # Filtrar códigos de 10 dígitos de la misma categoría
-    codigos_cat = _codigos_de_categoria(productos_existentes, cc)
+    codigos_cat  = _codigos_de_categoria(productos_existentes, cc)
+    codigos_set  = set(codigos_cat)
 
-    # MM más frecuente en la categoría
     mm = _mm_mas_frecuente(codigos_cat) or "01"
-
-    # Códigos del mismo CC+MM
     codigos_ccmm = [c for c in codigos_cat if c[2:4] == mm]
 
-    # Siguiente NNN
     nnn_max = 0
     for cod in codigos_ccmm:
         try:
             nnn_max = max(nnn_max, int(cod[4:7]))
         except (ValueError, IndexError):
             pass
-    nnn = str(nnn_max + 1).zfill(3)
+    nnn = nnn_max + 1
 
-    return f"{cc}{mm}{nnn}01{t_digit}"
+    # Buscar VV libre dentro del NNN candidato
+    for _ in range(999):          # máximo 999 iteraciones de seguridad
+        nnn_str = str(nnn).zfill(3)
+        for vv in range(1, 100):  # VV 01..99
+            candidato = f"{cc}{mm}{nnn_str}{str(vv).zfill(2)}{t_digit}"
+            if candidato not in codigos_set:
+                return candidato
+        nnn += 1                  # todos los VV ocupados: probar siguiente NNN
+
+    # Fallback extremadamente improbable: código con timestamp
+    import time
+    return f"{cc}{mm}{str(int(time.time()) % 999 + 1).zfill(3)}01{t_digit}"
 
 
 def codigo_para_variante_existente(

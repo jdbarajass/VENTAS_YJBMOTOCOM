@@ -315,13 +315,22 @@ def _tabla_top_productos(ventas, resumen: ResumenMensual) -> Table:
         return t
 
     total_ingresos = resumen.total_ingresos or 1
+    _estilo_top_n  = ParagraphStyle(
+        "top_nom", fontName="Helvetica", fontSize=8.5,
+        leading=11, wordWrap="CJK",
+    )
+    _estilo_top_b  = ParagraphStyle(
+        "top_nom_b", fontName="Helvetica-Bold", fontSize=8.5,
+        leading=11, wordWrap="CJK",
+    )
     encabezado = [["#", "PRODUCTO", "CANT.", "INGRESOS", "% PART."]]
     filas = []
     for i, (nombre, stats) in enumerate(top, 1):
         pct = stats["ingresos"] / total_ingresos * 100
+        estilo_p = _estilo_top_b if i <= 3 else _estilo_top_n
         filas.append([
             str(i),
-            nombre,
+            Paragraph(nombre, estilo_p),
             str(stats["cantidad"]),
             cop(stats["ingresos"]),
             f"{pct:.2f}%",
@@ -348,10 +357,8 @@ def _tabla_top_productos(ventas, resumen: ResumenMensual) -> Table:
         ("ROWBACKGROUNDS",(0, 1), (-1, -1), [colors.white, _GRIS_CLARO]),
         ("TOPPADDING",    (0, 0), (-1, -1), 4),
         ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+        ("VALIGN",        (0, 0), (-1, -1), "MIDDLE"),
     ]
-    # Top 3 en negrita
-    for i in range(1, min(4, n)):
-        estilos_t.append(("FONTNAME", (1, i), (1, i), "Helvetica-Bold"))
     t.setStyle(TableStyle(estilos_t))
     return t
 
@@ -847,15 +854,30 @@ def generar_pdf_inventario(
                            textColor=colors.HexColor("#9CA3AF"), alignment=TA_CENTER),
         ))
     else:
+        _estilo_prod_inv = ParagraphStyle(
+            "prod_inv", fontName="Helvetica", fontSize=8,
+            leading=10, wordWrap="CJK",
+        )
+        _estilo_prod_inv_bold = ParagraphStyle(
+            "prod_inv_bold", fontName="Helvetica-Bold", fontSize=8,
+            leading=10, wordWrap="CJK",
+        )
         encabezado = [["#", "PRODUCTO", "SERIAL", "STOCK", "COSTO UNIT.", "VALOR TOTAL"]]
         filas = []
-        for i, p in enumerate(sorted(prods_filtrados, key=lambda x: x.producto.upper()), 1):
+        prods_ord = sorted(prods_filtrados, key=lambda x: x.producto.upper())
+        bajo_stock_rows: list[int] = []
+        for i, p in enumerate(prods_ord, 1):
             valor_total = p.costo_unitario * p.cantidad
-            alerta = " ⚠" if (p.stock_minimo > 0 and p.cantidad < p.stock_minimo) or \
-                              (p.stock_minimo == 0 and 0 < p.cantidad <= 2) else ""
+            bajo = (p.stock_minimo > 0 and p.cantidad < p.stock_minimo) or \
+                   (p.stock_minimo == 0 and 0 < p.cantidad <= 2)
+            if bajo:
+                bajo_stock_rows.append(i)
+            alerta = " (!)" if bajo else ""
+            nombre_txt = (p.producto or "") + alerta
+            estilo_p = _estilo_prod_inv_bold if bajo else _estilo_prod_inv
             filas.append([
                 str(i),
-                (p.producto or "")[:40] + alerta,
+                Paragraph(nombre_txt, estilo_p),
                 p.serial or "—",
                 str(p.cantidad),
                 cop(p.costo_unitario),
@@ -863,7 +885,7 @@ def generar_pdf_inventario(
             ])
 
         datos_tabla = encabezado + filas
-        col_w_t = [0.7*cm, 6.5*cm, 2.5*cm, 1.4*cm, 2.8*cm, 2.9*cm]
+        col_w_t = [0.7*cm, 7.2*cm, 1.8*cm, 1.4*cm, 2.8*cm, 2.9*cm]
         t = Table(datos_tabla, colWidths=col_w_t, repeatRows=1)
         n = len(datos_tabla)
 
@@ -880,16 +902,14 @@ def generar_pdf_inventario(
             ("FONTNAME",      (0, 1), (-1, -1), "Helvetica"),
             ("GRID",          (0, 0), (-1, -1), 0.4, _GRIS_BORDE),
             ("ROWBACKGROUNDS",(0, 1), (-1, n-1), [colors.white, _GRIS_CLARO]),
-            ("TOPPADDING",    (0, 0), (-1, -1), 4),
-            ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
-            ("LEFTPADDING",   (0, 1), (1, -1), 6),
+            ("TOPPADDING",    (0, 0), (-1, -1), 3),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
+            ("LEFTPADDING",   (0, 1), (1, -1), 4),
+            ("VALIGN",        (0, 0), (-1, -1), "MIDDLE"),
         ]
-        for i, p in enumerate(sorted(prods_filtrados, key=lambda x: x.producto.upper()), 1):
-            bajo = (p.stock_minimo > 0 and p.cantidad < p.stock_minimo) or \
-                   (p.stock_minimo == 0 and 0 < p.cantidad <= 2)
-            if bajo:
-                estilos_inv.append(("TEXTCOLOR", (3, i), (3, i), _ROJO))
-                estilos_inv.append(("FONTNAME",  (3, i), (3, i), "Helvetica-Bold"))
+        for row_i in bajo_stock_rows:
+            estilos_inv.append(("TEXTCOLOR", (3, row_i), (3, row_i), _ROJO))
+            estilos_inv.append(("FONTNAME",  (3, row_i), (3, row_i), "Helvetica-Bold"))
 
         t.setStyle(TableStyle(estilos_inv))
         elementos.append(t)

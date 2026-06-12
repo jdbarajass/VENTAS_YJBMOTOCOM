@@ -676,6 +676,7 @@ class InventarioPanel(QWidget):
         self._actualizar_resumen(filtrados)
 
     def _poblar_tabla(self, productos: list[Producto]) -> None:
+        productos = sorted(productos, key=lambda p: p.producto.upper())
         self.tabla.setRowCount(0)
         self.tabla.setRowCount(len(productos))
 

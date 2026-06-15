@@ -41,6 +41,7 @@ def _row_to_venta(row: sqlite3.Row) -> Venta:
     v.cliente_tel = row["cliente_tel"] if "cliente_tel" in keys else ""
     v.descuento = row["descuento"] if "descuento" in keys else 0
     v.sku = row["sku"] if "sku" in keys else ""
+    v.precio_ofertado = float(row["precio_ofertado"]) if "precio_ofertado" in keys else 0.0
     return v
 
 
@@ -82,14 +83,15 @@ def insertar_venta(venta: Venta) -> int:
     cliente_tel = getattr(venta, "cliente_tel", "")
     descuento = getattr(venta, "descuento", 0)
     sku = getattr(venta, "sku", "")
+    precio_ofertado = getattr(venta, "precio_ofertado", 0.0)
     cursor = conn.execute(
         """
         INSERT INTO ventas
             (fecha, producto, costo, precio, metodo_pago, cantidad,
              comision, ganancia_neta, notas, pagos_combinados, grupo_venta_id,
              numero_factura, hora, vendedor, cliente_nombre, cliente_cedula,
-             cliente_tel, descuento, sku)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+             cliente_tel, descuento, sku, precio_ofertado)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         (
             venta.fecha.isoformat(),
@@ -111,6 +113,7 @@ def insertar_venta(venta: Venta) -> int:
             cliente_tel,
             descuento,
             sku,
+            precio_ofertado,
         ),
     )
     conn.commit()
@@ -202,8 +205,9 @@ def actualizar_venta(venta: Venta) -> bool:
     cliente_nombre = getattr(venta, "cliente_nombre", "")
     cliente_cedula = getattr(venta, "cliente_cedula", "")
     cliente_tel   = getattr(venta, "cliente_tel", "")
-    descuento     = getattr(venta, "descuento", 0)
-    sku           = getattr(venta, "sku", "")
+    descuento      = getattr(venta, "descuento", 0)
+    sku            = getattr(venta, "sku", "")
+    precio_ofertado = getattr(venta, "precio_ofertado", 0.0)
     cursor = conn.execute(
         """
         UPDATE ventas SET
@@ -222,7 +226,8 @@ def actualizar_venta(venta: Venta) -> bool:
             cliente_cedula     = ?,
             cliente_tel        = ?,
             descuento          = ?,
-            sku                = ?
+            sku                = ?,
+            precio_ofertado    = ?
         WHERE id = ?
         """,
         (
@@ -242,6 +247,7 @@ def actualizar_venta(venta: Venta) -> bool:
             cliente_tel,
             descuento,
             sku,
+            precio_ofertado,
             venta.id,
         ),
     )

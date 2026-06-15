@@ -20,6 +20,7 @@ class Factura:
     id: int | None = None
     fecha_vencimiento: date | None = None  # fecha límite de pago (opcional)
     fecha_pago: date | None = None         # fecha en que se marcó como pagada
+    cuenta_id: int | None = None          # cuenta desde la que se pagó
 
     # Calculados — no se almacenan
     @property

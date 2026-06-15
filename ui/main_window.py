@@ -30,7 +30,8 @@ from ui.presupuesto_panel import PresupuestoPanel
 from ui.notas_panel import NotasPanel
 from ui.cuentas_panel import CuentasPanel
 from ui.fiado_panel import FiadoPanel
-from ui.resumen_vendedor_panel import ResumenVendedorPanel
+from ui.mi_cuadre_panel import MiCuadrePanel
+from ui.rendimiento_vendedores_panel import RendimientoVendedoresPanel
 
 
 # Índices de página en el QStackedWidget
@@ -49,6 +50,7 @@ PAGE_NOTAS        = 11
 PAGE_CUENTAS      = 12
 PAGE_FIADO        = 13
 PAGE_RESUMEN      = 14
+PAGE_RENDIMIENTO  = 15
 
 
 class MainWindow(QMainWindow):
@@ -225,7 +227,7 @@ class MainWindow(QMainWindow):
             (PAGE_REGISTRAR,   "＋  Registrar Venta"),
             (PAGE_CALCULADORA, "🧮  Calculadora"),
             (PAGE_VENTAS_DIA,  "📋  Ventas del Día"),
-            (PAGE_RESUMEN,     "📈  Resumen Vendedor"),
+            (PAGE_RESUMEN,     "💰  Mi Cuadre"),
             (PAGE_DASHBOARD,   "📊  Dashboard"),
             (PAGE_HISTORIAL,   "📅  Historial Mensual"),
             (PAGE_INVENTARIO,  "📦  Inventario"),
@@ -237,9 +239,10 @@ class MainWindow(QMainWindow):
             (PAGE_EXPORTAR,    "⬇⬆  Exportar / Importar"),
             (PAGE_CONFIG,      "⚙  Configuración"),
             (PAGE_CUENTAS,     "💳  Cuentas"),
+            (PAGE_RENDIMIENTO, "📈  Rendimiento Vendedores"),
         ]
 
-        _ocultas_vendedor = {PAGE_CONFIG, PAGE_EXPORTAR, PAGE_CUENTAS}
+        _ocultas_vendedor = {PAGE_CONFIG, PAGE_EXPORTAR, PAGE_CUENTAS, PAGE_RENDIMIENTO}
 
         self._nav_buttons: dict[int, QPushButton] = {}
         for page_idx, label in nav_items:
@@ -359,7 +362,7 @@ class MainWindow(QMainWindow):
         self._stack.addWidget(self._prestamos)
 
         # Página 7 — Inventario
-        self._inventario = InventarioPanel()
+        self._inventario = InventarioPanel(rol=self._rol)
         self._stack.addWidget(self._inventario)
 
         # Página 8 — Exportar / Importar
@@ -386,14 +389,21 @@ class MainWindow(QMainWindow):
         self._fiado = FiadoPanel()
         self._stack.addWidget(self._fiado)
 
-        # Página 14 — Resumen Vendedor
-        self._resumen_vendedor = ResumenVendedorPanel()
-        self._stack.addWidget(self._resumen_vendedor)
+        # Página 14 — Mi Cuadre
+        self._mi_cuadre = MiCuadrePanel()
+        self._stack.addWidget(self._mi_cuadre)
+
+        # Página 15 — Rendimiento por Vendedor
+        self._rendimiento = RendimientoVendedoresPanel()
+        self._stack.addWidget(self._rendimiento)
 
         # Señales
         self._form_venta.venta_guardada.connect(self._on_venta_guardada)
-        self._form_venta.venta_guardada.connect(self._resumen_vendedor.refresh)
+        self._form_venta.venta_guardada.connect(self._mi_cuadre.refresh)
+        self._form_venta.venta_guardada.connect(lambda _: self._rendimiento.refresh())
         self._config.configuracion_guardada.connect(self._on_config_guardada)
+        self._config.usuarios_cambiados.connect(self._form_venta.recargar_vendedores)
+        self._config.usuarios_cambiados.connect(self._rendimiento.refresh)
         self._dashboard.navegar_a.connect(self._navegar)
         self._historial.venta_modificada.connect(self._on_venta_modificada_en_historial)
         self._inventario.inventario_actualizado.connect(self._form_venta.actualizar_inventario)
@@ -459,7 +469,9 @@ class MainWindow(QMainWindow):
         for idx, btn in self._nav_buttons.items():
             btn.setChecked(idx == page_idx)
         if page_idx == PAGE_RESUMEN:
-            self._resumen_vendedor.refresh()
+            self._mi_cuadre.refresh()
+        if page_idx == PAGE_RENDIMIENTO:
+            self._rendimiento.refresh()
 
     def set_page(self, page_idx: int) -> None:
         """API pública para cambiar de página desde controllers."""
@@ -627,8 +639,11 @@ class MainWindow(QMainWindow):
             self._paginas_desbloqueadas.clear()
             if self._rol == "admin":
                 self._paginas_desbloqueadas.update({PAGE_CONFIG, PAGE_EXPORTAR, PAGE_CUENTAS})
+            # Actualizar inventario según nuevo rol
+            self._inventario._rol = self._rol
+            self._inventario._edicion_desbloqueada = self._rol == "admin"
             # Actualizar visibilidad de botones
-            _ocultas_vendedor = {PAGE_CONFIG, PAGE_EXPORTAR, PAGE_CUENTAS}
+            _ocultas_vendedor = {PAGE_CONFIG, PAGE_EXPORTAR, PAGE_CUENTAS, PAGE_RENDIMIENTO}
             for idx, btn in self._nav_buttons.items():
                 btn.setVisible(not (self._rol == "vendedor" and idx in _ocultas_vendedor))
             self.showMaximized()

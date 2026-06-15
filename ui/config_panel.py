@@ -29,6 +29,7 @@ class ConfigPanel(QWidget):
 
     configuracion_guardada = Signal()
     tema_cambiado = Signal(bool)  # emitida al toggle dark mode (True = oscuro)
+    usuarios_cambiados = Signal()  # emitida al crear o eliminar usuarios
 
     def __init__(self, parent=None) -> None:
         super().__init__(parent)
@@ -399,8 +400,8 @@ class ConfigPanel(QWidget):
         form.addRow("", btn_cambiar)
 
         info = QLabel(
-            "Esta contraseña protege el acceso a Inventario y Configuración. "
-            "Por defecto: YJB2026_*"
+            "Esta es la contraseña del Admin: sirve para el login y para editar el inventario. "
+            "Por defecto: YJB2026_*MOTOCOM"
         )
         info.setWordWrap(True)
         info.setStyleSheet("color:#9CA3AF; font-size:10px; padding-top:4px;")
@@ -586,6 +587,7 @@ class ConfigPanel(QWidget):
             self._lbl_usuarios_feedback.setText(f"✔ Usuario '{nombre}' creado.")
             self._lbl_usuarios_feedback.setStyleSheet("font-size:11px; color:#15803D;")
             self._cargar_tabla_usuarios()
+            self.usuarios_cambiados.emit()
             import utils.auditoria as auditoria
             auditoria.registrar("Usuario creado", f"{nombre} ({rol})")
         except Exception as exc:
@@ -601,6 +603,7 @@ class ConfigPanel(QWidget):
             from database.usuarios_repo import eliminar_usuario
             eliminar_usuario(usuario_id)
             self._cargar_tabla_usuarios()
+            self.usuarios_cambiados.emit()
             import utils.auditoria as auditoria
             auditoria.registrar("Usuario eliminado", f"id={usuario_id}")
 
@@ -872,11 +875,14 @@ class ConfigPanel(QWidget):
             self._lbl_clave_feedback.setStyleSheet("font-size:12px; color:#DC2626;")
             return
 
-        from database.config_repo import obtener_configuracion, guardar_configuracion
         from utils.security import verificar_clave, hashear_clave
-        cfg_actual = obtener_configuracion()
+        from database.connection import DatabaseConnection
 
-        if not verificar_clave(actual, cfg_actual.clave_inventario):
+        # Verificar contra el hash del admin (fuente única de verdad)
+        row = DatabaseConnection.get().execute(
+            "SELECT clave_hash FROM usuarios WHERE rol='admin' LIMIT 1"
+        ).fetchone()
+        if not row or not verificar_clave(actual, row[0]):
             self._lbl_clave_feedback.setText("Contraseña actual incorrecta.")
             self._lbl_clave_feedback.setStyleSheet("font-size:12px; color:#DC2626;")
             return
@@ -891,7 +897,15 @@ class ConfigPanel(QWidget):
             self._lbl_clave_feedback.setStyleSheet("font-size:12px; color:#DC2626;")
             return
 
-        cfg_actual.clave_inventario = hashear_clave(nueva)
+        nuevo_hash = hashear_clave(nueva)
+        # Actualizar hash de admin en usuarios (login + inventario son la misma contraseña)
+        conn = DatabaseConnection.get()
+        conn.execute("UPDATE usuarios SET clave_hash=? WHERE rol='admin'", (nuevo_hash,))
+        conn.commit()
+        # Mantener clave_inventario sincronizada por compatibilidad
+        from database.config_repo import obtener_configuracion, guardar_configuracion
+        cfg_actual = obtener_configuracion()
+        cfg_actual.clave_inventario = nuevo_hash
         guardar_configuracion(cfg_actual)
 
         self._campo_clave_actual.clear()

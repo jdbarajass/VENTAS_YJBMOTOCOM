@@ -20,25 +20,39 @@ def _row_to_abono(row: sqlite3.Row) -> AbonoFactura:
     else:
         fecha_obj = date.today()
 
+    try:
+        cuenta_id = row["cuenta_id"]
+    except (IndexError, KeyError):
+        cuenta_id = None
+
     return AbonoFactura(
         id=row["id"],
         factura_id=row["factura_id"],
         monto=row["monto"],
         fecha=fecha_obj,
         notas=row["notas"] or "",
+        cuenta_id=cuenta_id,
     )
 
 
 def insertar_abono(a: AbonoFactura) -> int:
     conn = DatabaseConnection.get()
     cur = conn.execute(
-        """INSERT INTO abonos_factura (factura_id, monto, fecha, notas)
-           VALUES (?, ?, ?, ?)""",
-        (a.factura_id, a.monto, a.fecha.strftime("%Y-%m-%d"), a.notas),
+        """INSERT INTO abonos_factura (factura_id, monto, fecha, notas, cuenta_id)
+           VALUES (?, ?, ?, ?, ?)""",
+        (a.factura_id, a.monto, a.fecha.strftime("%Y-%m-%d"), a.notas, a.cuenta_id),
     )
     conn.commit()
     a.id = cur.lastrowid
     return cur.lastrowid
+
+
+def obtener_abono_por_id(abono_id: int) -> AbonoFactura | None:
+    conn = DatabaseConnection.get()
+    row = conn.execute(
+        "SELECT * FROM abonos_factura WHERE id = ?", (abono_id,)
+    ).fetchone()
+    return _row_to_abono(row) if row else None
 
 
 def obtener_abonos_por_factura(factura_id: int) -> list[AbonoFactura]:

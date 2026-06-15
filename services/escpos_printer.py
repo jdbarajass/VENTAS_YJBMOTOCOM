@@ -197,20 +197,43 @@ def generar_texto_recibo(ventas) -> str:
         nombre = f"{idx}. {_safe(v.producto)}"
         for linea in _wrap(nombre, W):
             ln(linea)
-        total_linea = v.precio * v.cantidad
-        detalle = f"{v.cantidad}u x {cop(v.precio)} = {cop(total_linea)}"
+        _po = getattr(v, "precio_ofertado", 0.0) or 0.0
+        precio_mostrar = _po if _po > v.precio else v.precio
+        total_linea = precio_mostrar * v.cantidad
+        detalle = f"{v.cantidad}u x {cop(precio_mostrar)} = {cop(total_linea)}"
         ln(_safe(detalle).rjust(W))
 
     sep()
 
-    subtotal = sum(v.precio * v.cantidad for v in ventas)
+    ahorro = sum(
+        max(0.0, (getattr(v, "precio_ofertado", 0.0) or 0.0) - v.precio) * v.cantidad
+        for v in ventas
+    )
     total_com = sum(v.comision for v in ventas)
-    kv("Subtotal:", cop(subtotal))
+
+    if ahorro > 0:
+        subtotal_anunciado = sum(
+            ((getattr(v, "precio_ofertado", 0.0) or 0.0) or v.precio) * v.cantidad
+            for v in ventas
+        )
+        total_real = sum(v.precio * v.cantidad for v in ventas)
+        kv("Subtotal:", cop(subtotal_anunciado))
+        pct = ahorro / subtotal_anunciado * 100 if subtotal_anunciado > 0 else 0
+        kv(f"Descuento ({pct:.0f}%):", f"- {cop(ahorro)}")
+    else:
+        subtotal = sum(v.precio * v.cantidad for v in ventas)
+        desc_old = getattr(v0, "descuento", 0) or 0
+        total_real = subtotal - desc_old
+        kv("Subtotal:", cop(subtotal))
+        if desc_old > 0:
+            pct = desc_old / subtotal * 100 if subtotal > 0 else 0
+            kv(f"Descuento ({pct:.0f}%):", f"- {cop(desc_old)}")
+
     if total_com > 0:
         metodo_com = (v0.metodo_pago.split()[0]
                       if not v0.pagos_combinados else "Comb.")
         kv(f"Comision ({metodo_com}):", cop(total_com))
-    kv("TOTAL:", cop(subtotal))
+    kv("TOTAL:", cop(total_real))
     sep()
 
     metodo_display = "Combinado" if v0.pagos_combinados else v0.metodo_pago
@@ -300,22 +323,45 @@ def _escribir_recibo(p, ventas: list[Venta]) -> None:
         nombre = f"{idx}. {_safe(v.producto)}"
         for linea in _wrap(nombre, W):
             ln(linea)
-        total_linea = v.precio * v.cantidad
-        detalle = f"{v.cantidad}u x {cop(v.precio)} = {cop(total_linea)}"
+        _po = getattr(v, "precio_ofertado", 0.0) or 0.0
+        precio_mostrar = _po if _po > v.precio else v.precio
+        total_linea = precio_mostrar * v.cantidad
+        detalle = f"{v.cantidad}u x {cop(precio_mostrar)} = {cop(total_linea)}"
         ln(_safe(detalle).rjust(W))
 
     sep()
 
-    subtotal = sum(v.precio * v.cantidad for v in ventas)
+    ahorro = sum(
+        max(0.0, (getattr(v, "precio_ofertado", 0.0) or 0.0) - v.precio) * v.cantidad
+        for v in ventas
+    )
     total_com = sum(v.comision for v in ventas)
-    kv("Subtotal:", cop(subtotal))
+
+    if ahorro > 0:
+        subtotal_anunciado = sum(
+            ((getattr(v, "precio_ofertado", 0.0) or 0.0) or v.precio) * v.cantidad
+            for v in ventas
+        )
+        total_real = sum(v.precio * v.cantidad for v in ventas)
+        kv("Subtotal:", cop(subtotal_anunciado))
+        pct = ahorro / subtotal_anunciado * 100 if subtotal_anunciado > 0 else 0
+        kv(f"Descuento ({pct:.0f}%):", f"- {cop(ahorro)}")
+    else:
+        subtotal = sum(v.precio * v.cantidad for v in ventas)
+        desc_old = getattr(v0, "descuento", 0) or 0
+        total_real = subtotal - desc_old
+        kv("Subtotal:", cop(subtotal))
+        if desc_old > 0:
+            pct = desc_old / subtotal * 100 if subtotal > 0 else 0
+            kv(f"Descuento ({pct:.0f}%):", f"- {cop(desc_old)}")
+
     if total_com > 0:
         metodo_com = (v0.metodo_pago.split()[0]
                       if not v0.pagos_combinados else "Comb.")
         kv(f"Comision ({metodo_com}):", cop(total_com))
 
     p.set(bold=True)
-    kv("TOTAL:", cop(subtotal))
+    kv("TOTAL:", cop(total_real))
     p.set(bold=False)
     sep()
 

@@ -31,12 +31,13 @@ class InventarioPanel(QWidget):
 
     inventario_actualizado = Signal()   # para notificar al form de venta
 
-    def __init__(self, parent=None) -> None:
+    def __init__(self, parent=None, rol: str = "") -> None:
         super().__init__(parent)
         self._productos: list[Producto] = []
-        self._editando_id: int | None = None  # id del producto en edición
-        self._solo_con_stock: bool = True     # filtro por defecto
-        self._edicion_desbloqueada: bool = False  # clave verificada esta sesión
+        self._editando_id: int | None = None
+        self._solo_con_stock: bool = True
+        self._rol = rol
+        self._edicion_desbloqueada: bool = rol == "admin"  # admin siempre desbloqueado
         self._build_ui()
         self.refresh()
 
@@ -127,6 +128,26 @@ class InventarioPanel(QWidget):
         self._chk_solo_stock.setStyleSheet("font-size:12px; color:#374151;")
         self._chk_solo_stock.toggled.connect(self._on_toggle_stock)
 
+        self._filtro_talla = QComboBox()
+        self._filtro_talla.addItems(["Todas las tallas", "Sin talla", "XS", "S", "M", "L", "XL", "2XL"])
+        self._filtro_talla.setFixedHeight(34)
+        self._filtro_talla.setFixedWidth(140)
+        self._filtro_talla.setStyleSheet(
+            "QComboBox { border:1px solid #D1D5DB; border-radius:5px; padding:0 8px; font-size:12px; }"
+            "QComboBox:focus { border:2px solid #2563EB; }"
+            "QComboBox::drop-down { border:none; width:20px; }"
+        )
+        self._filtro_talla.currentTextChanged.connect(self._on_filtro_talla_changed)
+
+        btn_limpiar = QPushButton("✕ Limpiar filtros")
+        btn_limpiar.setFixedHeight(34)
+        btn_limpiar.setStyleSheet(
+            "QPushButton { border:1px solid #D1D5DB; border-radius:5px; padding:0 12px;"
+            "color:#6B7280; font-size:12px; }"
+            "QPushButton:hover { background:#F9FAFB; color:#374151; border-color:#9CA3AF; }"
+        )
+        btn_limpiar.clicked.connect(self._limpiar_filtros)
+
         btn_nuevo = QPushButton("+ Nuevo Producto")
         btn_nuevo.setFixedHeight(34)
         btn_nuevo.setStyleSheet(
@@ -148,6 +169,10 @@ class InventarioPanel(QWidget):
         lay.addWidget(titulo)
         lay.addSpacing(16)
         lay.addWidget(self._campo_busqueda)
+        lay.addSpacing(12)
+        lay.addWidget(self._filtro_talla)
+        lay.addSpacing(8)
+        lay.addWidget(btn_limpiar)
         lay.addSpacing(12)
         lay.addWidget(self._chk_solo_stock)
         lay.addStretch()
@@ -649,12 +674,42 @@ class InventarioPanel(QWidget):
         with ocupado(mensaje="Cargando inventario..."):
             self._productos = obtener_todos_productos()
             self._campo_busqueda.clear()
+            self._filtro_talla.setCurrentIndex(0)
             self._aplicar_filtros()
             self._poblar_tabla_general()
 
     def _on_toggle_stock(self, checked: bool) -> None:
         self._solo_con_stock = checked
         self._aplicar_filtros()
+
+    def _on_filtro_talla_changed(self, _texto: str) -> None:
+        self._aplicar_filtros()
+
+    def _limpiar_filtros(self) -> None:
+        self._campo_busqueda.clear()
+        self._filtro_talla.setCurrentIndex(0)
+        self._chk_solo_stock.setChecked(False)
+        self._aplicar_filtros()
+
+    def _limpiar_ingresar(self) -> None:
+        self._ing_nombre.clear()
+        self._ing_talla.setCurrentText("N/A")
+        self._ing_costo.clear()
+        self._ing_cantidad.setValue(1)
+        self._ingresar_refrescar_auto()
+        self._ing_nombre.setFocus()
+
+    def _limpiar_cambios(self) -> None:
+        for prefijo in ("sale", "entra"):
+            getattr(self, f"_cambio_{prefijo}_scanner").clear()
+            getattr(self, f"_cambio_{prefijo}_nombre").clear()
+            lista: QListWidget = getattr(self, f"_cambio_{prefijo}_lista")
+            lista.clear()
+            lista.hide()
+            lbl: QLabel = getattr(self, f"_cambio_{prefijo}_info")
+            lbl.setText("—  ningún producto seleccionado  —")
+            setattr(self, f"_cambio_{prefijo}_producto", None)
+            setattr(self, f"_cambio_{prefijo}_matches", [])
 
     def _filtrar(self, texto: str) -> None:
         self._aplicar_filtros(texto)
@@ -673,6 +728,11 @@ class InventarioPanel(QWidget):
                 or t in p.serial.lower()
                 or t in p.codigo_barras.lower()
             ]
+        talla_sel = self._filtro_talla.currentText()
+        if talla_sel == "Sin talla":
+            filtrados = [p for p in filtrados if not p.talla]
+        elif talla_sel != "Todas las tallas":
+            filtrados = [p for p in filtrados if p.talla == talla_sel]
         self._poblar_tabla(filtrados)
         self._actualizar_resumen(filtrados)
 
@@ -774,22 +834,26 @@ class InventarioPanel(QWidget):
     # ------------------------------------------------------------------
 
     def _verificar_edicion(self) -> bool:
-        """Pide la clave una sola vez por sesión antes de permitir modificaciones."""
+        """Pide la clave de Admin una sola vez por sesión antes de permitir modificaciones."""
         if self._edicion_desbloqueada:
             return True
-        from database.config_repo import obtener_configuracion
-        clave_correcta = obtener_configuracion().clave_inventario
+        from utils.security import verificar_clave
+        from database.connection import DatabaseConnection
         clave, ok = QInputDialog.getText(
             self, "Modificar inventario",
-            "Ingresa la contraseña para editar:",
+            "Ingresa la contraseña de Admin para editar:",
             QLineEdit.Password,
         )
-        if not ok or clave != clave_correcta:
-            if ok:
-                QMessageBox.warning(self, "Acceso denegado", "Contraseña incorrecta.")
+        if not ok:
             return False
-        self._edicion_desbloqueada = True
-        return True
+        row = DatabaseConnection.get().execute(
+            "SELECT clave_hash FROM usuarios WHERE rol='admin' LIMIT 1"
+        ).fetchone()
+        if row and verificar_clave(clave, row[0]):
+            self._edicion_desbloqueada = True
+            return True
+        QMessageBox.warning(self, "Acceso denegado", "Contraseña incorrecta.")
+        return False
 
     def _on_nuevo(self) -> None:
         if not self._verificar_edicion():
@@ -1070,7 +1134,19 @@ class InventarioPanel(QWidget):
 
         lay_izq.addStretch()
 
-        # Botón guardar
+        # Fila de botones: Limpiar + Ingresar
+        fila_botones_ing = QHBoxLayout(); fila_botones_ing.setSpacing(10)
+
+        btn_limpiar_ing = QPushButton("✕  Limpiar campos")
+        btn_limpiar_ing.setFixedHeight(42)
+        btn_limpiar_ing.setStyleSheet(
+            "QPushButton { border:1px solid #D1D5DB; border-radius:8px; padding:0 14px;"
+            "color:#6B7280; font-size:12px; }"
+            "QPushButton:hover { background:#F9FAFB; color:#374151; border-color:#9CA3AF; }"
+        )
+        btn_limpiar_ing.clicked.connect(self._limpiar_ingresar)
+        fila_botones_ing.addWidget(btn_limpiar_ing)
+
         self._btn_ingresar = QPushButton("✚  Ingresar al inventario")
         self._btn_ingresar.setFixedHeight(42)
         self._btn_ingresar.setStyleSheet(
@@ -1079,7 +1155,9 @@ class InventarioPanel(QWidget):
             "QPushButton:hover { background:#15803D; }"
         )
         self._btn_ingresar.clicked.connect(self._on_ingresar_guardar)
-        lay_izq.addWidget(self._btn_ingresar)
+        fila_botones_ing.addWidget(self._btn_ingresar, stretch=1)
+
+        lay_izq.addLayout(fila_botones_ing)
 
         root.addWidget(izq, stretch=2)
 
@@ -1214,12 +1292,11 @@ class InventarioPanel(QWidget):
             p = Producto(
                 serial=serial,
                 producto=nombre_completo,
-                talla=talla,
                 costo_unitario=costo,
                 cantidad=cantidad,
                 codigo_barras=barras,
             )
-        except ValueError as exc:
+        except (ValueError, TypeError) as exc:
             QMessageBox.warning(self, "Dato inválido", str(exc))
             return
 
@@ -1277,7 +1354,19 @@ class InventarioPanel(QWidget):
         columnas.addWidget(frame_entra)
         root.addLayout(columnas)
 
-        # Botón confirmar
+        # Fila de botones: Limpiar + Confirmar
+        fila_botones_cam = QHBoxLayout(); fila_botones_cam.setSpacing(12)
+
+        btn_limpiar_cam = QPushButton("✕  Limpiar campos")
+        btn_limpiar_cam.setFixedHeight(46)
+        btn_limpiar_cam.setStyleSheet(
+            "QPushButton { border:1px solid #D1D5DB; border-radius:8px; padding:0 18px;"
+            "color:#6B7280; font-size:13px; }"
+            "QPushButton:hover { background:#F9FAFB; color:#374151; border-color:#9CA3AF; }"
+        )
+        btn_limpiar_cam.clicked.connect(self._limpiar_cambios)
+        fila_botones_cam.addWidget(btn_limpiar_cam)
+
         self._btn_confirmar_cambio = QPushButton("🔄  Confirmar cambio")
         self._btn_confirmar_cambio.setFixedHeight(46)
         self._btn_confirmar_cambio.setStyleSheet(
@@ -1286,7 +1375,9 @@ class InventarioPanel(QWidget):
             "QPushButton:hover { background:#6D28D9; }"
         )
         self._btn_confirmar_cambio.clicked.connect(self._on_confirmar_cambio)
-        root.addWidget(self._btn_confirmar_cambio)
+        fila_botones_cam.addWidget(self._btn_confirmar_cambio, stretch=1)
+
+        root.addLayout(fila_botones_cam)
 
         return tab
 

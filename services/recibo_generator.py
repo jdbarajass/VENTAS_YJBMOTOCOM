@@ -200,10 +200,11 @@ class _Recibo:
         av(1); av(2 * mm)          # sep punteada + gap
 
         # ── Totales ──────────────────────────────────────────────────────
-        av(LINE_H)                 # Subtotal
+        av(LINE_H)                 # Subtotal / Precio al cliente
+        ahorro = self._ahorro_total()
         desc = getattr(v0, "descuento", 0) or 0
-        if desc > 0:
-            av(LINE_H_SM)          # Descuento
+        if ahorro > 0 or desc > 0:
+            av(LINE_H_SM)          # Ahorro / Descuento
         total_com = sum(v.comision for v in self._ventas)
         if total_com > 0:
             av(LINE_H_SM)          # Comision
@@ -232,6 +233,13 @@ class _Recibo:
         av(4 * mm)                 # margen inferior
 
         return cur[0]
+
+    def _ahorro_total(self) -> float:
+        """Ahorro total del carrito para el modelo por-producto (precio = precio real)."""
+        return sum(
+            max(0.0, getattr(v, "precio_ofertado", 0.0) - v.precio) * v.cantidad
+            for v in self._ventas
+        )
 
     def _altura_fila(self, v: Venta) -> float:
         """Altura de la fila de un producto (nombre + opcional SKU + detalle precio)."""
@@ -380,9 +388,11 @@ class _Recibo:
                 c.drawString(MARGIN_X + 6 * mm, y(), _safe(f"SKU: {sku}"))
                 nl(LINE_H_SM)
 
-            # Línea 2: cant × precio_unit = total  (todo en pequeño, alineado derecha)
-            total_linea = v.precio * v.cantidad
-            detalle = f"{v.cantidad}u x {cop(v.precio)} = {cop(total_linea)}"
+            # Línea 2: cant × precio_unit = total  (precio anunciado si hay descuento)
+            _po = getattr(v, "precio_ofertado", 0.0) or 0.0
+            precio_mostrar = _po if _po > v.precio else v.precio
+            total_linea = precio_mostrar * v.cantidad
+            detalle = f"{v.cantidad}u x {cop(precio_mostrar)} = {cop(total_linea)}"
             c.setFont(FONT_BOLD, FONT_SMALL)
             c.drawRightString(PAGE_W - MARGIN_R, y(), _safe(detalle))
             nl(LINE_H_SM + 3)
@@ -390,23 +400,36 @@ class _Recibo:
         sep("dashed"); nl(2 * mm)
 
         # ── Totales ────────────────────────────────────────────────────────
-        subtotal  = sum(v.precio * v.cantidad for v in self._ventas)
-        desc      = getattr(v0, "descuento", 0) or 0
-        total_final = subtotal - desc
+        subtotal = sum(v.precio * v.cantidad for v in self._ventas)
+        ahorro   = self._ahorro_total()
+        desc     = getattr(v0, "descuento", 0) or 0
         total_com = sum(v.comision for v in self._ventas)
 
         c.setFont(FONT_BOLD, FONT_BODY)
-        c.drawString(MARGIN_X, y(), "Subtotal:")
-        c.drawRightString(PAGE_W - MARGIN_R, y(), _safe(cop(subtotal)))
-        nl(LINE_H)
+        c.setFillColorRGB(0, 0, 0)
 
-        if desc > 0:
-            pct = desc / subtotal * 100 if subtotal > 0 else 0
-            c.setFont(FONT_BOLD, FONT_BODY)
-            c.setFillColorRGB(0, 0, 0)
+        if ahorro > 0:
+            # Nuevo modelo: precio = precio real, precio_ofertado = precio anunciado
+            precio_anunciado = subtotal + ahorro
+            total_final = subtotal
+            c.drawString(MARGIN_X, y(), "Subtotal:")
+            c.drawRightString(PAGE_W - MARGIN_R, y(), _safe(cop(precio_anunciado)))
+            nl(LINE_H)
+            pct = ahorro / precio_anunciado * 100 if precio_anunciado > 0 else 0
             c.drawString(MARGIN_X, y(), _safe(f"Descuento ({pct:.0f}%):"))
-            c.drawRightString(PAGE_W - MARGIN_R, y(), _safe(f"- {cop(desc)}"))
+            c.drawRightString(PAGE_W - MARGIN_R, y(), _safe(f"- {cop(ahorro)}"))
             nl(LINE_H_SM)
+        else:
+            # Modelo anterior: precio = precio anunciado, descuento = ahorro en pesos
+            total_final = subtotal - desc
+            c.drawString(MARGIN_X, y(), "Subtotal:")
+            c.drawRightString(PAGE_W - MARGIN_R, y(), _safe(cop(subtotal)))
+            nl(LINE_H)
+            if desc > 0:
+                pct = desc / subtotal * 100 if subtotal > 0 else 0
+                c.drawString(MARGIN_X, y(), _safe(f"Descuento ({pct:.0f}%):"))
+                c.drawRightString(PAGE_W - MARGIN_R, y(), _safe(f"- {cop(desc)}"))
+                nl(LINE_H_SM)
 
         if total_com > 0:
             metodo_com = (v0.metodo_pago.split()[0]

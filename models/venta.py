@@ -36,8 +36,10 @@ class Venta:
     cliente_nombre: str = ""
     cliente_cedula: str = ""
     cliente_tel: str = ""
-    descuento: int = 0   # descuento total del carrito en pesos (solo en v0)
-    sku: str = ""        # código/serial del producto
+    descuento: int = 0         # ahorro total del carrito en pesos (solo en v0, informativo)
+    sku: str = ""              # código/serial del producto
+    # Precio que se le anunció al cliente antes del descuento. 0 = sin descuento.
+    precio_ofertado: float = 0.0
 
     # ------------------------------------------------------------------
     # Propiedades derivadas (sin acceso a BD)

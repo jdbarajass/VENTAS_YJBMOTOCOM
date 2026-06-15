@@ -30,11 +30,7 @@ from utils.formatters import cop, porcentaje
 
 def _get_combo_style(radius: int = 5, padding: str = "0 10px",
                      font_size: int = 12, dropdown_width: int = 20) -> str:
-    """Retorna hoja de estilo completa para QComboBox según el tema activo.
-    Incluye colores explícitos para el combo y su popup, evitando el fondo
-    negro del sistema operativo que aparece cuando Qt no hereda del stylesheet
-    global porque el widget tiene un estilo propio parcial.
-    """
+    """Retorna hoja de estilo completa para QComboBox según el tema activo."""
     from ui.styles import es_modo_oscuro
     if es_modo_oscuro():
         bg, fg, bdr          = "#1E293B", "#F1F5F9", "#475569"
@@ -52,8 +48,38 @@ def _get_combo_style(radius: int = 5, padding: str = "0 10px",
         f"border:1px solid {popup_bdr}; border-radius:6px; padding:2px; "
         f"selection-background-color:{sel_bg}; selection-color:{sel_fg}; "
         f"outline:none; }}"
-        "QComboBox QAbstractItemView::item { padding:6px 10px; border-radius:4px; }"
+        f"QComboBox QAbstractItemView::item {{ padding:6px 10px; border-radius:4px; color:{fg}; }}"
     )
+
+
+def _aplicar_estilo_combo(combo: "QComboBox", placeholder: bool = False) -> None:
+    """Aplica stylesheet al combo y fuerza colores del popup via QPalette.
+
+    El popup de QComboBox es una ventana top-level, por lo que los selectores
+    descendientes del widget-stylesheet (QComboBox QAbstractItemView) no le
+    aplican. La única forma fiable de controlar el color de los ítems es
+    seteando directamente la QPalette del view.
+    """
+    from ui.styles import es_modo_oscuro
+    from PySide6.QtGui import QPalette, QColor as _QColor
+    combo.setStyleSheet(
+        _get_combo_style() + ("QComboBox { color: #9CA3AF; }" if placeholder else "")
+    )
+    dark = es_modo_oscuro()
+    fg   = "#F1F5F9" if dark else "#111827"
+    bg   = "#1E293B" if dark else "#FFFFFF"
+    sel  = "#1E3A5F" if dark else "#EFF6FF"
+    sfg  = "#93C5FD" if dark else "#1D4ED8"
+    view = combo.view()
+    pal = view.palette()
+    for grp in (QPalette.ColorGroup.All,):
+        pal.setColor(grp, QPalette.ColorRole.Text,            _QColor(fg))
+        pal.setColor(grp, QPalette.ColorRole.WindowText,      _QColor(fg))
+        pal.setColor(grp, QPalette.ColorRole.Base,            _QColor(bg))
+        pal.setColor(grp, QPalette.ColorRole.Window,          _QColor(bg))
+        pal.setColor(grp, QPalette.ColorRole.Highlight,       _QColor(sel))
+        pal.setColor(grp, QPalette.ColorRole.HighlightedText, _QColor(sfg))
+    view.setPalette(pal)
 
 # Métodos de pago disponibles (orden de ComboBox)
 METODOS_PAGO = ["Efectivo", "Addi", "Transferencia", "Otro"]
@@ -226,14 +252,63 @@ class _LineaProducto:
         self._lbl_stock.setAlignment(Qt.AlignCenter)
         self._lbl_stock.setStyleSheet("font-size:9px; padding:1px 5px; border-radius:3px;")
 
+        # Checkbox ¿Dcto? — habilita campos de descuento por producto
+        self._chk_dcto = QCheckBox("✂ ¿Dcto?")
+        self._chk_dcto.setToolTip(
+            "Activa si le dijiste al cliente un precio diferente al real.\n"
+            "Ingresa el precio que le anunciaste y el sistema calcula el ahorro."
+        )
+        self._chk_dcto.setStyleSheet(
+            "QCheckBox { font-size:10px; color:#9CA3AF; background:transparent; padding:0; }"
+            "QCheckBox:checked { color:#D97706; font-weight:bold; }"
+            "QCheckBox::indicator { width:13px; height:13px; }"
+        )
+
         fila2.addWidget(self.campo_costo)
         fila2.addWidget(self.campo_precio)
         fila2.addWidget(self.campo_cantidad)
         fila2.addWidget(self._lbl_stock)
         fila2.addStretch()
+        fila2.addWidget(self._chk_dcto)
+
+        # ── Fila 3: campos de descuento (ocultos hasta marcar checkbox) ───
+        self._fila_dcto_widget = QWidget()
+        self._fila_dcto_widget.setVisible(False)
+        self._fila_dcto_widget.setStyleSheet("background:transparent;")
+        fila3 = QHBoxLayout(self._fila_dcto_widget)
+        fila3.setContentsMargins(0, 2, 0, 0)
+        fila3.setSpacing(6)
+
+        lbl_ofertado = QLabel("Precio al cliente:")
+        lbl_ofertado.setStyleSheet(
+            "font-size:10px; color:#92400E; background:transparent; padding:0;"
+        )
+
+        self._campo_ofertado = MoneyLineEdit()
+        self._campo_ofertado.setPlaceholderText("Precio que le dijiste")
+        self._campo_ofertado.setFixedHeight(26)
+        self._campo_ofertado.setFixedWidth(140)
+        self._campo_ofertado.setStyleSheet(
+            "QLineEdit { border-radius:4px; font-size:11px; padding:0 6px;"
+            " border:1px solid #FDE68A; background:#FFFBEB; }"
+            "QLineEdit:focus { border:2px solid #F59E0B; }"
+        )
+
+        self._lbl_ahorro = QLabel("—")
+        self._lbl_ahorro.setStyleSheet(
+            "font-size:10px; font-weight:bold; color:#D97706; background:transparent;"
+        )
+        self._lbl_ahorro.setMinimumWidth(110)
+
+        fila3.addSpacing(4)
+        fila3.addWidget(lbl_ofertado)
+        fila3.addWidget(self._campo_ofertado)
+        fila3.addWidget(self._lbl_ahorro)
+        fila3.addStretch()
 
         root.addLayout(fila1)
         root.addLayout(fila2)
+        root.addWidget(self._fila_dcto_widget)
 
         # Autocompletado
         self._completer = QCompleter()
@@ -260,8 +335,12 @@ class _LineaProducto:
         self.campo_producto.editingFinished.connect(self._on_confirmado)
         self.campo_costo.textChanged.connect(on_change)
         self.campo_precio.textChanged.connect(on_change)
+        self.campo_precio.textChanged.connect(self._recalcular_ahorro)
         self.campo_cantidad.valueChanged.connect(on_change)
         self._combo_talla.currentTextChanged.connect(self._on_talla_cambiada)
+        self._chk_dcto.toggled.connect(self._on_toggle_dcto)
+        self._campo_ofertado.textChanged.connect(self._recalcular_ahorro)
+        self._campo_ofertado.textChanged.connect(on_change)
 
     # -- Autocompletado --
 
@@ -415,14 +494,53 @@ class _LineaProducto:
         except Exception:
             return None
 
+    def _on_toggle_dcto(self, activo: bool) -> None:
+        self._fila_dcto_widget.setVisible(activo)
+        if not activo:
+            self._campo_ofertado.clear()
+            self._lbl_ahorro.setText("—")
+            self._lbl_ahorro.setStyleSheet(
+                "font-size:10px; font-weight:bold; color:#D97706; background:transparent;"
+            )
+        self._on_change()
+
+    def _recalcular_ahorro(self) -> None:
+        if not self._chk_dcto.isChecked():
+            return
+        from utils.formatters import cop as _cop
+        ofertado = self._campo_ofertado.valor_int()
+        real     = self.campo_precio.valor_int()
+        if ofertado > 0 and real > 0 and ofertado > real:
+            ahorro = ofertado - real
+            self._lbl_ahorro.setText(f"Ahorro: {_cop(ahorro)}")
+            self._lbl_ahorro.setStyleSheet(
+                "font-size:10px; font-weight:bold; color:#16A34A; background:transparent;"
+            )
+        elif ofertado > 0 and real > 0 and ofertado <= real:
+            self._lbl_ahorro.setText("⚠ Debe ser > precio real")
+            self._lbl_ahorro.setStyleSheet(
+                "font-size:10px; color:#DC2626; background:transparent;"
+            )
+        else:
+            self._lbl_ahorro.setText("—")
+            self._lbl_ahorro.setStyleSheet(
+                "font-size:10px; font-weight:bold; color:#D97706; background:transparent;"
+            )
+
     def datos(self) -> dict:
         """Retorna los datos de esta linea como dict."""
+        ofertado = 0.0
+        if self._chk_dcto.isChecked():
+            v = self._campo_ofertado.valor_int()
+            if v > self.campo_precio.valor_int() > 0:
+                ofertado = float(v)
         return {
-            "producto": self.campo_producto.text().strip(),
-            "costo":    float(self.campo_costo.valor_int()),
-            "precio":   float(self.campo_precio.valor_int()),
-            "cantidad": self.campo_cantidad.value(),
-            "sku":      self._sku,
+            "producto":        self.campo_producto.text().strip(),
+            "costo":           float(self.campo_costo.valor_int()),
+            "precio":          float(self.campo_precio.valor_int()),
+            "cantidad":        self.campo_cantidad.value(),
+            "sku":             self._sku,
+            "precio_ofertado": ofertado,
         }
 
     def limpiar(self) -> None:
@@ -434,6 +552,10 @@ class _LineaProducto:
         self._combo_talla.setCurrentIndex(0)
         self._combo_talla.setVisible(False)
         self._sku = ""
+        self._chk_dcto.setChecked(False)
+        self._campo_ofertado.clear()
+        self._fila_dcto_widget.setVisible(False)
+        self._lbl_ahorro.setText("—")
 
 
 class VentaForm(QWidget):
@@ -513,15 +635,9 @@ class VentaForm(QWidget):
         _PLACEHOLDER_VENDEDOR = "— Selecciona vendedor —"
         self._placeholder_vendedor = _PLACEHOLDER_VENDEDOR
         self.campo_vendedor = QComboBox()
-        self.campo_vendedor.addItem(_PLACEHOLDER_VENDEDOR)
-        for _v in ["Sindy Katherine Barajas", "Deiby Sotelo",
-                   "Yojan Barajas", "Monica Sotelo", "Jose Barajas"]:
-            self.campo_vendedor.addItem(_v)
-        self.campo_vendedor.setCurrentIndex(0)
         self.campo_vendedor.setFixedHeight(34)
-        self.campo_vendedor.setStyleSheet(
-            _get_combo_style() + "QComboBox { color: #9CA3AF; }"
-        )
+        self._poblar_vendedores()
+        _aplicar_estilo_combo(self.campo_vendedor, placeholder=True)
         form.addRow("Vendedor*:", self.campo_vendedor)
 
         layout.addLayout(form)
@@ -604,9 +720,7 @@ class VentaForm(QWidget):
         self.campo_metodo.addItems(METODOS_PAGO)
         self.campo_metodo.setCurrentIndex(0)
         self.campo_metodo.setFixedHeight(34)
-        self.campo_metodo.setStyleSheet(
-            _get_combo_style() + "QComboBox { color: #9CA3AF; }"
-        )
+        _aplicar_estilo_combo(self.campo_metodo, placeholder=True)
         self._btn_combinado = QPushButton("Combinado")
         self._btn_combinado.setCheckable(True)
         self._btn_combinado.setFixedHeight(34)
@@ -651,8 +765,10 @@ class VentaForm(QWidget):
         layout.addLayout(form2)
         layout.addSpacing(4)
 
-        # ── Sección descuento ─────────────────────────────────────────────
-        layout.addWidget(self._build_descuento_section())
+        # ── Sección descuento (oculta — reemplazada por ¿Dcto? por producto) ──
+        _sec_dcto = self._build_descuento_section()
+        _sec_dcto.setVisible(False)
+        layout.addWidget(_sec_dcto)
 
         # ── Sección datos del cliente ─────────────────────────────────────
         layout.addWidget(self._build_cliente_section())
@@ -860,6 +976,18 @@ class VentaForm(QWidget):
         layout.addWidget(self._lbl_total_titulo)
         layout.addWidget(self._lbl_total_venta)
 
+        # Ahorro del cliente (visible solo cuando hay descuentos por producto)
+        self._lbl_ahorro_titulo = QLabel("Ahorro del cliente")
+        self._lbl_ahorro_titulo.setStyleSheet("color:#D97706; font-size:10px;")
+        self._lbl_ahorro_titulo.setVisible(False)
+        self._lbl_ahorro_total = QLabel("")
+        self._lbl_ahorro_total.setStyleSheet(
+            "color:#D97706; font-size:13px; font-weight:bold;"
+        )
+        self._lbl_ahorro_total.setVisible(False)
+        layout.addWidget(self._lbl_ahorro_titulo)
+        layout.addWidget(self._lbl_ahorro_total)
+
         layout.addWidget(self._separador_horizontal())
 
         # Medios de pago
@@ -1019,12 +1147,7 @@ class VentaForm(QWidget):
         self._actualizar_preview()
 
     def _on_vendedor_changed(self, idx: int) -> None:
-        if idx == 0:
-            self.campo_vendedor.setStyleSheet(
-                _get_combo_style() + "QComboBox { color: #9CA3AF; }"
-            )
-        else:
-            self.campo_vendedor.setStyleSheet(_get_combo_style())
+        _aplicar_estilo_combo(self.campo_vendedor, placeholder=(idx == 0))
 
     def _on_toggle_descuento(self, activo: bool) -> None:
         self._frame_desc_campos.setVisible(activo)
@@ -1123,12 +1246,6 @@ class VentaForm(QWidget):
             ln.campo_precio.valor_int() * ln.campo_cantidad.value()
             for ln in self._lineas
         )
-        desc = (
-            self._campo_descuento.valor_int()
-            if hasattr(self, "_chk_descuento") and self._chk_descuento.isChecked()
-            else 0
-        )
-        total = max(0, total - desc)
         color = "#15803D" if asignado == total and total > 0 else (
             "#DC2626" if asignado > total else "#374151"
         )
@@ -1155,6 +1272,28 @@ class VentaForm(QWidget):
                 pagos.append({"metodo": metodo, "monto": float(monto)})
         return pagos if pagos else None
 
+    def _poblar_vendedores(self) -> None:
+        """Llena el combo de vendedores desde la BD."""
+        seleccionado = self.campo_vendedor.currentText()
+        self.campo_vendedor.blockSignals(True)
+        self.campo_vendedor.clear()
+        self.campo_vendedor.addItem(self._placeholder_vendedor)
+        try:
+            from database.usuarios_repo import obtener_todos_usuarios
+            for u in obtener_todos_usuarios():
+                self.campo_vendedor.addItem(u.nombre)
+        except Exception:
+            pass
+        idx = self.campo_vendedor.findText(seleccionado)
+        self.campo_vendedor.setCurrentIndex(max(0, idx))
+        self.campo_vendedor.blockSignals(False)
+
+    def recargar_vendedores(self) -> None:
+        """Slot público: recarga el combo cuando cambia la lista de usuarios."""
+        self._poblar_vendedores()
+        es_ph = self.campo_vendedor.currentIndex() == 0
+        _aplicar_estilo_combo(self.campo_vendedor, placeholder=es_ph)
+
     def actualizar_inventario(self) -> None:
         """Llamar desde fuera cuando el inventario cambia para refrescar los completers."""
         for ln in self._lineas:
@@ -1170,12 +1309,7 @@ class VentaForm(QWidget):
         es_transferencia = (metodo == "Transferencia")
         self.lbl_sub_transferencia.setVisible(es_transferencia)
         self.campo_sub_transferencia.setVisible(es_transferencia)
-        if es_placeholder:
-            self.campo_metodo.setStyleSheet(
-                _get_combo_style() + "QComboBox { color: #9CA3AF; }"
-            )
-        else:
-            self.campo_metodo.setStyleSheet(_get_combo_style())
+        _aplicar_estilo_combo(self.campo_metodo, placeholder=es_placeholder)
         self._actualizar_preview()
 
     def _metodo_completo(self) -> str:
@@ -1197,12 +1331,14 @@ class VentaForm(QWidget):
             ln.campo_costo.valor_int() * ln.campo_cantidad.value()
             for ln in self._lineas
         )
-        descuento = (
-            self._campo_descuento.valor_int()
-            if hasattr(self, "_chk_descuento") and self._chk_descuento.isChecked()
-            else 0
+        # Descuento per-producto: precio ya es el valor real cobrado
+        descuento = sum(
+            max(0, ln._campo_ofertado.valor_int() - ln.campo_precio.valor_int())
+            * ln.campo_cantidad.value()
+            for ln in self._lineas
+            if hasattr(ln, "_chk_dcto") and ln._chk_dcto.isChecked()
         )
-        total_final = max(0, total_precio - descuento)
+        total_final = total_precio  # precio = precio real cobrado
 
         metodo = self._metodo_completo()
         pagos = self._get_pagos_combinados()
@@ -1211,18 +1347,22 @@ class VentaForm(QWidget):
             total_costo, total_final, metodo, 1, pagos
         )
 
-        # Actualizar label de porcentaje de descuento
-        if descuento > 0 and total_precio > 0:
-            pct = descuento / total_precio * 100
-            self._lbl_desc_pct.setText(f"({pct:.1f}% del total)")
-        elif hasattr(self, "_lbl_desc_pct"):
+        if hasattr(self, "_lbl_desc_pct"):
             self._lbl_desc_pct.setText("")
 
-        # Total de venta (con descuento aplicado)
+        # Ahorro del cliente en panel derecho
         if descuento > 0:
-            self._lbl_total_titulo.setText(f"Total de venta  (desc. -{cop(descuento)})")
+            anunciado_total = total_precio + descuento
+            pct = descuento / anunciado_total * 100 if anunciado_total > 0 else 0
+            self._lbl_ahorro_titulo.setText(f"Ahorro del cliente ({pct:.1f}%)")
+            self._lbl_ahorro_total.setText(f"- {cop(descuento)}")
+            self._lbl_ahorro_titulo.setVisible(True)
+            self._lbl_ahorro_total.setVisible(True)
         else:
-            self._lbl_total_titulo.setText("Total de venta")
+            self._lbl_ahorro_titulo.setVisible(False)
+            self._lbl_ahorro_total.setVisible(False)
+
+        self._lbl_total_titulo.setText("Total de venta")
         self._lbl_total_venta.setText(cop(total_final))
 
         # Medios de pago — limpiar y repoblar
@@ -1306,11 +1446,10 @@ class VentaForm(QWidget):
             if vendedor == self._placeholder_vendedor:
                 raise ValueError("Selecciona el vendedor antes de registrar la venta.")
 
-            # Descuento
-            descuento = (
-                self._campo_descuento.valor_int()
-                if self._chk_descuento.isChecked() else 0
-            )
+            # Recoger lineas del carrito (solo las que tienen producto)
+            lineas = [ln.datos() for ln in self._lineas if ln.datos()["producto"]]
+            if not lineas:
+                raise ValueError("Agrega al menos un producto.")
 
             # Datos del cliente
             if self._chk_cliente.isChecked():
@@ -1319,11 +1458,6 @@ class VentaForm(QWidget):
                 cliente_tel    = self._campo_cli_tel.text().strip()
             else:
                 cliente_nombre = cliente_cedula = cliente_tel = ""
-
-            # Recoger lineas del carrito (solo las que tienen producto)
-            lineas = [ln.datos() for ln in self._lineas if ln.datos()["producto"]]
-            if not lineas:
-                raise ValueError("Agrega al menos un producto.")
 
             # Método de pago obligatorio (solo en modo simple)
             if not self._btn_combinado.isChecked() and not metodo:
@@ -1349,11 +1483,10 @@ class VentaForm(QWidget):
             except Exception:
                 pass
 
-            # Validar suma de pagos combinados == total carrito (con descuento)
+            # Validar suma de pagos combinados == total carrito
+            # precio ya es el valor real cobrado (descuento por producto aplicado en campo)
             if pagos is not None:
-                total_esperado = (
-                    sum(int(d["precio"]) * d["cantidad"] for d in lineas) - descuento
-                )
+                total_esperado = sum(int(d["precio"]) * d["cantidad"] for d in lineas)
                 total_asignado = sum(int(p["monto"]) for p in pagos)
                 if total_asignado != total_esperado:
                     from utils.formatters import cop as _cop
@@ -1374,7 +1507,6 @@ class VentaForm(QWidget):
                     cliente_nombre=cliente_nombre,
                     cliente_cedula=cliente_cedula,
                     cliente_tel=cliente_tel,
-                    descuento=descuento,
                 )
             self._mostrar_exito(ventas)
             for v in ventas:
@@ -1424,9 +1556,7 @@ class VentaForm(QWidget):
         """Resetea el formulario para la próxima entrada."""
         self.campo_fecha.setDate(QDate.currentDate())
         self.campo_metodo.setCurrentIndex(0)
-        self.campo_metodo.setStyleSheet(
-            _get_combo_style() + "QComboBox { color: #9CA3AF; }"
-        )
+        _aplicar_estilo_combo(self.campo_metodo, placeholder=True)
         self.campo_metodo.setEnabled(True)
         self.lbl_sub_transferencia.setVisible(False)
         self.campo_sub_transferencia.setCurrentIndex(0)
@@ -1441,9 +1571,7 @@ class VentaForm(QWidget):
         self._panel_combinado.setVisible(False)
         # Resetear vendedor
         self.campo_vendedor.setCurrentIndex(0)
-        self.campo_vendedor.setStyleSheet(
-            _get_combo_style() + "QComboBox { color: #9CA3AF; }"
-        )
+        _aplicar_estilo_combo(self.campo_vendedor, placeholder=True)
         # Resetear descuento
         self._chk_descuento.setChecked(False)
         self._campo_descuento.setText("")

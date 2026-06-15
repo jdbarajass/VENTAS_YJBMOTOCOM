@@ -116,7 +116,31 @@ def main() -> None:
     if login.exec() != LoginDialog.Accepted:
         sys.exit(0)
 
+    # Splash screen durante la inicialización de MainWindow (~4 s)
+    from PySide6.QtGui import QPixmap, QColor, QPainter, QFont as _QFont
+    from PySide6.QtWidgets import QSplashScreen
+    from PySide6.QtCore import Qt as _Qt
+
+    _pix = QPixmap(520, 300)
+    _pix.fill(QColor("#1E293B"))
+    _p = QPainter(_pix)
+    _f_title = _QFont(); _f_title.setPointSize(26); _f_title.setBold(True)
+    _p.setFont(_f_title)
+    _p.setPen(QColor("#F1F5F9"))
+    _p.drawText(_pix.rect().adjusted(0, 40, 0, 0), _Qt.AlignHCenter | _Qt.AlignTop, "YJBMOTOCOM")
+    _f_sub = _QFont(); _f_sub.setPointSize(11)
+    _p.setFont(_f_sub)
+    _p.setPen(QColor("#94A3B8"))
+    _p.drawText(_pix.rect().adjusted(0, 0, 0, -20), _Qt.AlignHCenter | _Qt.AlignBottom,
+                "Iniciando sistema, por favor espera...")
+    _p.end()
+
+    _splash = QSplashScreen(_pix, _Qt.WindowStaysOnTopHint)
+    _splash.show()
+    app.processEvents()
+
     window = MainWindow(usuario=login.usuario_nombre, rol=login.usuario_rol)
+    _splash.finish(window)
     window.showMaximized()
 
     # Cerrar BD limpiamente al salir

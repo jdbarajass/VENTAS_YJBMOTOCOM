@@ -16,6 +16,7 @@ class AbonoFactura:
     fecha: date
     notas: str = ""
     id: int | None = None
+    cuenta_id: int | None = None  # cuenta desde la que se realizó el abono
 
     def __post_init__(self) -> None:
         if self.monto <= 0:

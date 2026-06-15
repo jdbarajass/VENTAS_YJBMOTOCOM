@@ -1,7 +1,7 @@
 """
-ui/resumen_vendedor_panel.py
-Vista de resumen diario simplificada para el vendedor.
-Solo muestra métricas de ventas, sin costos ni márgenes.
+ui/mi_cuadre_panel.py
+Cuadre del día para el vendedor: ventas, ingresos y desglose por método de pago.
+Sin costos ni márgenes (datos internos del negocio).
 """
 
 from datetime import date
@@ -11,19 +11,27 @@ from PySide6.QtWidgets import (
     QPushButton, QFrame, QSizePolicy,
 )
 from PySide6.QtCore import Qt, QTimer
-from PySide6.QtGui import QFont, QColor
+from PySide6.QtGui import QFont
 
 from utils.formatters import cop, fecha_corta
 
 
-class ResumenVendedorPanel(QWidget):
-    """Resumen del día para el vendedor — sin datos sensibles de costos."""
+def _ingreso_real(v) -> float:
+    """Ingreso real cobrado por una venta, compatible con modelo antiguo y nuevo."""
+    _d  = getattr(v, "descuento", 0) or 0
+    _po = getattr(v, "precio_ofertado", 0.0) or 0.0
+    # Nuevo modelo: precio ya es el precio real cobrado (precio_ofertado = anunciado)
+    # Modelo antiguo: precio = precio anunciado, descuento = valor descontado (solo en v0)
+    return v.precio * v.cantidad - (0 if _po > 0 else _d)
+
+
+class MiCuadrePanel(QWidget):
+    """Cuadre del día para el vendedor — sin datos sensibles de costos."""
 
     def __init__(self, parent=None) -> None:
         super().__init__(parent)
         self._build_ui()
         self.refresh()
-        # Auto-refresh cada 60 s
         timer = QTimer(self)
         timer.timeout.connect(self.refresh)
         timer.start(60_000)
@@ -41,7 +49,7 @@ class ResumenVendedorPanel(QWidget):
         self._lbl_fecha.setFont(f)
         self._lbl_fecha.setStyleSheet("color:#1E293B;")
 
-        lbl_sub = QLabel("Resumen del día")
+        lbl_sub = QLabel("Cuadre del Día")
         lbl_sub.setStyleSheet("color:#64748B; font-size:14px;")
 
         btn_refresh = QPushButton("↻ Actualizar")
@@ -62,15 +70,15 @@ class ResumenVendedorPanel(QWidget):
         cab.addWidget(btn_refresh)
         root.addLayout(cab)
 
-        # Tarjetas de resumen
+        # Tarjetas resumen
         fila_cards = QHBoxLayout(); fila_cards.setSpacing(16)
-        self._card_ventas  = self._card("Ventas realizadas", "0",   "#2563EB")
-        self._card_ingreso = self._card("Total ingresos",    "$ 0", "#15803D")
+        self._card_ventas  = self._card("Unidades vendidas", "0",   "#2563EB")
+        self._card_ingreso = self._card("Total recaudado",   "$ 0", "#15803D")
         for c in (self._card_ventas, self._card_ingreso):
             fila_cards.addWidget(c)
         root.addLayout(fila_cards)
 
-        # Desglose por método
+        # Desglose por método de pago
         frame_metodos = QFrame()
         frame_metodos.setFrameShape(QFrame.StyledPanel)
         frame_metodos.setStyleSheet(
@@ -79,9 +87,9 @@ class ResumenVendedorPanel(QWidget):
         self._lay_metodos = QVBoxLayout(frame_metodos)
         self._lay_metodos.setContentsMargins(20, 14, 20, 14)
         self._lay_metodos.setSpacing(8)
-        lbl_m = QLabel("INGRESOS POR MÉTODO DE PAGO")
-        lbl_m.setStyleSheet("color:#9CA3AF; font-size:10px; font-weight:bold;")
-        self._lay_metodos.addWidget(lbl_m)
+        lbl_titulo_metodos = QLabel("CUADRE POR MÉTODO DE PAGO")
+        lbl_titulo_metodos.setStyleSheet("color:#9CA3AF; font-size:10px; font-weight:bold;")
+        self._lay_metodos.addWidget(lbl_titulo_metodos)
         self._metodos_widgets: list[QWidget] = []
         root.addWidget(frame_metodos)
 
@@ -117,13 +125,10 @@ class ResumenVendedorPanel(QWidget):
         ventas = obtener_ventas_por_fecha(hoy)
 
         cantidad = sum(v.cantidad for v in ventas)
-        total_ingresos = sum(
-            v.precio * v.cantidad - (getattr(v, "descuento", 0) or 0)
-            for v in ventas
-        )
+        total_recaudado = sum(_ingreso_real(v) for v in ventas)
 
         self._card_ventas._lbl_v.setText(str(cantidad))
-        self._card_ingreso._lbl_v.setText(cop(total_ingresos))
+        self._card_ingreso._lbl_v.setText(cop(total_recaudado))
 
         # Desglose por método
         for w in self._metodos_widgets:
@@ -134,8 +139,7 @@ class ResumenVendedorPanel(QWidget):
         por_metodo: dict[str, float] = defaultdict(float)
         for v in ventas:
             metodo = v.metodo_pago or "Otro"
-            ingresos = v.precio * v.cantidad - (getattr(v, "descuento", 0) or 0)
-            por_metodo[metodo] += ingresos
+            por_metodo[metodo] += _ingreso_real(v)
 
         if not por_metodo:
             lbl_vacio = QLabel("Sin ventas registradas hoy.")

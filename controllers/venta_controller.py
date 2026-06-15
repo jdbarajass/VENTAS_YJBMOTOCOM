@@ -171,6 +171,13 @@ class VentaController:
                 "El descuento no puede ser mayor al total del carrito."
             )
 
+        # Detectar si el descuento viene de campos por-producto (nuevo modelo)
+        # vs. descuento manual a nivel de carrito (modelo anterior).
+        # En el nuevo modelo, precio = precio real; no hay que ajustar en Fase 2.
+        _has_per_product_discount = any(
+            ln.get("precio_ofertado", 0) > 0 for ln in lineas
+        )
+
         from database.ventas_repo import siguiente_grupo_venta_id
         grupo_id = siguiente_grupo_venta_id() if len(lineas) > 1 else None
         nro_factura = siguiente_numero_factura()
@@ -218,6 +225,7 @@ class VentaController:
             venta.hora = datetime.now().strftime("%H:%M")
             venta.vendedor = vendedor
             venta.sku = ln.get("sku", "")
+            venta.precio_ofertado = float(ln.get("precio_ofertado", 0) or 0)
             if i == 0:
                 venta.cliente_nombre = cliente_nombre
                 venta.cliente_cedula = cliente_cedula
@@ -226,10 +234,12 @@ class VentaController:
             completar_venta(venta, cfg)
             ventas.append(venta)
 
-        # ── Fase 2: distribuir descuento en comision y ganancia_neta (proporcional) ──
-        # La comisión se recalcula sobre el precio efectivo (ya descontado) porque
-        # el terminal cobra comisión sobre lo que el cliente realmente paga.
-        if descuento > 0 and total_carrito > 0:
+        # ── Fase 2: ajuste de comisión/ganancia por descuento de carrito ──────
+        # Solo aplica en el modelo ANTIGUO (descuento manual a nivel carrito).
+        # En el modelo NUEVO (precio_ofertado por producto), el precio ya es el
+        # precio real cobrado, así que completar_venta() calcula correctamente
+        # sin necesitar ajuste adicional.
+        if descuento > 0 and total_carrito > 0 and not _has_per_product_discount:
             restante = descuento
             for i, venta in enumerate(ventas):
                 valor_linea = venta.precio * venta.cantidad

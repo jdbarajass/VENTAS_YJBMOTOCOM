@@ -302,6 +302,60 @@ def revertir_gasto(gasto) -> None:
         log.warning("No se pudo revertir gasto en cuenta '%s': %s", cuenta_nombre, exc)
 
 
+# ── Débito/crédito por pagos de facturas ─────────────────────────────────────
+
+def debitar_pago_factura(
+    cuenta_id: int, monto: float, factura_id: int | None,
+    fecha: "date", descripcion: str = "",
+) -> None:
+    """
+    Debita un pago de factura de la cuenta indicada.
+    Silencioso si la cuenta no existe o el monto es cero.
+    """
+    if monto <= 0:
+        return
+    conn = DatabaseConnection.get()
+    try:
+        conn.execute(
+            "UPDATE cuentas SET balance_actual = balance_actual - ? WHERE id = ?",
+            (round(monto, 2), cuenta_id)
+        )
+        fecha_str = fecha.isoformat() if hasattr(fecha, "isoformat") else str(fecha)
+        conn.execute(
+            """INSERT INTO cuentas_movimientos (cuenta_id, fecha, tipo, monto, descripcion)
+               VALUES (?, ?, 'pago_factura', ?, ?)""",
+            (cuenta_id, fecha_str, -round(monto, 2), descripcion or "Pago de factura")
+        )
+        conn.commit()
+        log.info("Pago factura %s debitado de cuenta %d: %.2f", factura_id, cuenta_id, monto)
+    except Exception as exc:
+        log.warning("No se pudo debitar pago factura de cuenta %d: %s", cuenta_id, exc)
+
+
+def revertir_abono_factura(
+    cuenta_id: int, monto: float, fecha: "date", descripcion: str = "",
+) -> None:
+    """Revierte el débito de un abono eliminado, devolviendo el monto a la cuenta."""
+    if monto <= 0:
+        return
+    conn = DatabaseConnection.get()
+    try:
+        conn.execute(
+            "UPDATE cuentas SET balance_actual = balance_actual + ? WHERE id = ?",
+            (round(monto, 2), cuenta_id)
+        )
+        fecha_str = fecha.isoformat() if hasattr(fecha, "isoformat") else str(fecha)
+        conn.execute(
+            """INSERT INTO cuentas_movimientos (cuenta_id, fecha, tipo, monto, descripcion)
+               VALUES (?, ?, 'reversa_abono', ?, ?)""",
+            (cuenta_id, fecha_str, round(monto, 2), descripcion or "Reversa abono factura")
+        )
+        conn.commit()
+        log.info("Abono revertido en cuenta %d: %.2f", cuenta_id, monto)
+    except Exception as exc:
+        log.warning("No se pudo revertir abono en cuenta %d: %s", cuenta_id, exc)
+
+
 # ── Utilitarios ───────────────────────────────────────────────────────────────
 
 def _row_to_cuenta(row) -> Cuenta:

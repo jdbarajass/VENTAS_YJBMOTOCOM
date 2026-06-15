@@ -4,9 +4,9 @@ Diálogo de inicio de sesión con selección de usuario por tarjeta.
 """
 from PySide6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QLabel,
-    QPushButton, QLineEdit, QFrame,
+    QPushButton, QLineEdit, QFrame, QApplication,
 )
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, QTimer
 from PySide6.QtGui import QFont
 
 from database.usuarios_repo import obtener_todos_usuarios, Usuario
@@ -112,6 +112,20 @@ class LoginDialog(QDialog):
         self._btn_ingresar.clicked.connect(self._on_ingresar)
         root.addWidget(self._btn_ingresar)
 
+        # Spinner de carga (oculto hasta que se validan credenciales)
+        self._lbl_spinner = QLabel("")
+        self._lbl_spinner.setAlignment(Qt.AlignCenter)
+        self._lbl_spinner.setStyleSheet("color:#2563EB; font-size:13px; letter-spacing:1px;")
+        self._lbl_spinner.setFixedHeight(24)
+        self._lbl_spinner.hide()
+        root.addWidget(self._lbl_spinner)
+
+        self._spin_frames = ["◐  Iniciando sistema", "◓  Iniciando sistema.", "◑  Iniciando sistema..", "◒  Iniciando sistema..."]
+        self._spin_idx = 0
+        self._timer_spin = QTimer(self)
+        self._timer_spin.setInterval(180)
+        self._timer_spin.timeout.connect(self._tick_spinner)
+
         root.addStretch()
 
     def _cargar_usuarios(self) -> None:
@@ -190,6 +204,10 @@ class LoginDialog(QDialog):
     # Acción
     # ------------------------------------------------------------------
 
+    def _tick_spinner(self) -> None:
+        self._spin_idx = (self._spin_idx + 1) % len(self._spin_frames)
+        self._lbl_spinner.setText(self._spin_frames[self._spin_idx])
+
     def _on_ingresar(self) -> None:
         if self._usuario_sel is None:
             self._lbl_error.setText("Selecciona un usuario primero.")
@@ -206,8 +224,18 @@ class LoginDialog(QDialog):
             self._campo_clave.setFocus()
             return
 
+        # Credenciales correctas — mostrar estado de carga antes de cerrar
+        self._btn_ingresar.setText("⏳  Cargando...")
+        self._btn_ingresar.setEnabled(False)
+        self._campo_clave.setEnabled(False)
+        self._lbl_error.clear()
+        self._lbl_spinner.setText(self._spin_frames[0])
+        self._lbl_spinner.show()
+        self._timer_spin.start()
+        QApplication.processEvents()   # forzar repintado antes de cerrar
+
         self.usuario_nombre = self._usuario_sel.nombre
         self.usuario_rol = self._usuario_sel.rol
         auditoria.set_usuario(self.usuario_nombre)
         auditoria.registrar("Inicio de sesión", f"Rol: {self.usuario_rol}")
-        self.accept()
+        QTimer.singleShot(120, self.accept)  # cierra tras un ciclo visual

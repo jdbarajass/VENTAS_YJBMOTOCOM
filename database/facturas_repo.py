@@ -32,6 +32,10 @@ def _row_to_factura(row) -> Factura:
         fp_raw = row["fecha_pago"]
     except (IndexError, KeyError):
         fp_raw = None
+    try:
+        cuenta_id = row["cuenta_id"]
+    except (IndexError, KeyError):
+        cuenta_id = None
 
     return Factura(
         id=row["id"],
@@ -43,6 +47,7 @@ def _row_to_factura(row) -> Factura:
         notas=row["notas"] or "",
         fecha_vencimiento=_parse_fecha(fv_raw),
         fecha_pago=_parse_fecha(fp_raw),
+        cuenta_id=cuenta_id,
     )
 
 
@@ -52,10 +57,12 @@ def insertar_factura(f: Factura) -> int:
     fp = f.fecha_pago.strftime("%Y-%m-%d") if f.fecha_pago else None
     cur = conn.execute(
         """INSERT INTO facturas
-           (descripcion, proveedor, monto, fecha_llegada, estado, notas, fecha_vencimiento, fecha_pago)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+           (descripcion, proveedor, monto, fecha_llegada, estado, notas,
+            fecha_vencimiento, fecha_pago, cuenta_id)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
         (f.descripcion, f.proveedor, f.monto,
-         f.fecha_llegada.strftime("%Y-%m-%d"), f.estado, f.notas, fv, fp),
+         f.fecha_llegada.strftime("%Y-%m-%d"), f.estado, f.notas,
+         fv, fp, f.cuenta_id),
     )
     conn.commit()
     return cur.lastrowid
@@ -102,23 +109,25 @@ def actualizar_factura(f: Factura) -> bool:
     cur = conn.execute(
         """UPDATE facturas
            SET descripcion=?, proveedor=?, monto=?, fecha_llegada=?, estado=?, notas=?,
-               fecha_vencimiento=?, fecha_pago=?
+               fecha_vencimiento=?, fecha_pago=?, cuenta_id=?
            WHERE id=?""",
         (f.descripcion, f.proveedor, f.monto,
-         f.fecha_llegada.strftime("%Y-%m-%d"), f.estado, f.notas, fv, fp, f.id),
+         f.fecha_llegada.strftime("%Y-%m-%d"), f.estado, f.notas,
+         fv, fp, f.cuenta_id, f.id),
     )
     conn.commit()
     return cur.rowcount > 0
 
 
 def actualizar_estado_factura(
-    factura_id: int, estado: str, fecha_pago: "date | None" = None
+    factura_id: int, estado: str, fecha_pago: "date | None" = None,
+    cuenta_id: int | None = None,
 ) -> bool:
     conn = DatabaseConnection.get()
     fp = fecha_pago.strftime("%Y-%m-%d") if fecha_pago else None
     cur = conn.execute(
-        "UPDATE facturas SET estado = ?, fecha_pago = ? WHERE id = ?",
-        (estado, fp, factura_id),
+        "UPDATE facturas SET estado = ?, fecha_pago = ?, cuenta_id = ? WHERE id = ?",
+        (estado, fp, cuenta_id, factura_id),
     )
     conn.commit()
     return cur.rowcount > 0

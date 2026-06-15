@@ -788,8 +788,11 @@ class HistorialPanel(QWidget):
             # Costo unitario
             self._celda_det(row, 2, cop(v.costo), Qt.AlignRight | Qt.AlignVCenter)
 
-            # Precio de Venta
-            self._celda_det(row, 3, cop(v.precio), Qt.AlignRight | Qt.AlignVCenter)
+            # Precio de Venta (precio real cobrado por unidad)
+            _d = getattr(v, "descuento", 0) or 0
+            _po = getattr(v, "precio_ofertado", 0.0) or 0.0
+            _precio_real = v.precio if (_po > 0 or _d == 0) else v.precio - _d / v.cantidad
+            self._celda_det(row, 3, cop(_precio_real), Qt.AlignRight | Qt.AlignVCenter)
 
             item_met = QTableWidgetItem(v.metodo_pago)
             item_met.setTextAlignment(Qt.AlignCenter)
@@ -866,7 +869,11 @@ class HistorialPanel(QWidget):
             self.tabla_detalle.setItem(row, 0, item_prod)
             self._celda_det(row, 1, str(v.cantidad), Qt.AlignCenter)
             self._celda_det(row, 2, cop(v.costo), Qt.AlignRight | Qt.AlignVCenter)
-            self._celda_det(row, 3, cop(v.precio), Qt.AlignRight | Qt.AlignVCenter)
+            # Precio de Venta (precio real cobrado por unidad)
+            _d2 = getattr(v, "descuento", 0) or 0
+            _po2 = getattr(v, "precio_ofertado", 0.0) or 0.0
+            _precio_real2 = v.precio if (_po2 > 0 or _d2 == 0) else v.precio - _d2 / v.cantidad
+            self._celda_det(row, 3, cop(_precio_real2), Qt.AlignRight | Qt.AlignVCenter)
             item_met = QTableWidgetItem(v.metodo_pago)
             item_met.setTextAlignment(Qt.AlignCenter)
             if v.pagos_combinados:

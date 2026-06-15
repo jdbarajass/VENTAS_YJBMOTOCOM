@@ -12,6 +12,7 @@ from PySide6.QtWidgets import (
     QLineEdit, QTableWidget, QTableWidgetItem, QHeaderView,
     QAbstractItemView, QFrame, QMessageBox, QCheckBox,
     QDateEdit, QSizePolicy, QDialog, QScrollArea, QTabWidget,
+    QComboBox,
 )
 from PySide6.QtCore import Qt, QDate, Signal
 from PySide6.QtGui import QFont, QColor
@@ -125,6 +126,31 @@ class AbonosDialog(QDialog):
         fila.addWidget(btn_abonar)
         lay.addLayout(fila)
 
+        # Selector de cuenta de pago
+        fila_cuenta = QHBoxLayout(); fila_cuenta.setSpacing(8)
+        lbl_cta = QLabel("Cuenta de pago:")
+        lbl_cta.setStyleSheet("font-size:11px; color:#374151;")
+        lbl_cta.setFixedWidth(110)
+        self._combo_cuenta = QComboBox()
+        self._combo_cuenta.setFixedHeight(28)
+        self._combo_cuenta.setStyleSheet(
+            "QComboBox { border:1px solid #D1D5DB; border-radius:4px; padding:0 8px;"
+            " font-size:12px; }"
+        )
+        self._combo_cuenta.addItem("— Sin descontar de cuentas —", None)
+        try:
+            from database.cuentas_repo import obtener_todas as _cuentas
+            from utils.formatters import cop as _cop
+            for c in _cuentas():
+                self._combo_cuenta.addItem(
+                    f"{c.nombre}  ({_cop(c.balance_actual)})", c.id
+                )
+        except Exception:
+            pass
+        fila_cuenta.addWidget(lbl_cta)
+        fila_cuenta.addWidget(self._combo_cuenta, stretch=1)
+        lay.addLayout(fila_cuenta)
+
         btn_cerrar = QPushButton("Cerrar")
         btn_cerrar.setFixedHeight(30)
         btn_cerrar.setStyleSheet(
@@ -150,6 +176,14 @@ class AbonosDialog(QDialog):
             f"Saldo pendiente: {cop(saldo)}"
         )
 
+        # Cargar mapa cuenta_id → nombre para mostrar en abonos
+        cuentas_dict: dict[int, str] = {}
+        try:
+            from database.cuentas_repo import obtener_todas as _cuentas
+            cuentas_dict = {c.id: c.nombre for c in _cuentas()}
+        except Exception:
+            pass
+
         if not abonos:
             lbl = QLabel("Sin abonos registrados aún.")
             lbl.setStyleSheet("color:#9CA3AF; font-size:11px; padding:4px;")
@@ -165,6 +199,13 @@ class AbonosDialog(QDialog):
                 lbl_m = QLabel(cop(a.monto))
                 lbl_m.setStyleSheet("font-weight:bold; color:#15803D;")
                 fl.addWidget(lbl_m)
+                cuenta_nombre = cuentas_dict.get(
+                    getattr(a, "cuenta_id", None) or -1, ""
+                )
+                if cuenta_nombre:
+                    lbl_cta = QLabel(f"({cuenta_nombre})")
+                    lbl_cta.setStyleSheet("color:#6B7280; font-size:10px;")
+                    fl.addWidget(lbl_cta)
                 if a.notas:
                     fl.addWidget(QLabel(a.notas))
                 fl.addStretch()
@@ -187,8 +228,9 @@ class AbonosDialog(QDialog):
         qd = self._f_fecha.date()
         fecha = date(qd.year(), qd.month(), qd.day())
         notas = self._f_notas.text().strip()
+        cuenta_id = self._combo_cuenta.currentData()
         try:
-            self._ctrl.registrar_abono(self._factura.id, monto, fecha, notas)
+            self._ctrl.registrar_abono(self._factura.id, monto, fecha, notas, cuenta_id)
             self._f_monto.clear()
             self._f_notas.clear()
             self._cargar_abonos()
@@ -673,7 +715,7 @@ class _FacturasPorPagarPanel(QWidget):
         hh.setMinimumSectionSize(50)
         hh.setStretchLastSection(False)
         for col, w in [(1, 230), (2, 140), (3, 115), (4, 105), (5, 105),
-                       (6, 60), (7, 100), (8, 105), (9, 250)]:
+                       (6, 60), (7, 100), (8, 105), (9, 210)]:
             hh.setSectionResizeMode(col, QHeaderView.Interactive)
             self.tabla.setColumnWidth(col, w)
         self.tabla.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
@@ -878,12 +920,29 @@ class _FacturasPorPagarPanel(QWidget):
     def _widget_acciones(self, factura_id: int, estado: str) -> QWidget:
         w = QWidget()
         lay = QHBoxLayout(w)
-        lay.setContentsMargins(4, 2, 4, 2)
+        lay.setContentsMargins(6, 2, 6, 2)
         lay.setSpacing(5)
+
+        _ESTILO_ICON = (
+            "QPushButton {{ background:{bg}; color:{fg}; border:1px solid {brd};"
+            "border-radius:4px; font-size:14px; }}"
+            "QPushButton:hover {{ background:{hov}; }}"
+        )
+
+        def _icon_btn(emoji, tooltip, bg, fg, brd, hov, handler):
+            btn = QPushButton(emoji)
+            btn.setFixedSize(30, 26)
+            btn.setToolTip(tooltip)
+            btn.setStyleSheet(
+                _ESTILO_ICON.format(bg=bg, fg=fg, brd=brd, hov=hov)
+            )
+            btn.clicked.connect(handler)
+            return btn
 
         if estado == "pendiente":
             btn_abonar = QPushButton("Abonar")
             btn_abonar.setFixedHeight(26)
+            btn_abonar.setMinimumWidth(62)
             btn_abonar.setStyleSheet(
                 "QPushButton { background:#FEF3C7; color:#92400E; border:1px solid #FDE68A;"
                 "border-radius:4px; font-size:11px; font-weight:bold; padding:0 8px; }"
@@ -892,8 +951,9 @@ class _FacturasPorPagarPanel(QWidget):
             btn_abonar.clicked.connect(lambda _, fid=factura_id: self._on_abonar_factura(fid))
             lay.addWidget(btn_abonar)
 
-            btn_pagar = QPushButton("Pagada")
+            btn_pagar = QPushButton("Pagada ✓")
             btn_pagar.setFixedHeight(26)
+            btn_pagar.setMinimumWidth(76)
             btn_pagar.setStyleSheet(
                 "QPushButton { background:#DCFCE7; color:#15803D; border:1px solid #86EFAC;"
                 "border-radius:4px; font-size:11px; font-weight:bold; padding:0 8px; }"
@@ -902,36 +962,22 @@ class _FacturasPorPagarPanel(QWidget):
             btn_pagar.clicked.connect(lambda _, fid=factura_id: self._on_marcar_pagada(fid))
             lay.addWidget(btn_pagar)
 
-        btn_items = QPushButton("Items")
-        btn_items.setFixedHeight(26)
-        btn_items.setStyleSheet(
-            "QPushButton { background:#F0FDF4; color:#15803D; border:1px solid #86EFAC;"
-            "border-radius:4px; font-size:11px; font-weight:bold; padding:0 8px; }"
-            "QPushButton:hover { background:#DCFCE7; }"
-        )
-        btn_items.clicked.connect(lambda _, fid=factura_id: self._on_ver_items(fid))
-
-        btn_editar = QPushButton("Editar")
-        btn_editar.setFixedHeight(26)
-        btn_editar.setStyleSheet(
-            "QPushButton { background:#EFF6FF; color:#1D4ED8; border:1px solid #BFDBFE;"
-            "border-radius:4px; font-size:11px; font-weight:bold; padding:0 8px; }"
-            "QPushButton:hover { background:#DBEAFE; }"
-        )
-        btn_editar.clicked.connect(lambda _, fid=factura_id: self._on_editar(fid))
-
-        btn_borrar = QPushButton("Borrar")
-        btn_borrar.setFixedHeight(26)
-        btn_borrar.setStyleSheet(
-            "QPushButton { background:#FEF2F2; color:#DC2626; border:1px solid #FECACA;"
-            "border-radius:4px; font-size:11px; font-weight:bold; padding:0 8px; }"
-            "QPushButton:hover { background:#FEE2E2; }"
-        )
-        btn_borrar.clicked.connect(lambda _, fid=factura_id: self._on_eliminar(fid))
-
-        lay.addWidget(btn_items)
-        lay.addWidget(btn_editar)
-        lay.addWidget(btn_borrar)
+        lay.addWidget(_icon_btn(
+            "📋", "Ver ítems",
+            "#F0FDF4", "#15803D", "#86EFAC", "#DCFCE7",
+            lambda _, fid=factura_id: self._on_ver_items(fid),
+        ))
+        lay.addWidget(_icon_btn(
+            "✏", "Editar factura",
+            "#EFF6FF", "#1D4ED8", "#BFDBFE", "#DBEAFE",
+            lambda _, fid=factura_id: self._on_editar(fid),
+        ))
+        lay.addWidget(_icon_btn(
+            "🗑", "Borrar factura",
+            "#FEF2F2", "#DC2626", "#FECACA", "#FEE2E2",
+            lambda _, fid=factura_id: self._on_eliminar(fid),
+        ))
+        lay.addStretch()
         return w
 
     # ------------------------------------------------------------------
@@ -1046,9 +1092,14 @@ class _FacturasPorPagarPanel(QWidget):
         f = next((x for x in self._facturas if x.id == factura_id), None)
         nombre = f.descripcion if f else f"id {factura_id}"
 
+        # Calcular monto restante (descontando abonos ya registrados)
+        ya_abonado = self._ctrl.total_abonado(factura_id)
+        monto_total = f.monto if f else 0.0
+        restante = max(0.0, monto_total - ya_abonado)
+
         dlg = QDialog(self)
         dlg.setWindowTitle("Registrar pago")
-        dlg.setFixedWidth(320)
+        dlg.setFixedWidth(400)
         lay = QVBoxLayout(dlg)
         lay.setContentsMargins(18, 14, 18, 14)
         lay.setSpacing(10)
@@ -1057,6 +1108,18 @@ class _FacturasPorPagarPanel(QWidget):
         lbl.setWordWrap(True)
         lbl.setStyleSheet("font-size:12px; color:#374151;")
         lay.addWidget(lbl)
+
+        # Resumen de montos (visible si hay abonos previos)
+        if ya_abonado > 0:
+            lbl_montos = QLabel(
+                f"Total: {cop(monto_total)}  |  Abonado: {cop(ya_abonado)}  "
+                f"|  A pagar ahora: {cop(restante)}"
+            )
+            lbl_montos.setStyleSheet(
+                "font-size:11px; color:#0369A1; background:#EFF6FF;"
+                "border-radius:5px; padding:5px 8px;"
+            )
+            lay.addWidget(lbl_montos)
 
         lbl_fecha = QLabel("Fecha de pago:")
         lbl_fecha.setStyleSheet("font-size:11px; color:#6B7280;")
@@ -1071,6 +1134,28 @@ class _FacturasPorPagarPanel(QWidget):
             "QDateEdit { border:1px solid #D1D5DB; border-radius:4px; padding:0 8px; }"
         )
         lay.addWidget(f_picker)
+
+        # Selector de cuenta de pago
+        lbl_cta = QLabel(
+            f"Cuenta de pago ({cop(restante)}):" if restante > 0 else "Cuenta de pago:"
+        )
+        lbl_cta.setStyleSheet("font-size:11px; color:#6B7280;")
+        lay.addWidget(lbl_cta)
+
+        combo_cuenta = QComboBox()
+        combo_cuenta.setFixedHeight(30)
+        combo_cuenta.setStyleSheet(
+            "QComboBox { border:1px solid #D1D5DB; border-radius:4px; padding:0 8px;"
+            " font-size:12px; }"
+        )
+        combo_cuenta.addItem("— Sin descontar de cuentas —", None)
+        try:
+            from database.cuentas_repo import obtener_todas as _cuentas
+            for c in _cuentas():
+                combo_cuenta.addItem(f"{c.nombre}  ({cop(c.balance_actual)})", c.id)
+        except Exception:
+            pass
+        lay.addWidget(combo_cuenta)
 
         btns = QHBoxLayout(); btns.setSpacing(8)
         btn_ok = QPushButton("Confirmar pago")
@@ -1094,7 +1179,8 @@ class _FacturasPorPagarPanel(QWidget):
         if dlg.exec() == QDialog.Accepted:
             qd = f_picker.date()
             fecha_pago = date(qd.year(), qd.month(), qd.day())
-            self._ctrl.marcar_pagada(factura_id, fecha_pago)
+            cuenta_id = combo_cuenta.currentData()
+            self._ctrl.marcar_pagada(factura_id, fecha_pago, cuenta_id)
             self._cargar_datos()
 
     def _on_eliminar(self, factura_id: int) -> None:

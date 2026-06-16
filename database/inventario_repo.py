@@ -169,6 +169,30 @@ def decrementar_cantidad(nombre_producto: str, cantidad: int) -> bool:
     return cursor.rowcount > 0
 
 
+def incrementar_cantidad(nombre_producto: str, cantidad: int) -> bool:
+    """
+    Devuelve `cantidad` unidades al stock del producto (reversa de una venta eliminada).
+    Retorna True si encontró el producto.
+    """
+    conn = DatabaseConnection.get()
+    row_ant = conn.execute(
+        "SELECT id, cantidad FROM inventario WHERE LOWER(producto) = LOWER(?) LIMIT 1",
+        (nombre_producto,),
+    ).fetchone()
+
+    cursor = conn.execute(
+        "UPDATE inventario SET cantidad = cantidad + ? WHERE LOWER(producto) = LOWER(?)",
+        (cantidad, nombre_producto),
+    )
+    conn.commit()
+    if cursor.rowcount > 0 and row_ant is not None:
+        cant_ant = row_ant["cantidad"]
+        registrar_movimiento(
+            row_ant["id"], nombre_producto, "Reversa venta", cant_ant, cant_ant + cantidad
+        )
+    return cursor.rowcount > 0
+
+
 def actualizar_cantidad_con_tipo(
     prod_id: int,
     nombre: str,

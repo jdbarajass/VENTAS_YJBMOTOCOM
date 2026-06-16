@@ -109,7 +109,7 @@ class VistaDiariaDialog(QDialog):
         lay.addWidget(lbl)
         lay.addSpacing(16)
 
-        total_ingresos = sum(v.precio * v.cantidad for v in self._ventas)
+        total_ingresos = sum(v.ingreso_real() for v in self._ventas)
         total_neta     = sum(v.ganancia_neta for v in self._ventas)
         total_gastos   = sum(g.monto for g in self._gastos)
 
@@ -215,7 +215,7 @@ class VistaDiariaDialog(QDialog):
         tabla.setRowCount(len(self._ventas))
         for row, v in enumerate(self._ventas):
             tabla.setRowHeight(row, 32)
-            precio_total = v.precio * v.cantidad
+            precio_total = v.ingreso_real()
 
             prod_txt = v.producto if v.cantidad == 1 else f"{v.producto}  (×{v.cantidad})"
             item_prod = QTableWidgetItem(prod_txt)
@@ -279,7 +279,7 @@ class VistaDiariaDialog(QDialog):
                 for p in v.pagos_combinados:
                     totales_met[p["metodo"]] += p["monto"]
             else:
-                totales_met[v.metodo_pago] += v.precio * v.cantidad
+                totales_met[v.metodo_pago] += v.ingreso_real()
 
         if totales_met:
             fila_met = QHBoxLayout()
@@ -310,7 +310,7 @@ class VistaDiariaDialog(QDialog):
             lay.addLayout(fila_met)
 
         # Grand totals
-        total_ingresos = sum(v.precio * v.cantidad for v in self._ventas)
+        total_ingresos = sum(v.ingreso_real() for v in self._ventas)
         total_neta     = sum(v.ganancia_neta for v in self._ventas)
 
         fila_tot = QHBoxLayout()
@@ -346,7 +346,7 @@ class VistaDiariaDialog(QDialog):
         from database.ventas_repo import obtener_ventas_por_fecha
         self._ventas = obtener_ventas_por_fecha(self._fecha)
 
-        total_ingresos = sum(v.precio * v.cantidad for v in self._ventas)
+        total_ingresos = sum(v.ingreso_real() for v in self._ventas)
         total_neta     = sum(v.ganancia_neta for v in self._ventas)
 
         # Actualizar chips del header

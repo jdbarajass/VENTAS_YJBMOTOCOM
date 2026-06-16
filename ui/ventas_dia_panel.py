@@ -42,9 +42,10 @@ TOTAL_COLS   = 12
 class VentasDiaPanel(QWidget):
     """Vista de ventas del día con tabla, edición, eliminación, gastos operativos y export."""
 
-    # Emitida cuando se agregan o eliminan gastos operativos del día,
-    # para que MainWindow refresque el dashboard y el historial automáticamente.
+    # Emitida cuando se agregan o eliminan gastos operativos del día.
     gastos_actualizados = Signal()
+    # Emitida cuando se edita o elimina una venta, para refrescar otras vistas.
+    venta_modificada = Signal()
 
     def __init__(self, parent=None) -> None:
         super().__init__(parent)
@@ -587,10 +588,7 @@ class VentasDiaPanel(QWidget):
 
     def _actualizar_resumen(self) -> None:
         n          = sum(v.cantidad for v in self._ventas)
-        ingresos   = sum(
-            v.precio * v.cantidad - (getattr(v, "descuento", 0) or 0)
-            for v in self._ventas
-        )
+        ingresos   = sum(v.ingreso_real() for v in self._ventas)
         costos     = sum(v.costo * v.cantidad for v in self._ventas)
         comisiones = sum(v.comision for v in self._ventas)
         neta       = sum(v.ganancia_neta for v in self._ventas)
@@ -682,7 +680,10 @@ class VentasDiaPanel(QWidget):
         if not venta:
             return
         dialog = EditVentaDialog(venta, self)
-        dialog.venta_actualizada.connect(lambda _: self._cargar_datos())
+        def _tras_editar(_):
+            self._cargar_datos()
+            self.venta_modificada.emit()
+        dialog.venta_actualizada.connect(_tras_editar)
         dialog.exec()
 
     def _on_eliminar(self, venta_id: int) -> None:
@@ -700,6 +701,7 @@ class VentasDiaPanel(QWidget):
         if resp == QMessageBox.Yes:
             self._ctrl.eliminar(venta_id)
             self._cargar_datos()
+            self.venta_modificada.emit()
 
     def _on_ver_recibo(self, venta_id: int) -> None:
         """Abre el diálogo de vista previa del recibo (con opción de imprimir)."""

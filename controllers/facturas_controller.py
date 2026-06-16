@@ -89,7 +89,43 @@ class FacturasController:
         return resultado
 
     def eliminar(self, factura_id: int) -> bool:
-        """Elimina una factura del historial."""
+        """
+        Elimina una factura y revierte los débitos en cuenta de todos sus abonos
+        y del pago final si existía, antes de eliminar la fila (el CASCADE borrará
+        los abonos_factura automáticamente).
+        """
+        from database.cuentas_repo import revertir_abono_factura
+        from datetime import date as _date
+
+        factura = next((f for f in obtener_todas_facturas() if f.id == factura_id), None)
+        abonos = obtener_abonos_por_factura(factura_id)
+
+        # Revertir cada abono que haya debitado una cuenta
+        for abono in abonos:
+            if abono.cuenta_id:
+                try:
+                    fecha_rev = abono.fecha if abono.fecha else _date.today()
+                    revertir_abono_factura(
+                        abono.cuenta_id, abono.monto, fecha_rev,
+                        f"Reversa abono (factura eliminada #{factura_id})",
+                    )
+                except Exception:
+                    pass
+
+        # Si la factura estaba pagada y tenía cuenta_id, revertir el pago final
+        if factura and factura.estado == "pagada" and factura.cuenta_id:
+            ya_abonado = obtener_total_abonado(factura_id)
+            restante = max(0.0, factura.monto - ya_abonado)
+            if restante > 0:
+                try:
+                    fecha_rev = factura.fecha_pago if factura.fecha_pago else _date.today()
+                    revertir_abono_factura(
+                        factura.cuenta_id, restante, fecha_rev,
+                        f"Reversa pago final (factura eliminada #{factura_id})",
+                    )
+                except Exception:
+                    pass
+
         return eliminar_factura(factura_id)
 
     # ------------------------------------------------------------------
@@ -121,7 +157,7 @@ class FacturasController:
         total = obtener_total_abonado(factura_id)
         factura = next((f for f in obtener_todas_facturas() if f.id == factura_id), None)
         if factura and total >= factura.monto:
-            actualizar_estado_factura(factura_id, "pagada", fecha)
+            actualizar_estado_factura(factura_id, "pagada", fecha, cuenta_id)
         return a
 
     def cargar_abonos(self, factura_id: int) -> list[AbonoFactura]:
@@ -135,9 +171,9 @@ class FacturasController:
         resultado = eliminar_abono(abono_id)
         if resultado and abono and abono.cuenta_id:
             from database.cuentas_repo import revertir_abono_factura
-            from datetime import date as _date
+            fecha_reversa = abono.fecha if abono.fecha else date.today()
             revertir_abono_factura(
-                abono.cuenta_id, abono.monto, _date.today(),
+                abono.cuenta_id, abono.monto, fecha_reversa,
                 f"Reversa abono factura #{abono.factura_id}",
             )
         return resultado

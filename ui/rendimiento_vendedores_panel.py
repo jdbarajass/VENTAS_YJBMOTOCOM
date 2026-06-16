@@ -18,13 +18,6 @@ from PySide6.QtGui import QFont, QColor
 from utils.formatters import cop, MESES_ES
 
 
-def _ingreso_real(v) -> float:
-    """Ingreso real cobrado — compatible con modelo antiguo y nuevo de descuentos."""
-    _d  = getattr(v, "descuento", 0) or 0
-    _po = getattr(v, "precio_ofertado", 0.0) or 0.0
-    return v.precio * v.cantidad - (0 if _po > 0 else _d)
-
-
 class RendimientoVendedoresPanel(QWidget):
     """Tabla mensual de ventas por vendedor, con totales al pie."""
 
@@ -168,7 +161,7 @@ class RendimientoVendedoresPanel(QWidget):
                 stats[nombre] = {"trans": set(), "uds": 0, "ing": 0.0}
             stats[nombre]["trans"].add(v.numero_factura or v.id)
             stats[nombre]["uds"] += v.cantidad
-            stats[nombre]["ing"] += _ingreso_real(v)
+            stats[nombre]["ing"] += v.ingreso_real()
 
         # Ordenar: mayor ingreso primero; sin ventas al final
         filas = sorted(
@@ -223,7 +216,7 @@ class RendimientoVendedoresPanel(QWidget):
         # Totales globales
         total_trans = len({(v.numero_factura or v.id) for v in ventas})
         total_uds   = sum(v.cantidad for v in ventas)
-        total_ing   = sum(_ingreso_real(v) for v in ventas)
+        total_ing   = sum(v.ingreso_real() for v in ventas)
 
         self._lbl_tot_trans.setText(f"{total_trans} transacciones")
         self._lbl_tot_uds.setText(f"{total_uds} unidades")

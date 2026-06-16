@@ -118,9 +118,7 @@ def acreditar_venta(venta) -> None:
                 _acreditar_un_pago(conn, pago["metodo"], pago["monto"],
                                    venta.id, venta.fecha)
         elif venta.metodo_pago not in ("Otro", "Combinado"):
-            desc = getattr(venta, "descuento", 0) or 0
-            monto_real = venta.precio * venta.cantidad - desc
-            _acreditar_un_pago(conn, venta.metodo_pago, monto_real,
+            _acreditar_un_pago(conn, venta.metodo_pago, venta.ingreso_real(),
                                venta.id, venta.fecha)
         conn.commit()
     except Exception as exc:
@@ -143,6 +141,45 @@ def _acreditar_un_pago(conn, metodo: str, monto: float, venta_id, fecha) -> None
         """INSERT INTO cuentas_movimientos
            (cuenta_id, fecha, tipo, monto, descripcion, venta_id)
            VALUES (?, ?, 'venta', ?, 'Ingreso por venta', ?)""",
+        (cuenta_id, fecha_str, round(monto, 2), venta_id)
+    )
+
+
+def revertir_credito_venta(venta) -> None:
+    """
+    Revierte el crédito que acreditar_venta() aplicó cuando se elimina una venta.
+    Silencioso si el método de pago no tiene cuenta asociada.
+    """
+    conn = DatabaseConnection.get()
+    try:
+        if venta.metodo_pago == "Combinado" and venta.pagos_combinados:
+            for pago in venta.pagos_combinados:
+                _revertir_un_pago(conn, pago["metodo"], pago["monto"],
+                                  venta.id, venta.fecha)
+        elif venta.metodo_pago not in ("Otro", "Combinado"):
+            _revertir_un_pago(conn, venta.metodo_pago, venta.ingreso_real(),
+                              venta.id, venta.fecha)
+        conn.commit()
+    except Exception as exc:
+        log.warning("No se pudo revertir crédito de venta %s: %s", venta.id, exc)
+
+
+def _revertir_un_pago(conn, metodo: str, monto: float, venta_id, fecha) -> None:
+    row = conn.execute(
+        "SELECT id FROM cuentas WHERE metodo_pago = ? AND activa = 1", (metodo,)
+    ).fetchone()
+    if not row:
+        return
+    cuenta_id = row[0]
+    conn.execute(
+        "UPDATE cuentas SET balance_actual = balance_actual - ? WHERE id = ?",
+        (round(monto, 2), cuenta_id)
+    )
+    fecha_str = fecha.isoformat() if hasattr(fecha, "isoformat") else str(fecha)
+    conn.execute(
+        """INSERT INTO cuentas_movimientos
+           (cuenta_id, fecha, tipo, monto, descripcion, venta_id)
+           VALUES (?, ?, 'reversa_venta', ?, 'Reversa: venta eliminada', ?)""",
         (cuenta_id, fecha_str, round(monto, 2), venta_id)
     )
 

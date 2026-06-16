@@ -50,6 +50,16 @@ class Venta:
         """Diferencia entre precio y costo multiplicada por cantidad."""
         return (self.precio - self.costo) * self.cantidad
 
+    def ingreso_real(self) -> float:
+        """
+        Importe real cobrado al cliente, compatible con ambos modelos de descuento.
+        - Modelo nuevo (precio_ofertado > 0): precio ya es el real; precio_ofertado es el anunciado.
+        - Modelo antiguo (descuento > 0): precio es el anunciado; descuento es el ahorro.
+        """
+        _po = self.precio_ofertado or 0.0
+        _d  = self.descuento or 0
+        return self.precio * self.cantidad - (0 if _po > 0 else _d)
+
     def __post_init__(self) -> None:
         """Validaciones básicas al construir el objeto."""
         if self.costo < 0:

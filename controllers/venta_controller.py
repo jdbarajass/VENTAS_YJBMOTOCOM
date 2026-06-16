@@ -300,6 +300,7 @@ class VentaController:
     ) -> bool:
         """
         Recalcula comisión y ganancia neta con la config actual y persiste.
+        Revierte el crédito de la versión anterior en cuentas y aplica el nuevo.
         Retorna True si se actualizó correctamente.
         """
         self._validar(venta.producto, venta.costo, venta.precio)
@@ -308,15 +309,47 @@ class VentaController:
             venta.metodo_pago = "Combinado" if pagos_combinados else venta.metodo_pago
         cfg = self.get_configuracion()
         completar_venta(venta, cfg)
-        return actualizar_venta(venta)
+
+        # Revertir crédito de la versión anterior y aplicar el nuevo
+        from database.ventas_repo import obtener_venta_por_id
+        from database.cuentas_repo import revertir_credito_venta, acreditar_venta
+        original = obtener_venta_por_id(venta.id)
+        resultado = actualizar_venta(venta)
+        if resultado and original:
+            try:
+                revertir_credito_venta(original)
+            except Exception:
+                pass
+            try:
+                acreditar_venta(venta)
+            except Exception:
+                pass
+        return resultado
 
     # ------------------------------------------------------------------
     # Eliminar venta
     # ------------------------------------------------------------------
 
     def eliminar_venta(self, venta_id: int) -> bool:
-        """Elimina una venta por su id. Retorna True si se eliminó."""
-        return _eliminar_venta(venta_id)
+        """
+        Elimina una venta y revierte sus efectos secundarios:
+        restaura el stock del producto y revierte el crédito en la cuenta.
+        """
+        from database.ventas_repo import obtener_venta_por_id
+        venta = obtener_venta_por_id(venta_id)
+        resultado = _eliminar_venta(venta_id)
+        if resultado and venta is not None:
+            try:
+                from database.inventario_repo import incrementar_cantidad
+                incrementar_cantidad(venta.producto, venta.cantidad)
+            except Exception:
+                pass
+            try:
+                from database.cuentas_repo import revertir_credito_venta
+                revertir_credito_venta(venta)
+            except Exception:
+                pass
+        return resultado
 
     # ------------------------------------------------------------------
     # Validación interna

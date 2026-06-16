@@ -296,9 +296,7 @@ def _tabla_top_productos(ventas, resumen: ResumenMensual) -> Table:
     for v in ventas:
         nombre = _re.sub(r"\s*-T:\S*", "", v.producto, flags=_re.IGNORECASE).strip()
         por_producto[nombre]["cantidad"] += v.cantidad
-        por_producto[nombre]["ingresos"] += (
-            v.precio * v.cantidad - (getattr(v, "descuento", 0) or 0)
-        )
+        por_producto[nombre]["ingresos"] += v.ingreso_real()
 
     top = sorted(por_producto.items(), key=lambda x: -x[1]["cantidad"])[:10]
 
@@ -446,7 +444,7 @@ def _tabla_horas_pico(ventas) -> Table:
         try:
             h = int(v.hora[:2])
             por_hora[h] += v.cantidad
-            ingresos_hora[h] += v.precio * v.cantidad - (getattr(v, "descuento", 0) or 0)
+            ingresos_hora[h] += v.ingreso_real()
         except ValueError:
             pass
 
@@ -729,8 +727,7 @@ def _grafica_metodos_pago(ventas) -> Drawing | None:
     por_metodo: dict[str, float] = defaultdict(float)
     for v in ventas:
         metodo = (v.metodo_pago or "Otro").strip()
-        ingreso = v.precio * v.cantidad - (getattr(v, "descuento", 0) or 0)
-        por_metodo[metodo] += ingreso
+        por_metodo[metodo] += v.ingreso_real()
 
     if not por_metodo:
         return None

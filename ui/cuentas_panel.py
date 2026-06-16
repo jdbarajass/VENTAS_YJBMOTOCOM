@@ -339,8 +339,8 @@ class _TabResumen(QWidget):
         # Nota informativa
         nota = QLabel(
             "Las ventas nuevas se acreditan automáticamente · "
-            "Usa 'Ajustar' para correcciones manuales · "
-            "Las ediciones/eliminaciones de ventas requieren ajuste manual"
+            "Las ediciones y eliminaciones de ventas también actualizan el saldo automáticamente · "
+            "Usa 'Ajustar' solo para correcciones manuales"
         )
         nota.setWordWrap(True)
         nota.setStyleSheet(f"font-size:10px; color:{_txt_sec()}; padding:4px 0;")

@@ -500,6 +500,7 @@ class EditVentaDialog(QDialog):
             venta.cliente_tel     = getattr(self._venta_original, "cliente_tel", "")
             venta.descuento       = getattr(self._venta_original, "descuento", 0)
             venta.sku             = getattr(self._venta_original, "sku", "")
+            venta.precio_ofertado = getattr(self._venta_original, "precio_ofertado", 0.0)
             venta.numero_factura  = getattr(self._venta_original, "numero_factura", None)
             venta.hora            = getattr(self._venta_original, "hora", "")
             venta.grupo_venta_id  = getattr(self._venta_original, "grupo_venta_id", None)

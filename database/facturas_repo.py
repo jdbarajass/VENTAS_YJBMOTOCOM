@@ -79,8 +79,6 @@ def obtener_todas_facturas() -> list[Factura]:
 def obtener_facturas_proximas_a_vencer(dias: int = 7) -> list[Factura]:
     """Retorna facturas pendientes cuya fecha_vencimiento está entre hoy y hoy+dias."""
     conn = DatabaseConnection.get()
-    hoy = date.today().strftime("%Y-%m-%d")
-    limite = date.today().replace(day=date.today().day)
     from datetime import timedelta
     limite_str = (date.today() + timedelta(days=dias)).strftime("%Y-%m-%d")
     rows = conn.execute(

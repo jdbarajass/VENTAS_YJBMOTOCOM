@@ -8,10 +8,7 @@ from pathlib import Path
 
 from models.venta import Venta
 from models.gasto_dia import GastoDia
-from database.ventas_repo import (
-    obtener_ventas_por_fecha,
-    eliminar_venta,
-)
+from database.ventas_repo import obtener_ventas_por_fecha
 from database.gastos_dia_repo import (
     insertar_gasto,
     obtener_gastos_por_fecha,
@@ -29,8 +26,9 @@ class VentasDiaController:
         return obtener_ventas_por_fecha(fecha)
 
     def eliminar(self, venta_id: int) -> bool:
-        """Elimina una venta por id. Retorna True si se eliminó."""
-        return eliminar_venta(venta_id)
+        """Elimina una venta y revierte stock e inventario. Retorna True si se eliminó."""
+        from controllers.venta_controller import VentaController
+        return VentaController().eliminar_venta(venta_id)
 
     def exportar_excel(self, ventas: list[Venta], fecha: date, ruta: Path) -> None:
         """Genera el archivo Excel en la ruta indicada."""

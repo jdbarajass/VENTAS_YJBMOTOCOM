@@ -417,7 +417,7 @@ class HistorialPanel(QWidget):
         )
         for v in self._ventas:
             nombre = v.producto
-            ingresos = v.precio * v.cantidad - (getattr(v, "descuento", 0) or 0)
+            ingresos = v.ingreso_real()
             grupos[nombre]["uds"] += v.cantidad
             grupos[nombre]["ingresos"] += ingresos
             grupos[nombre]["costos"] += v.costo * v.cantidad
@@ -812,7 +812,7 @@ class HistorialPanel(QWidget):
             self.tabla_detalle.setItem(row, 5, item_gn)
 
             # Margen %
-            ingresos = v.precio * v.cantidad - (getattr(v, "descuento", 0) or 0)
+            ingresos = v.ingreso_real()
             if ingresos > 0:
                 margen = round(v.ganancia_neta / ingresos * 100, 1)
                 margen_txt = f"{margen:+.1f}%"
@@ -889,7 +889,7 @@ class HistorialPanel(QWidget):
             )
             self.tabla_detalle.setItem(row, 5, item_gn)
             # Margen %
-            ingresos = v.precio * v.cantidad - (getattr(v, "descuento", 0) or 0)
+            ingresos = v.ingreso_real()
             if ingresos > 0:
                 margen = round(v.ganancia_neta / ingresos * 100, 1)
                 margen_txt = f"{margen:+.1f}%"
@@ -959,8 +959,9 @@ class HistorialPanel(QWidget):
         from ui.vista_diaria_dialog import VistaDiariaDialog
         dlg = VistaDiariaDialog(ventas_dia, self._fecha_seleccionada, self)
         dlg.exec()
-        # Refrescar historial por si hubo ediciones desde la vista diaria
+        # Refrescar historial y notificar a demás paneles por si hubo ediciones
         self.refresh()
+        self.venta_modificada.emit()
 
     # ------------------------------------------------------------------
     # Botones de acción (devuelven QPushButton directo, sin wrapper)

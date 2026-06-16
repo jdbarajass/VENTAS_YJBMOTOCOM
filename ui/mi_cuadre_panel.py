@@ -16,15 +16,6 @@ from PySide6.QtGui import QFont
 from utils.formatters import cop, fecha_corta
 
 
-def _ingreso_real(v) -> float:
-    """Ingreso real cobrado por una venta, compatible con modelo antiguo y nuevo."""
-    _d  = getattr(v, "descuento", 0) or 0
-    _po = getattr(v, "precio_ofertado", 0.0) or 0.0
-    # Nuevo modelo: precio ya es el precio real cobrado (precio_ofertado = anunciado)
-    # Modelo antiguo: precio = precio anunciado, descuento = valor descontado (solo en v0)
-    return v.precio * v.cantidad - (0 if _po > 0 else _d)
-
-
 class MiCuadrePanel(QWidget):
     """Cuadre del día para el vendedor — sin datos sensibles de costos."""
 
@@ -125,7 +116,7 @@ class MiCuadrePanel(QWidget):
         ventas = obtener_ventas_por_fecha(hoy)
 
         cantidad = sum(v.cantidad for v in ventas)
-        total_recaudado = sum(_ingreso_real(v) for v in ventas)
+        total_recaudado = sum(v.ingreso_real() for v in ventas)
 
         self._card_ventas._lbl_v.setText(str(cantidad))
         self._card_ingreso._lbl_v.setText(cop(total_recaudado))
@@ -139,7 +130,7 @@ class MiCuadrePanel(QWidget):
         por_metodo: dict[str, float] = defaultdict(float)
         for v in ventas:
             metodo = v.metodo_pago or "Otro"
-            por_metodo[metodo] += _ingreso_real(v)
+            por_metodo[metodo] += v.ingreso_real()
 
         if not por_metodo:
             lbl_vacio = QLabel("Sin ventas registradas hoy.")

@@ -417,6 +417,8 @@ class MainWindow(QMainWindow):
         self._ventas_dia.gastos_actualizados.connect(self._historial.refresh)
         self._ventas_dia.gastos_actualizados.connect(self._presupuesto.refresh)
         self._ventas_dia.gastos_actualizados.connect(self._cuentas.refresh)
+        # Cuando se edita o elimina una venta desde Ventas del Día
+        self._ventas_dia.venta_modificada.connect(self._on_venta_modificada_en_ventas_dia)
 
         layout.addWidget(self._stack)
         return wrapper
@@ -678,10 +680,22 @@ class MainWindow(QMainWindow):
             "Configuración guardada  •  Cálculos actualizados automáticamente"
         )
 
+    def _on_venta_modificada_en_ventas_dia(self) -> None:
+        """Al editar o eliminar desde Ventas del Día, refresca historial, dashboard, cuadre y rendimiento."""
+        self._historial.refresh()
+        self._dashboard.refresh()
+        self._mi_cuadre.refresh()
+        self._rendimiento.refresh()
+        self._cuentas.refresh()
+        self._actualizar_badge_stock()
+
     def _on_venta_modificada_en_historial(self) -> None:
-        """Al editar o eliminar desde historial, refresca ventas del día y dashboard."""
+        """Al editar o eliminar desde historial, refresca ventas del día, dashboard, cuadre y rendimiento."""
         self._ventas_dia.refresh()
         self._dashboard.refresh()
+        self._mi_cuadre.refresh()
+        self._rendimiento.refresh()
+        self._cuentas.refresh()
         self._actualizar_badge_stock()
 
     def _on_datos_importados(self) -> None:

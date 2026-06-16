@@ -1154,7 +1154,7 @@ def exportar_todo(
             )
             total_cant     += v.cantidad
             total_costos   += v.costo * v.cantidad
-            total_ingresos += v.precio * v.cantidad - (getattr(v, "descuento", 0) or 0)
+            total_ingresos += v.ingreso_real()
             total_comision += v.comision
             total_neta     += v.ganancia_neta
 
@@ -1618,7 +1618,7 @@ def exportar_ventas_dia(ventas: list[Venta], fecha: date, ruta: Path) -> None:
         else:
             cell_neta.fill = PatternFill("solid", fgColor=_ROJO)
 
-        total_ingresos += v.precio * v.cantidad - (getattr(v, "descuento", 0) or 0)
+        total_ingresos += v.ingreso_real()
         total_costos += v.costo * v.cantidad
         total_comision += v.comision
         total_neta += v.ganancia_neta

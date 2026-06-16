@@ -495,14 +495,22 @@ def resetear_base_datos() -> None:
     """
     conn = DatabaseConnection.get()
     conn.execute("PRAGMA foreign_keys=OFF;")
-    for tabla in ("abonos_factura", "facturas", "ventas",
-                  "gastos_dia", "prestamos", "inventario",
-                  "presupuesto_mensual", "configuracion", "notas"):
+    for tabla in (
+        "abonos_factura", "facturas", "ventas",
+        "gastos_dia", "prestamos", "inventario",
+        "presupuesto_mensual", "configuracion", "notas",
+        "inventario_movimientos",
+        "abonos_fiado", "fiado",
+        "cuentas_movimientos", "cuentas_cierres",
+    ):
         conn.execute(f"DELETE FROM {tabla}")
+    # Resetear balances de cuentas a 0 sin eliminar la estructura de cuentas
+    conn.execute("UPDATE cuentas SET balance_actual = 0")
     conn.execute(
-        "DELETE FROM sqlite_sequence WHERE name IN "
-        "('abonos_factura','facturas','ventas',"
-        "'gastos_dia','prestamos','inventario','notas')"
+        "DELETE FROM sqlite_sequence WHERE name IN ("
+        "'abonos_factura','facturas','ventas','gastos_dia','prestamos','inventario',"
+        "'notas','inventario_movimientos','abonos_fiado','fiado',"
+        "'cuentas_movimientos','cuentas_cierres')"
     )
     conn.execute("PRAGMA foreign_keys=ON;")
     conn.commit()

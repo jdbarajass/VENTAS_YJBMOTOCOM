@@ -28,8 +28,7 @@ def _expandir_metodos(ventas: list) -> dict:
             for pago in v.pagos_combinados:
                 totales[pago["metodo"]] += pago["monto"]
         else:
-            desc = getattr(v, "descuento", 0) or 0
-            totales[v.metodo_pago] += v.precio * v.cantidad - desc
+            totales[v.metodo_pago] += v.ingreso_real()
     return dict(totales)
 
 
@@ -58,9 +57,8 @@ class DashboardController:
         # ── Productos vendidos ────────────────────────────────────────
         prods: dict[str, dict] = defaultdict(lambda: {"cant": 0, "ing": 0.0, "gan": 0.0})
         for v in ventas:
-            desc = getattr(v, "descuento", 0) or 0
             prods[v.producto]["cant"] += v.cantidad
-            prods[v.producto]["ing"]  += v.precio * v.cantidad - desc
+            prods[v.producto]["ing"]  += v.ingreso_real()
             prods[v.producto]["gan"]  += v.ganancia_neta
         productos = sorted(
             [(n, d["cant"], d["ing"], d["gan"]) for n, d in prods.items()],

@@ -1509,8 +1509,10 @@ class VentaForm(QWidget):
                     cliente_tel=cliente_tel,
                 )
             self._mostrar_exito(ventas)
-            for v in ventas:
-                self.venta_guardada.emit(v)
+            # Emitir una sola vez con el primer ítem del carrito para que
+            # las vistas conectadas se refresquen exactamente una vez.
+            if ventas:
+                self.venta_guardada.emit(ventas[0])
             try:
                 import utils.auditoria as auditoria
                 nombres = ", ".join(v.producto for v in ventas[:3])

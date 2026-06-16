@@ -730,7 +730,7 @@ class DashboardPanel(QWidget):
             por_dia: dict[date, tuple[float, float]] = {}
             for v in ventas:
                 ing, gn = por_dia.get(v.fecha, (0.0, 0.0))
-                por_dia[v.fecha] = (ing + v.precio * v.cantidad, gn + v.ganancia_neta)
+                por_dia[v.fecha] = (ing + v.ingreso_real(), gn + v.ganancia_neta)
             # Construir lista de 7 días (incluye días sin ventas con 0)
             datos = []
             for d in range(7):

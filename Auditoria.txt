@@ -1,0 +1,179 @@
+Hola, muy buenos días.
+
+Quisiera que revises de manera integral todo el proyecto para que puedas comprender completamente de qué se trata. Dentro del repositorio encontrarás documentación que te ayudará a entender el estado actual, los avances realizados y la estructura general del sistema.
+
+La idea es que logres un entendimiento profundo del software —desde su arquitectura hasta su funcionamiento— para que posteriormente puedas implementar los cambios necesarios de manera informada y eficiente.
+El cambio que quiero es el siguiente:
+
+Actúa como un auditor senior de software, analista de lógica de negocio y revisor funcional de una aplicación de gestión para un almacén de accesorios de motos.
+
+Tu tarea es auditar TODO el sistema de forma exhaustiva, módulo por módulo, pero sin tratar cada módulo como si existiera aislado. Debes revisar también sus relaciones, dependencias e interoperabilidad con los demás módulos, porque una acción en un módulo puede afectar varios otros.
+
+No te limites en solo lo que te estoy diciendo revísalo siempre a profundidad y mas criterios a tener en cuenta te digo estos por el momento pero debes analizar más:
+
+Objetivo principal:
+Encontrar y corregir errores de lógica, bugs funcionales, inconsistencias entre módulos, problemas de cálculo, estados desincronizados, errores de persistencia, fallos en reportes y cualquier comportamiento que haga que los datos no coincidan entre pantallas, reportes o procesos.
+
+Reglas de trabajo:
+No te limites en solo lo que te estoy diciendo revísalo siempre a profundidad y mas criterios a tener en cuenta te digo estos por el momento pero debes analizar más:
+1. No hagas suposiciones silenciosas. Si algo no está claro, primero identifica la duda y explícala.
+2. Revisa el software por fases, en orden lógico.
+3. Cada fase debe incluir:
+
+   * qué módulo estás revisando,
+   * qué datos entran,
+   * qué datos salen,
+   * qué otros módulos consume o afecta,
+   * qué reglas de negocio aplican,
+   * qué bugs o inconsistencias encuentras,
+   * qué corrección propones o aplicas.
+4. No te limites a revisar la UI. Debes auditar la lógica interna, cálculos, flujos de datos, almacenamiento, actualizaciones, relaciones entre tablas/colecciones/estados y reportes.
+5. Si corriges algo en un módulo, revisa de inmediato el impacto en todos los módulos relacionados.
+6. Si encuentras que una lógica está mal diseñada, rediseñala para que sea consistente, escalable y fácil de mantener.
+7. Si hay campos calculados, verifica que el cálculo sea exactamente el mismo en todas las vistas donde aparece.
+8. Si hay descuentos, comisiones, ganancias, pagos mixtos, abonos, créditos, devoluciones o ajustes de inventario, revisa cuidadosamente que el valor final coincida en:
+
+   * Registrar venta
+   * Ventas del día
+   * Historial mensual
+   * Mi cuadre
+   * Dashboard
+   * Facturas
+   * Cuentas
+   * Rendimiento vendedores
+   * cualquier otro módulo afectado
+
+9. Si detectas una inconsistencia entre módulos, prioriza la fuente de verdad y haz que todos los demás módulos lean de esa misma lógica.
+10. Documenta TODO lo que hagas para que una próxima sesión pueda continuar exactamente desde el punto donde quedaste.
+
+Método de auditoría obligatorio:
+Fase 1: Reconocimiento general
+
+No te limites en solo lo que te estoy diciendo revísalo siempre a profundidad y mas criterios a tener en cuenta te digo estos por el momento pero debes analizar más:
+* Identifica arquitectura, flujo principal del sistema y orden de dependencias.
+* Lista todos los módulos detectados.
+* Explica cuál parece ser la fuente principal de verdad de ventas, inventario y finanzas.
+
+Fase 2: Auditoría del módulo Registrar Venta
+
+No te limites en solo lo que te estoy diciendo revísalo siempre a profundidad y mas criterios a tener en cuenta te digo estos por el momento pero debes analizar más:
+* Revisa entrada de productos, cantidades, costos, precio de venta, descuentos, método de pago, ventas combinadas, observaciones y cualquier dato extra.
+* Verifica que al registrar una venta se actualicen correctamente los módulos relacionados:
+
+  * inventario
+  * ventas del día
+  * historial mensual
+  * mi cuadre
+  * cuentas
+  * facturación
+  * rendimiento de vendedores
+  * clientes deudores si aplica crédito
+* Revisa que el cálculo de costo, utilidad bruta, utilidad neta, comisión y total coincida en todas partes.
+* Revisa validaciones, estados, duplicados, descuentos, pagos parciales o mixtos, y manejo de errores.
+* Si hay código basura código que no se use ten mucho cuidado valida primero y elimínalo si realmente no esta haciendo nada
+
+Fase 3: Auditoría de Ventas del Día
+
+No te limites en solo lo que te estoy diciendo revísalo siempre a profundidad y mas criterios a tener en cuenta te digo estos por el momento pero debes analizar más:
+* Verifica que las ventas mostradas coincidan exactamente con lo registrado en Registrar Venta.
+* Comprueba filtros por fecha, vendedor, medio de pago y estado.
+* Revisa totales, subtotales, anulaciones, devoluciones y ajustes.
+* Verifica que no haya diferencias entre lo mostrado aquí y lo guardado en la base de datos.
+
+Fase 4: Auditoría de Historial Mensual
+
+No te limites en solo lo que te estoy diciendo revísalo siempre a profundidad y mas criterios a tener en cuenta te digo estos por el momento pero debes analizar más:
+* Comprueba que el historial mensual agregue correctamente todas las ventas del periodo.
+* Revisa totales por día, por vendedor, por método de pago, por categoría, por descuento y por utilidad.
+* Verifica que las fórmulas sean coherentes con Ventas del día y Registrar Venta.
+* Busca errores de agrupación, fechas mal interpretadas o registros omitidos.
+
+Fase 5: Auditoría de Inventario
+
+No te limites en solo lo que te estoy diciendo revísalo siempre a profundidad y mas criterios a tener en cuenta te digo estos por el momento pero debes analizar más:
+* Revisa que cada venta descuente inventario correctamente.
+* Verifica entradas, salidas, ajustes, productos con tallas, variantes y referencias.
+* Comprueba que no existan desfaces entre inventario físico, inventario lógico y movimientos registrados.
+* Revisa productos con stock crítico, stock negativo y duplicados.
+
+Fase 6: Auditoría de Préstamos y Clientes Deudores
+
+No te limites en solo lo que te estoy diciendo revísalo siempre a profundidad y mas criterios a tener en cuenta te digo estos por el momento pero debes analizar más:
+* Verifica que una venta a crédito o un préstamo genere los movimientos correctos.
+* Comprueba que los abonos, saldos pendientes, vencimientos e historial del cliente estén bien calculados.
+* Revisa conexión con facturas, cuentas y mi cuadre.
+* Asegúrate de que no se mezclen ventas pagadas con ventas pendientes.
+
+Fase 7: Auditoría de Facturas y Comprobantes
+
+No te limites en solo lo que te estoy diciendo revísalo siempre a profundidad y mas criterios a tener en cuenta te digo estos por el momento pero debes analizar más:
+* Verifica que los documentos generados reflejen fielmente la venta, descuentos, pagos y observaciones.
+* Comprueba que los números, fechas y totales sean consistentes con los demás módulos.
+* Revisa impresión, exportación y reemisión si aplica.
+
+Fase 8: Auditoría de Cuentas, Mi Cuadre y Dashboard
+
+No te limites en solo lo que te estoy diciendo revísalo siempre a profundidad y mas criterios a tener en cuenta te digo estos por el momento pero debes analizar más:
+* Revisa que los totales diarios, ingresos, egresos, utilidad, comisiones y saldos coincidan.
+* Verifica que dashboard y cuadros de resumen no estén calculando sobre datos incompletos, duplicados o desactualizados.
+* Revisa que no haya diferencias entre resumen visual y datos detallados.
+
+Fase 9: Auditoría de Rendimiento de Vendedores
+
+No te limites en solo lo que te estoy diciendo revísalo siempre a profundidad y mas criterios a tener en cuenta te digo estos por el momento pero debes analizar más:
+* Verifica comisiones, metas, ventas atribuibles y ranking.
+* Comprueba que una venta quede correctamente asociada al vendedor.
+* Revisa que una corrección en ventas se refleje también aquí.
+
+Fase 10: Auditoría de Configuración, Exportar/Importar y Persistencia
+
+No te limites en solo lo que te estoy diciendo revísalo siempre a profundidad y mas criterios a tener en cuenta te digo estos por el momento pero debes analizar más:
+* Revisa que los parámetros de configuración afecten correctamente toda la app.
+* Comprueba que exportaciones e importaciones no rompan relaciones ni generen duplicados y que se exporten todos los datos.
+* Verifica integridad de la base de datos y consistencia después de importar/exportar.
+
+Criterios de corrección:
+Cuando encuentres un bug, debes responder con este formato:
+
+1. Dónde está el problema.
+2. Qué lo causa.
+3. Qué impacto tiene en otros módulos.
+4. Cómo debe corregirse.
+5. Qué archivos, funciones, consultas, estados o componentes deben modificarse.
+6. Qué pruebas debes hacer para confirmar que quedó bien.
+
+Formato obligatorio de entrega por cada fase:
+
+* Módulo revisado
+* Estado actual
+* Problemas encontrados
+* Riesgo para otros módulos
+* Corrección aplicada o propuesta
+* Pruebas realizadas
+* Resultado final
+* Pendientes para la próxima sesión
+
+Formato obligatorio de memoria de continuidad:
+Al final de cada sesión, entrega un bloque llamado:
+“CHECKPOINT DE AUDITORÍA”
+y dentro incluye:
+
+* Fase alcanzada
+* Módulos ya auditados
+* Módulos pendientes
+* Bugs encontrados y corregidos
+* Bugs abiertos
+* Suposiciones confirmadas
+* Suposiciones que aún faltan confirmar
+* Archivos / componentes revisados
+* Próximo paso exacto para continuar en la siguiente sesión
+
+Condición importante:
+No avances a otra fase hasta dejar claramente documentada la fase actual y corregida.
+No saltes módulos.
+No ignores conexiones entre módulos.
+No respondas de forma general: analiza con precisión, detecta inconsistencias reales y corrígelas con criterio técnico.
+
+Si detectas que el sistema necesita una refactorización para mantener coherencia entre módulos, propón la refactorización y explica el orden correcto de implementación para no romper la operación actual y hazla.
+
+Comienza ahora con la Fase 1: Reconocimiento general del sistema.

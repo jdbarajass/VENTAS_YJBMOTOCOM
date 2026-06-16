@@ -1591,10 +1591,10 @@ class InventarioPanel(QWidget):
             )
             return
 
-        if prod_sale.cantidad < 1:
+        if prod_entra.cantidad < 1:
             QMessageBox.warning(
                 self, "Sin stock",
-                f"'{prod_sale.producto}' no tiene stock disponible para devolver."
+                f"'{prod_entra.producto}' no tiene stock disponible para entregar al cliente."
             )
             return
 
@@ -1602,8 +1602,8 @@ class InventarioPanel(QWidget):
             self,
             "Confirmar cambio",
             f"¿Confirmar el siguiente cambio?\n\n"
-            f"  Sale:   {prod_sale.producto}  (stock: {prod_sale.cantidad} → {prod_sale.cantidad - 1})\n"
-            f"  Entra:  {prod_entra.producto}  (stock: {prod_entra.cantidad} → {prod_entra.cantidad + 1})\n",
+            f"  Sale:   {prod_sale.producto}  (stock: {prod_sale.cantidad} → {prod_sale.cantidad + 1})\n"
+            f"  Entra:  {prod_entra.producto}  (stock: {prod_entra.cantidad} → {prod_entra.cantidad - 1})\n",
             QMessageBox.Yes | QMessageBox.No,
             QMessageBox.No,
         )
@@ -1616,21 +1616,22 @@ class InventarioPanel(QWidget):
         cant_sale_ant  = prod_sale.cantidad
         cant_entra_ant = prod_entra.cantidad
 
-        # Actualizar stock y registrar movimiento tipo "Cambio" (sin doble registro)
+        # Sale (el cliente devuelve): el inventario SUBE
         actualizar_cantidad_con_tipo(
             prod_sale.id, prod_sale.producto,
-            cant_sale_ant - 1, "Cambio",
-            notas=f"Sale en cambio — entra: {prod_entra.producto}",
+            cant_sale_ant + 1, "Cambio",
+            notas=f"Devuelto por cliente — sale al cliente: {prod_entra.producto}",
         )
+        # Entra (el cliente se lleva): el inventario BAJA
         actualizar_cantidad_con_tipo(
             prod_entra.id, prod_entra.producto,
-            cant_entra_ant + 1, "Cambio",
-            notas=f"Entra en cambio — sale: {prod_sale.producto}",
+            cant_entra_ant - 1, "Cambio",
+            notas=f"Entregado al cliente — devuelve: {prod_sale.producto}",
         )
 
         # Actualizar objetos locales para el mensaje final
-        prod_sale.cantidad  = cant_sale_ant - 1
-        prod_entra.cantidad = cant_entra_ant + 1
+        prod_sale.cantidad  = cant_sale_ant + 1
+        prod_entra.cantidad = cant_entra_ant - 1
 
         self.refresh()
         self.inventario_actualizado.emit()

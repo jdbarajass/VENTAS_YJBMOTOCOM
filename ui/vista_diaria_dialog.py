@@ -296,7 +296,9 @@ class VistaDiariaDialog(QDialog):
                 "Otro":     ("#F3F4F6", "#374151"),
             }
             for metodo, total in sorted(totales_met.items()):
-                if "Transferencia" in metodo:
+                if "Datafono" in metodo:
+                    bg, fg = "#FEF9C3", "#854D0E"
+                elif "Transferencia" in metodo:
                     bg, fg = "#DBEAFE", "#1D4ED8"
                 else:
                     bg, fg = _COL.get(metodo, ("#F3F4F6", "#374151"))

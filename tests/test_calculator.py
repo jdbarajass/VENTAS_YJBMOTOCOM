@@ -58,11 +58,9 @@ class TestGanancias(unittest.TestCase):
     def test_ganancia_bruta(self):
         self.assertEqual(calcular_ganancia_bruta(150_000, 100_000), 50_000.0)
 
-    def test_ganancia_neta_con_comision(self):
-        self.assertEqual(calcular_ganancia_neta(150_000, 100_000, 5_000), 45_000.0)
-
-    def test_ganancia_neta_sin_comision(self):
-        self.assertEqual(calcular_ganancia_neta(150_000, 100_000, 0), 50_000.0)
+    def test_ganancia_neta_no_descuenta_comision(self):
+        # La comisión la asume el cliente (sobreprecio), no reduce la ganancia.
+        self.assertEqual(calcular_ganancia_neta(150_000, 100_000), 50_000.0)
 
 
 class TestComisionCombinada(unittest.TestCase):
@@ -92,10 +90,12 @@ class TestCompletarVenta(unittest.TestCase):
     def test_venta_addi_dos_unidades(self):
         v = _venta(precio=100_000, costo=60_000, metodo_pago="Addi", cantidad=2)
         completar_venta(v, _cfg(addi=5.0))
-        # comisión unitaria = 5000, x2 = 10000
+        # comisión unitaria = 5000, x2 = 10000 (la cobra el cliente, no reduce ganancia)
         self.assertEqual(v.comision, 10_000.0)
-        # ganancia neta = (100k - 60k - 5k) * 2 = 35k * 2 = 70k
-        self.assertEqual(v.ganancia_neta, 70_000.0)
+        # ganancia neta = (100k - 60k) * 2 = 80k
+        self.assertEqual(v.ganancia_neta, 80_000.0)
+        # total que paga el cliente = (100k*2) + comisión = 210k
+        self.assertEqual(v.total_cobrado_cliente(), 210_000.0)
 
     def test_venta_combinada(self):
         pagos = [
@@ -107,8 +107,10 @@ class TestCompletarVenta(unittest.TestCase):
         completar_venta(v, _cfg(bold=3.0))
         # Comisión Bold: 70000 * 3% = 2100
         self.assertAlmostEqual(v.comision, 2_100.0, places=1)
-        # Ganancia neta: 150k - 100k - 2100 = 47900
-        self.assertAlmostEqual(v.ganancia_neta, 47_900.0, places=1)
+        # Ganancia neta: 150k - 100k = 50000 (comisión no se descuenta, la paga el cliente)
+        self.assertAlmostEqual(v.ganancia_neta, 50_000.0, places=1)
+        # Total que paga el cliente: 150000 + 2100 = 152100
+        self.assertAlmostEqual(v.total_cobrado_cliente(), 152_100.0, places=1)
 
 
 class TestUtilidadReal(unittest.TestCase):

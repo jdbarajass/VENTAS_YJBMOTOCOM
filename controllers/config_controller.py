@@ -36,6 +36,7 @@ class ConfigController:
         for nombre, val in [
             ("Addi", cfg.comision_addi),
             ("Transferencia", cfg.comision_transferencia),
+            ("Datafono", cfg.comision_datafono),
         ]:
             if not (0 <= val <= 100):
                 raise ValueError(f"La comisión de {nombre} debe estar entre 0 y 100 %.")

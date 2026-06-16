@@ -232,7 +232,8 @@ def generar_texto_recibo(ventas) -> str:
     if total_com > 0:
         metodo_com = (v0.metodo_pago.split()[0]
                       if not v0.pagos_combinados else "Comb.")
-        kv(f"Comision ({metodo_com}):", cop(total_com))
+        kv(f"Comision ({metodo_com}):", f"+ {cop(total_com)}")
+        total_real += total_com
     kv("TOTAL:", cop(total_real))
     sep()
 
@@ -358,7 +359,8 @@ def _escribir_recibo(p, ventas: list[Venta]) -> None:
     if total_com > 0:
         metodo_com = (v0.metodo_pago.split()[0]
                       if not v0.pagos_combinados else "Comb.")
-        kv(f"Comision ({metodo_com}):", cop(total_com))
+        kv(f"Comision ({metodo_com}):", f"+ {cop(total_com)}")
+        total_real += total_com
 
     p.set(bold=True)
     kv("TOTAL:", cop(total_real))

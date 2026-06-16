@@ -126,8 +126,10 @@ def acreditar_venta(venta) -> None:
 
 
 def _acreditar_un_pago(conn, metodo: str, monto: float, venta_id, fecha) -> None:
+    # Datafono (Tarjeta Débito/Crédito) cae en la cuenta NU
+    metodo_lookup = "Transferencia NU" if metodo.startswith("Datafono") else metodo
     row = conn.execute(
-        "SELECT id FROM cuentas WHERE metodo_pago = ? AND activa = 1", (metodo,)
+        "SELECT id FROM cuentas WHERE metodo_pago = ? AND activa = 1", (metodo_lookup,)
     ).fetchone()
     if not row:
         return
@@ -165,8 +167,10 @@ def revertir_credito_venta(venta) -> None:
 
 
 def _revertir_un_pago(conn, metodo: str, monto: float, venta_id, fecha) -> None:
+    # Datafono (Tarjeta Débito/Crédito) cae en la cuenta NU
+    metodo_lookup = "Transferencia NU" if metodo.startswith("Datafono") else metodo
     row = conn.execute(
-        "SELECT id FROM cuentas WHERE metodo_pago = ? AND activa = 1", (metodo,)
+        "SELECT id FROM cuentas WHERE metodo_pago = ? AND activa = 1", (metodo_lookup,)
     ).fetchone()
     if not row:
         return

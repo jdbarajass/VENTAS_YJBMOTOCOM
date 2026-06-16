@@ -144,6 +144,7 @@ class ConfigPanel(QWidget):
         form.setFieldGrowthPolicy(QFormLayout.ExpandingFieldsGrow)
 
         self.campo_addi          = self._campo_pct(5.0)
+        self.campo_datafono      = self._campo_pct(0.0)
         self.campo_nequi         = self._campo_pct(0.0)
         self.campo_nu            = self._campo_pct(0.0)
         self.campo_qr            = self._campo_pct(0.0)
@@ -151,6 +152,7 @@ class ConfigPanel(QWidget):
         self.campo_transferencia = self._campo_pct(0.0)
 
         form.addRow("Addi (%):", self.campo_addi)
+        form.addRow("Datafono — Tarjeta Débito/Crédito (%):", self.campo_datafono)
 
         sep1 = QFrame(); sep1.setFrameShape(QFrame.HLine)
         sep1.setStyleSheet("color:#E5E7EB; margin:4px 0;")
@@ -168,7 +170,7 @@ class ConfigPanel(QWidget):
 
         sep2 = QFrame(); sep2.setFrameShape(QFrame.HLine)
         sep2.setStyleSheet("color:#E5E7EB; margin-top:4px;")
-        info = QLabel("Efectivo / Otro: 0 % (sin comisión)")
+        info = QLabel("Efectivo / Otro: 0 % (sin comisión)  ·  Datafono y Addi caen en cuenta NU")
         info.setStyleSheet("color:#9CA3AF; font-size:11px; padding-top:4px;")
         form.addRow(sep2)
         form.addRow(info)
@@ -773,6 +775,7 @@ class ConfigPanel(QWidget):
         self.campo_dias.setValue(cfg.dias_mes)
 
         self.campo_addi.setValue(cfg.comision_addi)
+        self.campo_datafono.setValue(cfg.comision_datafono)
         self.campo_nequi.setValue(cfg.comision_nequi)
         self.campo_nu.setValue(cfg.comision_nu)
         self.campo_qr.setValue(cfg.comision_qr)
@@ -831,6 +834,7 @@ class ConfigPanel(QWidget):
                 comision_nu=self.campo_nu.value(),
                 comision_qr=self.campo_qr.value(),
                 comision_daviplata=self.campo_daviplata.value(),
+                comision_datafono=self.campo_datafono.value(),
                 clave_inventario=cfg_actual.clave_inventario,
                 nombre_impresora=self._combo_impresora.currentText().strip(),
                 modo_oscuro=self._btn_modo_oscuro.isChecked(),
@@ -847,7 +851,8 @@ class ConfigPanel(QWidget):
                 ("arriendo", "Arriendo"), ("sueldo", "Sueldo"),
                 ("servicios", "Servicios"), ("otros_gastos", "Otros gastos"),
                 ("dias_mes", "Días/mes"),
-                ("comision_addi", "Com. Addi"), ("comision_transferencia", "Com. Trans."),
+                ("comision_addi", "Com. Addi"), ("comision_datafono", "Com. Datafono"),
+                ("comision_transferencia", "Com. Trans."),
                 ("comision_nequi", "Com. Nequi"), ("comision_nu", "Com. NU"),
                 ("comision_qr", "Com. QR"), ("comision_daviplata", "Com. Daviplata"),
                 ("nombre_impresora", "Impresora"), ("timeout_minutos", "Timeout"),

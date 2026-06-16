@@ -23,6 +23,7 @@ class Configuracion:
     comision_nu: float = 0.0            # Transferencia NU
     comision_qr: float = 0.0            # Transferencia QR / Bancolombia
     comision_daviplata: float = 0.0     # Transferencia DAVIPLATA
+    comision_datafono: float = 0.0      # Datafono (Tarjeta Débito / Crédito) — cae en cuenta NU
     clave_inventario: str = "YJB2026_*"  # Contraseña para Inventario y Configuración
     nombre_impresora: str = ""           # Nombre Windows de la impresora térmica POS
     modo_oscuro: bool = False            # Tema oscuro activado
@@ -51,6 +52,8 @@ class Configuracion:
             return self.comision_bold
         if m == "addi":
             return self.comision_addi
+        if m.startswith("datafono"):
+            return self.comision_datafono
         if m == "transferencia nequi":
             return self.comision_nequi
         if m == "transferencia nu":

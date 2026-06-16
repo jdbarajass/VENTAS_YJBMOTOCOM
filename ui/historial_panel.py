@@ -326,6 +326,7 @@ class HistorialPanel(QWidget):
         for metodo, color_fondo, color_texto in [
             ("Efectivo",      "#DCFCE7", "#15803D"),
             ("Addi",          "#EDE9FE", "#6D28D9"),
+            ("Datafono",      "#FEF9C3", "#854D0E"),
             ("Bold",          "#FEF9C3", "#92400E"),
             ("Transferencia", "#DBEAFE", "#1D4ED8"),
             ("Combinado",     "#FFF7ED", "#C2410C"),
@@ -1097,7 +1098,9 @@ class HistorialPanel(QWidget):
         totales: dict[str, float] = defaultdict(float)
         for v in self._ventas:
             if v.comision > 0:
-                totales[v.metodo_pago] += v.comision
+                # Agrupar sub-tipos de Datafono y Transferencia bajo su método base
+                base = v.metodo_pago.split()[0] if v.metodo_pago.startswith(("Datafono ", "Transferencia ")) else v.metodo_pago
+                totales[base] += v.comision
 
         alguno_visible = False
         for metodo, chip in self._chips_comisiones.items():

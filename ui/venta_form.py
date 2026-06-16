@@ -82,7 +82,7 @@ def _aplicar_estilo_combo(combo: "QComboBox", placeholder: bool = False) -> None
     view.setPalette(pal)
 
 # Métodos de pago disponibles (orden de ComboBox)
-METODOS_PAGO = ["Efectivo", "Addi", "Transferencia", "Otro"]
+METODOS_PAGO = ["Efectivo", "Addi", "Datafono", "Transferencia", "Otro"]
 
 # Texto del placeholder del combo de método de pago (no es un método real)
 _PLACEHOLDER_METODO = "— Selecciona método —"
@@ -92,6 +92,9 @@ _PAT_TALLA_FORM = _re_vf.compile(r"-T:(\w+)$")
 
 # Sub-tipos de transferencia
 TRANSFERENCIA_SUBTIPOS = ["NU", "QR", "NEQUI", "DAVIPLATA"]
+
+# Sub-tipos de datafono
+DATAFONO_SUBTIPOS = ["Tarjeta Débito", "Tarjeta Crédito"]
 
 
 def _fmt(valor: int) -> str:
@@ -749,6 +752,16 @@ class VentaForm(QWidget):
         self.lbl_sub_transferencia.setVisible(False)
         self.campo_sub_transferencia.setVisible(False)
 
+        # Sub-tipo de datafono (oculto por defecto)
+        self.lbl_sub_datafono = QLabel("Tipo tarjeta:")
+        self.campo_sub_datafono = QComboBox()
+        self.campo_sub_datafono.addItems(DATAFONO_SUBTIPOS)
+        self.campo_sub_datafono.setFixedHeight(34)
+        self.campo_sub_datafono.setStyleSheet(_get_combo_style())
+        form2.addRow(self.lbl_sub_datafono, self.campo_sub_datafono)
+        self.lbl_sub_datafono.setVisible(False)
+        self.campo_sub_datafono.setVisible(False)
+
         # Panel de pagos combinados (oculto hasta activar el toggle)
         self._filas_pago: list[tuple] = []  # (QComboBox_metodo, MoneyLineEdit, QWidget_row, QComboBox_sub)
         self._panel_combinado = self._build_panel_combinado()
@@ -976,6 +989,18 @@ class VentaForm(QWidget):
         layout.addWidget(self._lbl_total_titulo)
         layout.addWidget(self._lbl_total_venta)
 
+        # Total a cobrar con comisión trasladada (visible solo si Addi/Datafono/etc. cobra comisión)
+        self._lbl_cobrar_titulo = QLabel("Total a cobrar (incluye comisión)")
+        self._lbl_cobrar_titulo.setStyleSheet("color:#B45309; font-size:10px;")
+        self._lbl_cobrar_titulo.setVisible(False)
+        self._lbl_cobrar_total = QLabel("")
+        self._lbl_cobrar_total.setStyleSheet(
+            "color:#B45309; font-size:15px; font-weight:bold;"
+        )
+        self._lbl_cobrar_total.setVisible(False)
+        layout.addWidget(self._lbl_cobrar_titulo)
+        layout.addWidget(self._lbl_cobrar_total)
+
         # Ahorro del cliente (visible solo cuando hay descuentos por producto)
         self._lbl_ahorro_titulo = QLabel("Ahorro del cliente")
         self._lbl_ahorro_titulo.setStyleSheet("color:#D97706; font-size:10px;")
@@ -1018,7 +1043,7 @@ class VentaForm(QWidget):
         self.lbl_comision_titulo.setStyleSheet("color: #6B7280; font-size: 11px;")
         self.lbl_comision = QLabel("$ 0")
         self.lbl_comision.setFont(self._font_valor())
-        self.lbl_comision.setStyleSheet("color: #EF4444;")
+        self.lbl_comision.setStyleSheet("color: #B45309;")
         layout.addWidget(self.lbl_comision_titulo)
         layout.addWidget(self.lbl_comision)
 
@@ -1079,6 +1104,7 @@ class VentaForm(QWidget):
     def _connect_signals(self) -> None:
         self.campo_metodo.currentTextChanged.connect(self._on_metodo_changed)
         self.campo_sub_transferencia.currentTextChanged.connect(self._actualizar_preview)
+        self.campo_sub_datafono.currentTextChanged.connect(self._actualizar_preview)
         self.btn_guardar.clicked.connect(self._on_guardar)
         self.btn_limpiar.clicked.connect(self._limpiar_form)
         self._btn_combinado.toggled.connect(self._on_toggle_combinado)
@@ -1165,9 +1191,10 @@ class VentaForm(QWidget):
         lay.setContentsMargins(0, 0, 0, 0)
         lay.setSpacing(4)
 
-        # Detectar si el metodo incluye un sub-tipo de transferencia
-        metodo_base = metodo.split()[0] if metodo else "Efectivo"
-        subtipo = metodo.split()[1] if metodo.startswith("Transferencia ") else TRANSFERENCIA_SUBTIPOS[0]
+        # Detectar sub-tipo si el método lo incluye
+        metodo_base, _sub = self._split_metodo(metodo) if metodo else ("Efectivo", "")
+        subtipo_trans = _sub if metodo_base == "Transferencia" else TRANSFERENCIA_SUBTIPOS[0]
+        subtipo_data  = _sub if metodo_base == "Datafono"      else DATAFONO_SUBTIPOS[0]
 
         combo = QComboBox()
         combo.addItems(METODOS_PAGO)
@@ -1175,14 +1202,23 @@ class VentaForm(QWidget):
         combo.setFixedHeight(28)
         combo.setStyleSheet(_combo_style)
 
-        # Sub-combo para tipo de transferencia (visible solo cuando metodo == Transferencia)
+        # Sub-combo Transferencia
         combo_sub = QComboBox()
         combo_sub.addItems(TRANSFERENCIA_SUBTIPOS)
-        combo_sub.setCurrentText(subtipo)
+        combo_sub.setCurrentText(subtipo_trans)
         combo_sub.setFixedHeight(28)
         combo_sub.setFixedWidth(80)
         combo_sub.setStyleSheet(_combo_style)
         combo_sub.setVisible(metodo_base == "Transferencia")
+
+        # Sub-combo Datafono
+        combo_sub_data = QComboBox()
+        combo_sub_data.addItems(DATAFONO_SUBTIPOS)
+        combo_sub_data.setCurrentText(subtipo_data)
+        combo_sub_data.setFixedHeight(28)
+        combo_sub_data.setFixedWidth(110)
+        combo_sub_data.setStyleSheet(_combo_style)
+        combo_sub_data.setVisible(metodo_base == "Datafono")
 
         monto_edit = MoneyLineEdit()
         monto_edit.setPlaceholderText("0")
@@ -1204,21 +1240,24 @@ class VentaForm(QWidget):
 
         lay.addWidget(combo, stretch=2)
         lay.addWidget(combo_sub)
+        lay.addWidget(combo_sub_data)
         lay.addWidget(monto_edit, stretch=2)
         lay.addWidget(btn_del)
 
         def _on_metodo_fila(texto: str) -> None:
             combo_sub.setVisible(texto == "Transferencia")
+            combo_sub_data.setVisible(texto == "Datafono")
             self._actualizar_preview()
 
         combo.currentTextChanged.connect(_on_metodo_fila)
         combo_sub.currentTextChanged.connect(self._actualizar_preview)
+        combo_sub_data.currentTextChanged.connect(self._actualizar_preview)
         monto_edit.textChanged.connect(self._actualizar_status_combinado)
         monto_edit.textChanged.connect(self._actualizar_preview)
         btn_del.clicked.connect(lambda _=False, w=row_w: self._eliminar_fila_pago(w))
 
         self._pagos_layout.addWidget(row_w)
-        self._filas_pago.append((combo, monto_edit, row_w, combo_sub))
+        self._filas_pago.append((combo, monto_edit, row_w, combo_sub, combo_sub_data))
         self._actualizar_status_combinado()
 
     def _eliminar_fila_pago(self, row_w: QWidget) -> None:
@@ -1263,12 +1302,15 @@ class VentaForm(QWidget):
         pagos = []
         for t in self._filas_pago:
             combo, monto_edit = t[0], t[1]
-            combo_sub = t[3] if len(t) > 3 else None
+            combo_sub      = t[3] if len(t) > 3 else None
+            combo_sub_data = t[4] if len(t) > 4 else None
             monto = monto_edit.valor_int()
             if monto > 0:
                 metodo = combo.currentText()
                 if metodo == "Transferencia" and combo_sub is not None:
                     metodo = f"Transferencia {combo_sub.currentText()}"
+                elif metodo == "Datafono" and combo_sub_data is not None:
+                    metodo = f"Datafono {combo_sub_data.currentText()}"
                 pagos.append({"metodo": metodo, "monto": float(monto)})
         return pagos if pagos else None
 
@@ -1304,11 +1346,14 @@ class VentaForm(QWidget):
     # ------------------------------------------------------------------
 
     def _on_metodo_changed(self, metodo: str) -> None:
-        """Muestra u oculta el sub-combo de transferencia según el método elegido."""
+        """Muestra u oculta los sub-combos según el método elegido."""
         es_placeholder = (metodo == _PLACEHOLDER_METODO)
         es_transferencia = (metodo == "Transferencia")
+        es_datafono = (metodo == "Datafono")
         self.lbl_sub_transferencia.setVisible(es_transferencia)
         self.campo_sub_transferencia.setVisible(es_transferencia)
+        self.lbl_sub_datafono.setVisible(es_datafono)
+        self.campo_sub_datafono.setVisible(es_datafono)
         _aplicar_estilo_combo(self.campo_metodo, placeholder=es_placeholder)
         self._actualizar_preview()
 
@@ -1319,6 +1364,8 @@ class VentaForm(QWidget):
             return ""
         if metodo == "Transferencia":
             return f"Transferencia {self.campo_sub_transferencia.currentText()}"
+        if metodo == "Datafono":
+            return f"Datafono {self.campo_sub_datafono.currentText()}"
         return metodo
 
     def _actualizar_preview(self) -> None:
@@ -1365,6 +1412,15 @@ class VentaForm(QWidget):
         self._lbl_total_titulo.setText("Total de venta")
         self._lbl_total_venta.setText(cop(total_final))
 
+        total_cliente = data.get("total_cliente", total_final)
+        if data["comision"] > 0:
+            self._lbl_cobrar_titulo.setVisible(True)
+            self._lbl_cobrar_total.setVisible(True)
+            self._lbl_cobrar_total.setText(cop(total_cliente))
+        else:
+            self._lbl_cobrar_titulo.setVisible(False)
+            self._lbl_cobrar_total.setVisible(False)
+
         # Medios de pago — limpiar y repoblar
         while self._lay_medios.count():
             item = self._lay_medios.takeAt(0)
@@ -1373,10 +1429,15 @@ class VentaForm(QWidget):
 
         if self._btn_combinado.isChecked() and self._filas_pago:
             self._lbl_medios_titulo.setText("Medios de pago")
-            for combo, monto_edit, _, combo_sub in self._filas_pago:
+            for t in self._filas_pago:
+                combo, monto_edit = t[0], t[1]
+                combo_sub      = t[3] if len(t) > 3 else None
+                combo_sub_data = t[4] if len(t) > 4 else None
                 m = combo.currentText()
                 if m == "Transferencia" and combo_sub is not None:
                     m = f"Transferencia {combo_sub.currentText()}"
+                elif m == "Datafono" and combo_sub_data is not None:
+                    m = f"Datafono {combo_sub_data.currentText()}"
                 monto = monto_edit.valor_int()
                 lbl = QLabel(f"{m}:  {cop(monto)}")
                 lbl.setStyleSheet(
@@ -1386,7 +1447,7 @@ class VentaForm(QWidget):
         else:
             self._lbl_medios_titulo.setText("Medio de pago")
             if metodo:
-                lbl = QLabel(f"{metodo}:  {cop(total_final)}")
+                lbl = QLabel(f"{metodo}:  {cop(total_cliente)}")
                 lbl.setStyleSheet(
                     "font-size:12px; font-weight:bold; color:#1E293B; background:transparent;"
                 )
@@ -1399,13 +1460,13 @@ class VentaForm(QWidget):
 
         self.lbl_bruta.setText(cop(data["ganancia_bruta"]))
         if data.get("es_combinado"):
-            self.lbl_comision_titulo.setText("Comisión (combinada)")
+            self.lbl_comision_titulo.setText("Comisión (combinada, la paga el cliente)")
         else:
             self.lbl_comision_titulo.setText(
-                f"Comisión ({porcentaje(data['porcentaje'], 2)})"
+                f"Comisión ({porcentaje(data['porcentaje'], 2)}, la paga el cliente)"
             )
         self.lbl_comision.setText(
-            f"- {cop(data['comision'])}" if data["comision"] > 0 else cop(0)
+            f"+ {cop(data['comision'])}" if data["comision"] > 0 else cop(0)
         )
 
         neta = data["ganancia_neta"]
@@ -1653,10 +1714,14 @@ class VentaForm(QWidget):
     @staticmethod
     def _split_metodo(metodo_pago: str):
         """
-        Descompone "Transferencia NEQUI" en ("Transferencia", "NEQUI").
+        Descompone "Transferencia NEQUI" → ("Transferencia", "NEQUI")
+                    "Datafono Tarjeta Débito" → ("Datafono", "Tarjeta Débito")
         Retorna (metodo_pago, "") para métodos sin sub-tipo.
         """
         if metodo_pago.startswith("Transferencia "):
             sub = metodo_pago[len("Transferencia "):]
             return "Transferencia", sub
+        if metodo_pago.startswith("Datafono "):
+            sub = metodo_pago[len("Datafono "):]
+            return "Datafono", sub
         return metodo_pago, ""

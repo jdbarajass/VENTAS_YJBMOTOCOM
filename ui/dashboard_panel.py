@@ -31,11 +31,14 @@ from ui.styles import aplicar_sombra
 
 # Colores por método de pago (mismos que VentasDiaPanel)
 _COLORES_METODO = {
-    "Efectivo":      ("#DCFCE7", "#15803D"),
-    "Addi":          ("#EDE9FE", "#6D28D9"),
-    "Transferencia": ("#DBEAFE", "#1D4ED8"),
-    "Combinado":     ("#FFF7ED", "#C2410C"),
-    "Otro":          ("#F3F4F6", "#374151"),
+    "Efectivo":                 ("#DCFCE7", "#15803D"),
+    "Addi":                     ("#EDE9FE", "#6D28D9"),
+    "Datafono":                 ("#FEF9C3", "#854D0E"),
+    "Datafono Tarjeta Débito":  ("#FEF9C3", "#854D0E"),
+    "Datafono Tarjeta Crédito": ("#FEF9C3", "#854D0E"),
+    "Transferencia":            ("#DBEAFE", "#1D4ED8"),
+    "Combinado":                ("#FFF7ED", "#C2410C"),
+    "Otro":                     ("#F3F4F6", "#374151"),
 }
 
 # ──────────────────────────────────────────────────────────────────────────────

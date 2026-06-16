@@ -60,6 +60,13 @@ class Venta:
         _d  = self.descuento or 0
         return self.precio * self.cantidad - (0 if _po > 0 else _d)
 
+    def total_cobrado_cliente(self) -> float:
+        """
+        Total que debe pagar el cliente, incluyendo la comisión trasladada
+        (Addi, Datafono o Transferencia con comisión configurada).
+        """
+        return self.ingreso_real() + self.comision
+
     def __post_init__(self) -> None:
         """Validaciones básicas al construir el objeto."""
         if self.costo < 0:

@@ -20,7 +20,7 @@ from database.connection import DatabaseConnection
 
 # ── Versión actual del esquema ────────────────────────────────────────────────
 # Incrementar este número cada vez que se añada una migración a _MIGRACIONES.
-_VERSION_ACTUAL = 24
+_VERSION_ACTUAL = 25
 
 
 # ── Lista de migraciones (forward-only) ───────────────────────────────────────
@@ -190,6 +190,9 @@ _MIGRACIONES = [
     (24, "Agregar cuenta_id a facturas y abonos_factura para integración con Cuentas", [
         "ALTER TABLE facturas ADD COLUMN cuenta_id INTEGER DEFAULT NULL",
         "ALTER TABLE abonos_factura ADD COLUMN cuenta_id INTEGER DEFAULT NULL",
+    ]),
+    (25, "Agregar comision_datafono a configuracion (Datafono Tarjeta Débito/Crédito)", [
+        "ALTER TABLE configuracion ADD COLUMN comision_datafono REAL NOT NULL DEFAULT 0",
     ]),
 ]
 

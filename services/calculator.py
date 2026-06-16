@@ -28,9 +28,13 @@ def calcular_ganancia_bruta(precio: float, costo: float) -> float:
     return round(precio - costo, 2)
 
 
-def calcular_ganancia_neta(precio: float, costo: float, comision: float) -> float:
-    """Ganancia después de descontar la comisión del intermediario."""
-    return round(precio - costo - comision, 2)
+def calcular_ganancia_neta(precio: float, costo: float) -> float:
+    """
+    Ganancia del producto. La comisión del intermediario (Addi/Datafono/Transferencia
+    con comisión configurada) se traslada al cliente como sobreprecio — no reduce
+    la ganancia de la tienda. Ver Venta.total_cobrado_cliente().
+    """
+    return round(precio - costo, 2)
 
 
 def calcular_comision_combinada(pagos: list, cfg: Configuracion) -> float:
@@ -57,13 +61,13 @@ def completar_venta(venta: Venta, cfg: Configuracion) -> Venta:
         total_comision = calcular_comision_combinada(venta.pagos_combinados, cfg)
         venta.comision = total_comision
         venta.ganancia_neta = round(
-            venta.precio * venta.cantidad - venta.costo * venta.cantidad - total_comision, 2
+            venta.precio * venta.cantidad - venta.costo * venta.cantidad, 2
         )
     else:
         comision_unit = calcular_comision(venta.precio, venta.metodo_pago, cfg)
         venta.comision = round(comision_unit * venta.cantidad, 2)
         venta.ganancia_neta = round(
-            calcular_ganancia_neta(venta.precio, venta.costo, comision_unit) * venta.cantidad, 2
+            calcular_ganancia_neta(venta.precio, venta.costo) * venta.cantidad, 2
         )
     return venta
 

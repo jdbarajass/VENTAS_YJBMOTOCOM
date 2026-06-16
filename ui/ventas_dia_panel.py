@@ -652,18 +652,23 @@ class VentasDiaPanel(QWidget):
 
         # Colores por metodo (los sub-tipos de transferencia heredan el color azul)
         _COLORES = {
-            "Efectivo":               ("#DCFCE7", "#15803D"),
-            "Addi":                   ("#EDE9FE", "#6D28D9"),
-            "Transferencia":          ("#DBEAFE", "#1D4ED8"),
-            "Transferencia NU":       ("#DBEAFE", "#1D4ED8"),
-            "Transferencia QR":       ("#E0F2FE", "#0369A1"),
-            "Transferencia NEQUI":    ("#EFF6FF", "#2563EB"),
-            "Transferencia DAVIPLATA":("#F0F9FF", "#0284C7"),
-            "Otro":                   ("#F3F4F6", "#374151"),
+            "Efectivo":                  ("#DCFCE7", "#15803D"),
+            "Addi":                      ("#EDE9FE", "#6D28D9"),
+            "Datafono":                  ("#FEF9C3", "#854D0E"),
+            "Datafono Tarjeta Débito":   ("#FEF9C3", "#854D0E"),
+            "Datafono Tarjeta Crédito":  ("#FEF9C3", "#854D0E"),
+            "Transferencia":             ("#DBEAFE", "#1D4ED8"),
+            "Transferencia NU":          ("#DBEAFE", "#1D4ED8"),
+            "Transferencia QR":          ("#E0F2FE", "#0369A1"),
+            "Transferencia NEQUI":       ("#EFF6FF", "#2563EB"),
+            "Transferencia DAVIPLATA":   ("#F0F9FF", "#0284C7"),
+            "Otro":                      ("#F3F4F6", "#374151"),
         }
 
         for metodo, total in sorted(totales.items()):
-            bg, fg = _COLORES.get(metodo, ("#DBEAFE", "#1D4ED8") if "Transferencia" in metodo else ("#F3F4F6", "#374151"))
+            bg, fg = _COLORES.get(metodo, ("#FEF9C3", "#854D0E") if "Datafono" in metodo else
+                                          ("#DBEAFE", "#1D4ED8") if "Transferencia" in metodo else
+                                          ("#F3F4F6", "#374151"))
             lbl = QLabel(f"{metodo}: {cop(total)}")
             lbl.setStyleSheet(
                 f"background:{bg}; color:{fg}; border-radius:4px;"

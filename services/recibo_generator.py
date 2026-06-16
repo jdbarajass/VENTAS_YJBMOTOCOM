@@ -436,8 +436,9 @@ class _Recibo:
                          if not v0.pagos_combinados else "Comb.")
             c.setFont(FONT_BOLD, FONT_SMALL)
             c.drawString(MARGIN_X, y(), _safe(f"Comision ({metodo_com}):"))
-            c.drawRightString(PAGE_W - MARGIN_R, y(), _safe(cop(total_com)))
+            c.drawRightString(PAGE_W - MARGIN_R, y(), _safe(f"+ {cop(total_com)}"))
             nl(LINE_H_SM)
+            total_final += total_com
 
         c.setFont(FONT_BOLD, FONT_TITLE)
         c.drawString(MARGIN_X, y(), "TOTAL COP:")

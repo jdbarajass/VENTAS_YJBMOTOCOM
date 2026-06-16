@@ -57,24 +57,27 @@ class VentaController:
 
         if pagos_combinados:
             total_comision = calcular_comision_combinada(pagos_combinados, cfg)
-            ganancia_neta = round(ganancia_bruta - total_comision, 2)
+            ganancia_neta = ganancia_bruta  # la comisión la asume el cliente, no la tienda
             return {
                 "ganancia_bruta": ganancia_bruta,
                 "comision": total_comision,
                 "porcentaje": 0.0,
                 "ganancia_neta": ganancia_neta,
                 "es_combinado": True,
+                "total_cliente": round(precio * cantidad + total_comision, 2),
             }
 
         porcentaje = cfg.porcentaje_para(metodo_pago)
         comision_unit = calcular_comision(precio, metodo_pago, cfg)
-        ganancia_neta = calcular_ganancia_neta(precio, costo, comision_unit) * cantidad
+        comision_total = comision_unit * cantidad
+        ganancia_neta = calcular_ganancia_neta(precio, costo) * cantidad
         return {
             "ganancia_bruta": ganancia_bruta,
-            "comision": comision_unit * cantidad,
+            "comision": comision_total,
             "porcentaje": porcentaje,
             "ganancia_neta": ganancia_neta,
             "es_combinado": False,
+            "total_cliente": round(precio * cantidad + comision_total, 2),
         }
 
     # ------------------------------------------------------------------
@@ -264,12 +267,10 @@ class VentaController:
                         comision_unit = calcular_comision(precio_neto_unit, venta.metodo_pago, cfg)
                         comision_nueva = round(comision_unit * venta.cantidad, 2)
 
-                    diff_comision = venta.comision - comision_nueva
                     venta.comision = comision_nueva
-                    # ganancia_neta = (precio - ajuste) × cant - costo × cant - comision_nueva
-                    venta.ganancia_neta = round(
-                        venta.ganancia_neta - ajuste + diff_comision, 2
-                    )
+                    # ganancia_neta = (precio - ajuste) × cant - costo × cant
+                    # (la comisión la asume el cliente, no se descuenta de la ganancia)
+                    venta.ganancia_neta = round(venta.ganancia_neta - ajuste, 2)
 
         # ── Fase 3: persistir y post-procesar ────────────────────────────────
         for venta in ventas:

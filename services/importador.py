@@ -496,7 +496,7 @@ def _leer_notas(ws):
         ))
     return notas
 _RE_SOLO_NUM = re.compile(r"^\d+(\.\d+)?$")
-_METODOS_BASE = {"Efectivo", "Addi", "Transferencia", "Combinado", "Otro", "Bold"}
+_METODOS_BASE = {"Efectivo", "Addi", "Datafono", "Transferencia", "Combinado", "Otro", "Bold"}
 
 
 def validar_resultado(res: "ResultadoImportacionTotal") -> tuple[list[str], list[str]]:

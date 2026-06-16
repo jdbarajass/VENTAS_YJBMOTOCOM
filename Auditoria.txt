@@ -177,3 +177,125 @@ No respondas de forma general: analiza con precisión, detecta inconsistencias r
 Si detectas que el sistema necesita una refactorización para mantener coherencia entre módulos, propón la refactorización y explica el orden correcto de implementación para no romper la operación actual y hazla.
 
 Comienza ahora con la Fase 1: Reconocimiento general del sistema.
+
+================================================================================
+REPORTE DE SESIÓN — 2026-06-15
+================================================================================
+
+Esta sesión cubrió dos frentes: (A) una nueva funcionalidad (método de pago
+Datafono) y (B) la corrección de un bug crítico de crash más un rediseño de
+cómo se traslada la comisión de Addi/Datafono al cliente.
+
+--------------------------------------------------------------------------
+A) FEATURE: Método de pago "Datafono" (Tarjeta Débito / Tarjeta Crédito)
+--------------------------------------------------------------------------
+Objetivo: agregar Datafono como método de pago de primer nivel, paralelo a
+Transferencia (con su propio sub-selector Tarjeta Débito / Tarjeta Crédito),
+con comisión propia configurable, y que el dinero recaudado por Datafono
+caiga en la misma cuenta bancaria que Transferencia NU (igual que Addi).
+
+Archivos modificados (13):
+1. models/configuracion.py — campo comision_datafono; porcentaje_para()
+   reconoce metodos que empiezan por "datafono".
+2. database/schema.py — migración 25: ALTER TABLE configuracion ADD COLUMN
+   comision_datafono REAL NOT NULL DEFAULT 0. Versión actual: 25.
+3. database/config_repo.py — persistencia de comision_datafono (lectura y
+   guardado).
+4. controllers/config_controller.py — validación de rango de porcentaje
+   para Datafono.
+5. ui/venta_form.py — METODOS_PAGO = [Efectivo, Addi, Datafono, Transferencia,
+   Otro]; sub-combo DATAFONO_SUBTIPOS; lógica de visibilidad; _metodo_completo();
+   _split_metodo() reconoce prefijo "Datafono"; _agregar_fila_pago() ahora
+   agrega un 5° elemento (combo_sub_data) a cada tupla de _filas_pago.
+6. ui/edit_venta_dialog.py — mismos cambios que venta_form.py para edición.
+7. ui/config_panel.py — campo de configuración "Datafono — Tarjeta Débito/
+   Crédito (%)" + nota aclaratoria.
+8. database/cuentas_repo.py — _acreditar_un_pago/_revertir_un_pago redirigen
+   "Datafono ..." → cuenta "Transferencia NU".
+9. ui/ventas_dia_panel.py, ui/dashboard_panel.py, ui/historial_panel.py,
+   ui/vista_diaria_dialog.py — colores/chips/agrupación reconocen Datafono.
+10. services/importador.py — _METODOS_BASE incluye "Datafono".
+
+Pruebas: migración 25 aplicada correctamente en arranque (confirmado por log
+de consola del usuario). git diff --stat confirmó exactamente 13 archivos
+tocados, sin efectos colaterales no deseados.
+
+--------------------------------------------------------------------------
+B) BUG CRÍTICO: crash al usar pago combinado
+--------------------------------------------------------------------------
+Síntoma: ValueError: too many values to unpack (expected 4, got 5) en
+ui/venta_form.py, dentro de _actualizar_preview(), disparado desde
+_on_toggle_combinado() y _on_metodo_fila() — la app se caía cada vez que se
+activaba "Pago combinado" o se cambiaba el método en una fila combinada.
+
+Causa: al agregar Datafono (punto A.5), _filas_pago pasó a guardar tuplas de
+5 elementos (combo, monto_edit, row_w, combo_sub, combo_sub_data). La función
+_get_pagos_combinados() se actualizó correctamente para indexar de forma
+segura, pero el bucle que dibuja las etiquetas "Medios de pago" en el panel
+de resumen quedó con un desempaquetado fijo de 4 variables:
+    for combo, monto_edit, _, combo_sub in self._filas_pago:
+y reventaba en cuanto había al menos una fila de pago combinado.
+
+Corrección (ui/venta_form.py, _actualizar_preview()): se reemplazó el
+desempaquetado fijo por indexado seguro por posición (t[0], t[1], t[3],
+t[4]) y se agregó el caso Datafono a la construcción de la etiqueta (antes
+solo Transferencia mostraba su sub-tipo).
+
+Verificación: se revisó ui/edit_venta_dialog.py en busca del mismo patrón;
+ya usaba indexado seguro en todos los puntos donde lee _filas_pago — no
+tenía el bug.
+
+--------------------------------------------------------------------------
+C) BUG DE LÓGICA DE NEGOCIO: la comisión de Addi/Datafono no se trasladaba
+   al cliente
+--------------------------------------------------------------------------
+Reporte del usuario: al pagar con Addi o Datafono, el procesador de pago
+cobra una comisión que el cliente debe asumir como sobreprecio (paga más de
+lo que aparece como "Total de venta"), pero la factura/recibo solo mostraba
+el precio base, sin la comisión sumada — el cliente terminaba pagando más
+de lo que el comprobante indicaba que debía pagar.
+
+Diseño aplicado (full passthrough): la comisión deja de ser un costo que
+reduce la ganancia de la tienda (antes: ganancia_neta = precio - costo -
+comisión) y pasa a ser un sobreprecio que paga el cliente por encima del
+precio del producto (ahora: ganancia_neta = precio - costo; total que paga
+el cliente = precio + comisión). Esto es coherente con cómo ya operaba
+database/cuentas_repo.py, que siempre acreditó ingreso_real() (el precio
+neto, sin restar comisión) a la cuenta bancaria — confirmando que el dinero
+de la comisión nunca fue un costo real para la caja de la tienda, sino algo
+que debía cobrarse aparte al cliente.
+
+Archivos modificados:
+1. services/calculator.py — calcular_ganancia_neta(precio, costo) ya no
+   resta comisión (firma simplificada, sin parámetro comision);
+   completar_venta() actualizado (rama simple y rama combinada).
+2. models/venta.py — nuevo método total_cobrado_cliente() = ingreso_real()
+   + comision.
+3. controllers/venta_controller.py — calcular_preview() ya no resta
+   comisión de ganancia_neta y agrega la clave "total_cliente" al dict
+   devuelto; la Fase 2 de guardar_carrito() (ajuste de ganancia por
+   descuento de carrito, modelo antiguo) ya no descuenta la comisión de
+   ganancia_neta.
+4. ui/venta_form.py y ui/edit_venta_dialog.py — nueva etiqueta "Total a
+   cobrar (incluye comisión)" visible solo cuando hay comisión > 0; la
+   etiqueta "Medio de pago" (caso simple) ahora muestra el total con
+   comisión incluida; la línea "Comisión" cambia de rojo/"-" a
+   naranja/"+" con aclaración "(la paga el cliente)".
+5. services/recibo_generator.py (PDF) y services/escpos_printer.py (texto
+   de vista previa + impresión térmica ESC/POS) — el monto de "TOTAL COP" /
+   "TOTAL:" ahora suma la comisión en vez de solo mostrarla informativamente.
+   Este era el bug exacto reportado por el usuario con la factura de
+   $780.000.
+6. tests/test_calculator.py — actualizado a la nueva firma/comportamiento.
+
+Decisión de alcance: los reportes internos (Historial, Dashboard, Mi
+Cuadre, Rendimiento, Presupuesto) NO se modificaron — siguen mostrando
+ingreso_real() como ingreso real de la tienda, que es correcto porque la
+comisión nunca fue dinero que la tienda se quedara; solo se ajustó dónde se
+le informa/cobra al cliente (formulario de venta y comprobante impreso).
+
+Pruebas: python -m unittest discover -s tests → 29/29 OK (incluye
+test_calculator.py actualizado con casos para Addi simple y pago
+combinado, verificando ganancia_neta sin descuento de comisión y
+total_cobrado_cliente() con la comisión sumada).
+================================================================================

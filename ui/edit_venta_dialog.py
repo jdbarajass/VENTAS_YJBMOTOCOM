@@ -18,7 +18,7 @@ from PySide6.QtGui import QFont
 from models.venta import Venta
 from controllers.venta_controller import VentaController
 from utils.formatters import cop, porcentaje
-from ui.venta_form import MoneyLineEdit, METODOS_PAGO, TRANSFERENCIA_SUBTIPOS, _fmt
+from ui.venta_form import MoneyLineEdit, METODOS_PAGO, TRANSFERENCIA_SUBTIPOS, DATAFONO_SUBTIPOS, _fmt
 
 
 class EditVentaDialog(QDialog):
@@ -130,6 +130,15 @@ class EditVentaDialog(QDialog):
         self.lbl_sub_transferencia.setVisible(False)
         self.campo_sub_transferencia.setVisible(False)
 
+        # Sub-tipo de datafono (oculto por defecto)
+        self.lbl_sub_datafono = QLabel("Tipo tarjeta:")
+        self.campo_sub_datafono = QComboBox()
+        self.campo_sub_datafono.addItems(DATAFONO_SUBTIPOS)
+        self.campo_sub_datafono.setFixedHeight(32)
+        form.addRow(self.lbl_sub_datafono, self.campo_sub_datafono)
+        self.lbl_sub_datafono.setVisible(False)
+        self.campo_sub_datafono.setVisible(False)
+
         # Panel combinado
         self._panel_combinado = self._build_panel_combinado()
         form.addRow("", self._panel_combinado)
@@ -148,10 +157,21 @@ class EditVentaDialog(QDialog):
         lay.setContentsMargins(8, 0, 0, 0)
         lay.setSpacing(8)
 
+        f = QFont(); f.setPointSize(13); f.setBold(True)
+
+        self.lbl_cobrar_t = QLabel("Total a cobrar (incluye comisión)")
+        self.lbl_cobrar_t.setStyleSheet("color:#B45309; font-size: 10px;")
+        self.lbl_cobrar_t.setVisible(False)
+        self.lbl_cobrar = QLabel("")
+        self.lbl_cobrar.setStyleSheet("color:#B45309; font-weight:bold;")
+        self.lbl_cobrar.setFont(f)
+        self.lbl_cobrar.setVisible(False)
+        lay.addWidget(self.lbl_cobrar_t)
+        lay.addWidget(self.lbl_cobrar)
+
         self.lbl_bruta_t = QLabel("Ganancia Bruta")
         self.lbl_bruta_t.setStyleSheet("color: #6B7280; font-size: 10px;")
         self.lbl_bruta = QLabel("$ 0")
-        f = QFont(); f.setPointSize(13); f.setBold(True)
         self.lbl_bruta.setFont(f)
         lay.addWidget(self.lbl_bruta_t)
         lay.addWidget(self.lbl_bruta)
@@ -161,7 +181,7 @@ class EditVentaDialog(QDialog):
         self.lbl_com_t.setStyleSheet("color: #6B7280; font-size: 10px;")
         self.lbl_com = QLabel("$ 0")
         self.lbl_com.setFont(f)
-        self.lbl_com.setStyleSheet("color: #EF4444;")
+        self.lbl_com.setStyleSheet("color: #B45309;")
         lay.addWidget(self.lbl_com_t)
         lay.addWidget(self.lbl_com)
         lay.addWidget(self._sep_h())
@@ -227,8 +247,9 @@ class EditVentaDialog(QDialog):
         lay.setContentsMargins(0, 0, 0, 0)
         lay.setSpacing(4)
 
-        metodo_base = metodo.split()[0] if metodo else "Efectivo"
-        subtipo = metodo.split()[1] if metodo.startswith("Transferencia ") else TRANSFERENCIA_SUBTIPOS[0]
+        metodo_base, _sub = self._split_metodo(metodo) if metodo else ("Efectivo", "")
+        subtipo_trans = _sub if metodo_base == "Transferencia" else TRANSFERENCIA_SUBTIPOS[0]
+        subtipo_data  = _sub if metodo_base == "Datafono"      else DATAFONO_SUBTIPOS[0]
 
         combo = QComboBox()
         combo.addItems(METODOS_PAGO)
@@ -238,11 +259,19 @@ class EditVentaDialog(QDialog):
 
         combo_sub = QComboBox()
         combo_sub.addItems(TRANSFERENCIA_SUBTIPOS)
-        combo_sub.setCurrentText(subtipo)
+        combo_sub.setCurrentText(subtipo_trans)
         combo_sub.setFixedHeight(28)
         combo_sub.setFixedWidth(80)
         combo_sub.setStyleSheet(_combo_style)
         combo_sub.setVisible(metodo_base == "Transferencia")
+
+        combo_sub_data = QComboBox()
+        combo_sub_data.addItems(DATAFONO_SUBTIPOS)
+        combo_sub_data.setCurrentText(subtipo_data)
+        combo_sub_data.setFixedHeight(28)
+        combo_sub_data.setFixedWidth(110)
+        combo_sub_data.setStyleSheet(_combo_style)
+        combo_sub_data.setVisible(metodo_base == "Datafono")
 
         monto_edit = MoneyLineEdit()
         monto_edit.setPlaceholderText("0")
@@ -260,21 +289,24 @@ class EditVentaDialog(QDialog):
 
         lay.addWidget(combo, stretch=2)
         lay.addWidget(combo_sub)
+        lay.addWidget(combo_sub_data)
         lay.addWidget(monto_edit, stretch=2)
         lay.addWidget(btn_del)
 
         def _on_metodo_fila(texto: str) -> None:
             combo_sub.setVisible(texto == "Transferencia")
+            combo_sub_data.setVisible(texto == "Datafono")
             self._actualizar_preview()
 
         combo.currentTextChanged.connect(_on_metodo_fila)
         combo_sub.currentTextChanged.connect(self._actualizar_preview)
+        combo_sub_data.currentTextChanged.connect(self._actualizar_preview)
         monto_edit.textChanged.connect(self._actualizar_status_combinado)
         monto_edit.textChanged.connect(self._actualizar_preview)
         btn_del.clicked.connect(lambda _=False, w=row_w: self._eliminar_fila_pago(w))
 
         self._pagos_layout.addWidget(row_w)
-        self._filas_pago.append((combo, monto_edit, row_w, combo_sub))
+        self._filas_pago.append((combo, monto_edit, row_w, combo_sub, combo_sub_data))
         self._actualizar_status_combinado()
 
     def _eliminar_fila_pago(self, row_w: QWidget) -> None:
@@ -313,12 +345,15 @@ class EditVentaDialog(QDialog):
         pagos = []
         for t in self._filas_pago:
             combo, monto_edit = t[0], t[1]
-            combo_sub = t[3] if len(t) > 3 else None
+            combo_sub      = t[3] if len(t) > 3 else None
+            combo_sub_data = t[4] if len(t) > 4 else None
             monto = monto_edit.valor_int()
             if monto > 0:
                 metodo = combo.currentText()
                 if metodo == "Transferencia" and combo_sub is not None:
                     metodo = f"Transferencia {combo_sub.currentText()}"
+                elif metodo == "Datafono" and combo_sub_data is not None:
+                    metodo = f"Datafono {combo_sub_data.currentText()}"
                 pagos.append({"metodo": metodo, "monto": float(monto)})
         return pagos if pagos else None
 
@@ -326,6 +361,8 @@ class EditVentaDialog(QDialog):
         self.campo_metodo.setEnabled(not activo)
         self.lbl_sub_transferencia.setVisible(False)
         self.campo_sub_transferencia.setVisible(False)
+        self.lbl_sub_datafono.setVisible(False)
+        self.campo_sub_datafono.setVisible(False)
         self._panel_combinado.setVisible(activo)
         if activo and not self._filas_pago:
             self._agregar_fila_pago("Efectivo", 0)
@@ -394,10 +431,14 @@ class EditVentaDialog(QDialog):
             idx = self.campo_metodo.findText(metodo_base)
             if idx >= 0:
                 self.campo_metodo.setCurrentIndex(idx)
-            if sub:
+            if sub and metodo_base == "Transferencia":
                 idx_sub = self.campo_sub_transferencia.findText(sub)
                 if idx_sub >= 0:
                     self.campo_sub_transferencia.setCurrentIndex(idx_sub)
+            elif sub and metodo_base == "Datafono":
+                idx_sub = self.campo_sub_datafono.findText(sub)
+                if idx_sub >= 0:
+                    self.campo_sub_datafono.setCurrentIndex(idx_sub)
 
     def _connect_signals(self) -> None:
         self.campo_costo.textChanged.connect(self._actualizar_preview)
@@ -407,18 +448,24 @@ class EditVentaDialog(QDialog):
         self.campo_cantidad.valueChanged.connect(self._actualizar_status_combinado)
         self.campo_metodo.currentTextChanged.connect(self._on_metodo_changed)
         self.campo_sub_transferencia.currentTextChanged.connect(self._actualizar_preview)
+        self.campo_sub_datafono.currentTextChanged.connect(self._actualizar_preview)
         self._btn_combinado.toggled.connect(self._on_toggle_combinado)
 
     def _on_metodo_changed(self, metodo: str) -> None:
         es_transferencia = (metodo == "Transferencia")
+        es_datafono = (metodo == "Datafono")
         self.lbl_sub_transferencia.setVisible(es_transferencia)
         self.campo_sub_transferencia.setVisible(es_transferencia)
+        self.lbl_sub_datafono.setVisible(es_datafono)
+        self.campo_sub_datafono.setVisible(es_datafono)
         self._actualizar_preview()
 
     def _metodo_completo(self) -> str:
         metodo = self.campo_metodo.currentText()
         if metodo == "Transferencia":
             return f"Transferencia {self.campo_sub_transferencia.currentText()}"
+        if metodo == "Datafono":
+            return f"Datafono {self.campo_sub_datafono.currentText()}"
         return metodo
 
     def _actualizar_preview(self) -> None:
@@ -430,12 +477,20 @@ class EditVentaDialog(QDialog):
             costo, precio, metodo, self.campo_cantidad.value(), pagos
         )
 
+        if data["comision"] > 0:
+            self.lbl_cobrar_t.setVisible(True)
+            self.lbl_cobrar.setVisible(True)
+            self.lbl_cobrar.setText(cop(data.get("total_cliente", precio * self.campo_cantidad.value())))
+        else:
+            self.lbl_cobrar_t.setVisible(False)
+            self.lbl_cobrar.setVisible(False)
+
         self.lbl_bruta.setText(cop(data["ganancia_bruta"]))
         if data.get("es_combinado"):
-            self.lbl_com_t.setText("Comisión (combinada)")
+            self.lbl_com_t.setText("Comisión (combinada, la paga el cliente)")
         else:
-            self.lbl_com_t.setText(f"Comisión ({porcentaje(data['porcentaje'], 2)})")
-        self.lbl_com.setText(f"- {cop(data['comision'])}" if data["comision"] > 0 else cop(0))
+            self.lbl_com_t.setText(f"Comisión ({porcentaje(data['porcentaje'], 2)}, la paga el cliente)")
+        self.lbl_com.setText(f"+ {cop(data['comision'])}" if data["comision"] > 0 else cop(0))
 
         neta = data["ganancia_neta"]
         self.lbl_neta.setText(cop(neta))
@@ -521,8 +576,12 @@ class EditVentaDialog(QDialog):
 
     @staticmethod
     def _split_metodo(metodo_pago: str):
-        """Descompone "Transferencia NEQUI" en ("Transferencia", "NEQUI")."""
+        """Descompone "Transferencia NEQUI" → ("Transferencia", "NEQUI")
+                      "Datafono Tarjeta Débito" → ("Datafono", "Tarjeta Débito")"""
         if metodo_pago.startswith("Transferencia "):
             sub = metodo_pago[len("Transferencia "):]
             return "Transferencia", sub
+        if metodo_pago.startswith("Datafono "):
+            sub = metodo_pago[len("Datafono "):]
+            return "Datafono", sub
         return metodo_pago, ""

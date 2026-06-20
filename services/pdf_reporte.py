@@ -775,9 +775,14 @@ def generar_pdf_inventario(
     productos,          # list[Producto]
     ruta: Path,
     nombre_negocio: str = "YJBMOTOCOM",
-    solo_con_stock: bool = False,
+    alcance: str = "todos",            # "todos" | "con_stock" | "bajo_minimo"
+    categoria: str | None = None,      # filtra por categoría exacta (None = todas)
+    talla: str | None = None,          # filtra por talla; "" = sin talla, None = todas
+    orden: str = "nombre",             # "nombre" | "categoria" | "stock_desc" | "stock_asc"
+    incluir_resumen_categorias: bool = True,
 ) -> None:
-    """Genera un PDF con el listado completo de productos del inventario."""
+    """Genera un PDF con el listado de inventario, aplicando los filtros y el
+    orden indicados. Opcionalmente agrega una tabla resumen agrupada por categoría."""
     from datetime import datetime
 
     doc = SimpleDocTemplate(
@@ -805,7 +810,39 @@ def generar_pdf_inventario(
                        textColor=colors.HexColor("#2563EB"), spaceAfter=4),
     ))
     ahora = datetime.now().strftime("%d/%m/%Y  %H:%M")
-    filtro_txt = "Solo con stock" if solo_con_stock else "Todos los productos"
+
+    # ── Aplicar filtros ────────────────────────────────────────────────────────
+    prods_filtrados = list(productos)
+    if alcance == "con_stock":
+        prods_filtrados = [p for p in prods_filtrados if p.cantidad > 0]
+    elif alcance == "bajo_minimo":
+        prods_filtrados = [
+            p for p in prods_filtrados
+            if p.stock_minimo > 0 and p.cantidad < p.stock_minimo
+        ]
+
+    if categoria:
+        cat_sel = categoria.strip().upper()
+        prods_filtrados = [p for p in prods_filtrados if _categoria(p) == cat_sel]
+
+    if talla is not None:
+        if talla == "":
+            prods_filtrados = [p for p in prods_filtrados if not p.talla]
+        else:
+            prods_filtrados = [p for p in prods_filtrados if p.talla == talla]
+
+    _ALCANCE_TXT = {
+        "todos": "Todos los productos",
+        "con_stock": "Solo con stock",
+        "bajo_minimo": "Solo bajo el mínimo",
+    }
+    partes_filtro = [_ALCANCE_TXT.get(alcance, "Todos los productos")]
+    if categoria:
+        partes_filtro.append(f"Categoría: {categoria}")
+    if talla is not None:
+        partes_filtro.append(f"Talla: {talla or 'Sin talla'}")
+    filtro_txt = "  •  ".join(partes_filtro)
+
     elementos.append(Paragraph(
         f'Generado: {ahora}  •  {filtro_txt}',
         ParagraphStyle("meta", fontName="Helvetica", fontSize=8,
@@ -815,7 +852,6 @@ def generar_pdf_inventario(
                                 spaceAfter=10))
 
     # ── Resumen superior ──────────────────────────────────────────────────────
-    prods_filtrados = [p for p in productos if not solo_con_stock or p.cantidad > 0]
     total_refs  = len(prods_filtrados)
     total_uds   = sum(p.cantidad for p in prods_filtrados)
     total_costo = sum(p.costo_unitario * p.cantidad for p in prods_filtrados)
@@ -843,6 +879,16 @@ def generar_pdf_inventario(
     elementos.append(t_res)
     elementos.append(Spacer(1, 0.5 * cm))
 
+    # ── Resumen agrupado por categoría (opcional) ─────────────────────────────
+    if incluir_resumen_categorias and prods_filtrados:
+        elementos.append(Paragraph(
+            "<b>Resumen por Categoría</b>",
+            ParagraphStyle("resumen_cat_titulo", fontName="Helvetica-Bold", fontSize=11,
+                           textColor=_AZUL_OSCURO, spaceAfter=4),
+        ))
+        elementos.append(_tabla_inventario_general(prods_filtrados))
+        elementos.append(Spacer(1, 0.5 * cm))
+
     # ── Tabla de productos ────────────────────────────────────────────────────
     if not prods_filtrados:
         elementos.append(Paragraph(
@@ -861,7 +907,12 @@ def generar_pdf_inventario(
         )
         encabezado = [["#", "PRODUCTO", "SERIAL", "STOCK", "COSTO UNIT.", "VALOR TOTAL"]]
         filas = []
-        prods_ord = sorted(prods_filtrados, key=lambda x: x.producto.upper())
+        _ORDEN_KEYS = {
+            "categoria":  lambda x: (_categoria(x), x.producto.upper()),
+            "stock_desc": lambda x: (-x.cantidad, x.producto.upper()),
+            "stock_asc":  lambda x: (x.cantidad, x.producto.upper()),
+        }
+        prods_ord = sorted(prods_filtrados, key=_ORDEN_KEYS.get(orden, lambda x: x.producto.upper()))
         bajo_stock_rows: list[int] = []
         for i, p in enumerate(prods_ord, 1):
             valor_total = p.costo_unitario * p.cantidad

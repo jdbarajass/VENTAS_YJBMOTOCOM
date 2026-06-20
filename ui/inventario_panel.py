@@ -12,6 +12,7 @@ from PySide6.QtWidgets import (
     QAbstractItemView, QFrame, QMessageBox, QInputDialog,
     QSpinBox, QSizePolicy, QCheckBox, QScrollArea, QTabWidget,
     QComboBox, QCompleter, QListWidget, QListWidgetItem,
+    QDialog, QFormLayout, QDialogButtonBox,
 )
 from PySide6.QtCore import Qt, Signal, QStringListModel
 from PySide6.QtGui import QFont, QColor
@@ -24,6 +25,81 @@ from database.inventario_repo import (
 from models.producto import Producto
 from ui.venta_form import MoneyLineEdit
 from utils.formatters import cop
+
+
+# ── Diálogo: opciones de exportación a PDF ──────────────────────────────────
+
+class _ExportarInventarioDialog(QDialog):
+    """Permite elegir qué productos incluir, cómo filtrarlos y en qué orden
+    antes de generar el PDF de inventario."""
+
+    _ALCANCES = ["Todos los productos", "Solo con stock (cantidad > 0)", "Solo bajo el mínimo configurado"]
+    _ALCANCE_VALORES = ["todos", "con_stock", "bajo_minimo"]
+    _ORDENES = ["Nombre (A-Z)", "Categoría", "Stock (mayor a menor)", "Stock (menor a mayor)"]
+    _ORDEN_VALORES = ["nombre", "categoria", "stock_desc", "stock_asc"]
+
+    def __init__(self, productos: list[Producto], categoria_de, parent=None) -> None:
+        super().__init__(parent)
+        self.setWindowTitle("Exportar inventario a PDF")
+        self.setMinimumWidth(380)
+
+        lay = QVBoxLayout(self)
+        lay.setSpacing(14)
+        lay.setContentsMargins(20, 16, 20, 16)
+
+        form = QFormLayout()
+        form.setSpacing(10)
+
+        self._combo_alcance = QComboBox()
+        self._combo_alcance.addItems(self._ALCANCES)
+        form.addRow("¿Qué incluir?", self._combo_alcance)
+
+        categorias = sorted({categoria_de(p) for p in productos if categoria_de(p)})
+        self._combo_categoria = QComboBox()
+        self._combo_categoria.addItem("Todas las categorías")
+        self._combo_categoria.addItems(categorias)
+        form.addRow("Categoría:", self._combo_categoria)
+
+        tallas = sorted({p.talla for p in productos if p.talla})
+        self._combo_talla = QComboBox()
+        self._combo_talla.addItem("Todas las tallas")
+        self._combo_talla.addItem("Sin talla")
+        self._combo_talla.addItems(tallas)
+        form.addRow("Talla:", self._combo_talla)
+
+        self._combo_orden = QComboBox()
+        self._combo_orden.addItems(self._ORDENES)
+        form.addRow("Ordenar por:", self._combo_orden)
+
+        lay.addLayout(form)
+
+        self._chk_resumen = QCheckBox("Incluir resumen agrupado por categoría")
+        self._chk_resumen.setChecked(True)
+        lay.addWidget(self._chk_resumen)
+
+        bts = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        bts.accepted.connect(self.accept)
+        bts.rejected.connect(self.reject)
+        bts.button(QDialogButtonBox.Ok).setText("Generar PDF")
+        bts.button(QDialogButtonBox.Cancel).setText("Cancelar")
+        lay.addWidget(bts)
+
+    def opciones(self) -> dict:
+        cat = self._combo_categoria.currentText()
+        talla_txt = self._combo_talla.currentText()
+        if talla_txt == "Todas las tallas":
+            talla_val = None
+        elif talla_txt == "Sin talla":
+            talla_val = ""
+        else:
+            talla_val = talla_txt
+        return {
+            "alcance": self._ALCANCE_VALORES[self._combo_alcance.currentIndex()],
+            "categoria": None if cat == "Todas las categorías" else cat,
+            "talla": talla_val,
+            "orden": self._ORDEN_VALORES[self._combo_orden.currentIndex()],
+            "incluir_resumen_categorias": self._chk_resumen.isChecked(),
+        }
 
 
 class InventarioPanel(QWidget):
@@ -953,6 +1029,11 @@ class InventarioPanel(QWidget):
             self.inventario_actualizado.emit()
 
     def _on_exportar_pdf(self) -> None:
+        dialogo = _ExportarInventarioDialog(self._productos, self._categoria_producto, self)
+        if dialogo.exec() != QDialog.Accepted:
+            return
+        opciones = dialogo.opciones()
+
         from pathlib import Path
         from PySide6.QtWidgets import QFileDialog
         from services.pdf_reporte import generar_pdf_inventario
@@ -968,7 +1049,7 @@ class InventarioPanel(QWidget):
             generar_pdf_inventario(
                 self._productos,
                 Path(ruta),
-                solo_con_stock=self._solo_con_stock,
+                **opciones,
             )
             import subprocess, sys
             if sys.platform == "win32":

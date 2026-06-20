@@ -1342,7 +1342,7 @@ class InventarioPanel(QWidget):
         root.addWidget(titulo_cam)
 
         subtitulo = QLabel(
-            "El cliente devuelve un producto y lo cambia por otro. "
+            "El cliente devuelve un producto y se lleva otro a cambio. "
             "Escanea o busca ambos artículos."
         )
         subtitulo.setStyleSheet("font-size:12px; color:#6B7280;")
@@ -1350,13 +1350,13 @@ class InventarioPanel(QWidget):
 
         columnas = QHBoxLayout(); columnas.setSpacing(20)
 
-        # ── Columna SALE ──────────────────────────────────────────────────
+        # ── Columna SALE: lo que se le entrega al cliente (baja del inventario) ──
         frame_sale = self._build_cambio_columna(
-            "sale", "Producto que SALE  (devuelve el cliente)", "#FEF2F2", "#FECACA", "#B91C1C"
+            "sale", "Producto que SALE  (se le entrega al cliente)", "#FEF2F2", "#FECACA", "#B91C1C"
         )
-        # ── Columna ENTRA ─────────────────────────────────────────────────
+        # ── Columna ENTRA: lo que el cliente devuelve (sube al inventario) ───────
         frame_entra = self._build_cambio_columna(
-            "entra", "Producto que ENTRA  (quiere el cliente)", "#F0FDF4", "#BBF7D0", "#15803D"
+            "entra", "Producto que ENTRA  (lo devuelve el cliente)", "#F0FDF4", "#BBF7D0", "#15803D"
         )
 
         columnas.addWidget(frame_sale)
@@ -1534,11 +1534,10 @@ class InventarioPanel(QWidget):
             self._cambio_mostrar_producto(prefijo, coincidencias[0])
             return
 
-        # Múltiples coincidencias → mostrar lista seleccionable
-        limite = coincidencias[:12]
-        setattr(self, f"_cambio_{prefijo}_matches", limite)
+        # Múltiples coincidencias → mostrar lista seleccionable (todas, con scroll)
+        setattr(self, f"_cambio_{prefijo}_matches", coincidencias)
         lista.clear()
-        for p in limite:
+        for p in coincidencias:
             txt = f"{p.producto[:50]}  |  T:{p.talla}  |  Stock:{p.cantidad}"
             item = QListWidgetItem(txt)
             item.setToolTip(p.producto)
@@ -1582,7 +1581,8 @@ class InventarioPanel(QWidget):
         )
 
     def _on_confirmar_cambio(self) -> None:
-        """Registra el cambio físico: descuenta el producto que sale y suma el que entra."""
+        """Registra el cambio físico: descuenta el producto que SALE (se entrega al
+        cliente) y suma el que ENTRA (lo devuelve el cliente)."""
         prod_sale  = getattr(self, "_cambio_sale_producto", None)
         prod_entra = getattr(self, "_cambio_entra_producto", None)
 
@@ -1600,10 +1600,10 @@ class InventarioPanel(QWidget):
             )
             return
 
-        if prod_entra.cantidad < 1:
+        if prod_sale.cantidad < 1:
             QMessageBox.warning(
                 self, "Sin stock",
-                f"'{prod_entra.producto}' no tiene stock disponible para entregar al cliente."
+                f"'{prod_sale.producto}' no tiene stock disponible para entregar al cliente."
             )
             return
 
@@ -1611,8 +1611,8 @@ class InventarioPanel(QWidget):
             self,
             "Confirmar cambio",
             f"¿Confirmar el siguiente cambio?\n\n"
-            f"  Sale:   {prod_sale.producto}  (stock: {prod_sale.cantidad} → {prod_sale.cantidad + 1})\n"
-            f"  Entra:  {prod_entra.producto}  (stock: {prod_entra.cantidad} → {prod_entra.cantidad - 1})\n",
+            f"  Sale:   {prod_sale.producto}  (stock: {prod_sale.cantidad} → {prod_sale.cantidad - 1})\n"
+            f"  Entra:  {prod_entra.producto}  (stock: {prod_entra.cantidad} → {prod_entra.cantidad + 1})\n",
             QMessageBox.Yes | QMessageBox.No,
             QMessageBox.No,
         )
@@ -1625,22 +1625,22 @@ class InventarioPanel(QWidget):
         cant_sale_ant  = prod_sale.cantidad
         cant_entra_ant = prod_entra.cantidad
 
-        # Sale (el cliente devuelve): el inventario SUBE
+        # Sale (se entrega al cliente): el inventario BAJA
         actualizar_cantidad_con_tipo(
             prod_sale.id, prod_sale.producto,
-            cant_sale_ant + 1, "Cambio",
-            notas=f"Devuelto por cliente — sale al cliente: {prod_entra.producto}",
+            cant_sale_ant - 1, "Cambio",
+            notas=f"Entregado al cliente — el cliente devuelve: {prod_entra.producto}",
         )
-        # Entra (el cliente se lleva): el inventario BAJA
+        # Entra (el cliente lo devuelve): el inventario SUBE
         actualizar_cantidad_con_tipo(
             prod_entra.id, prod_entra.producto,
-            cant_entra_ant - 1, "Cambio",
-            notas=f"Entregado al cliente — devuelve: {prod_sale.producto}",
+            cant_entra_ant + 1, "Cambio",
+            notas=f"Devuelto por el cliente — se le entrega: {prod_sale.producto}",
         )
 
         # Actualizar objetos locales para el mensaje final
-        prod_sale.cantidad  = cant_sale_ant + 1
-        prod_entra.cantidad = cant_entra_ant - 1
+        prod_sale.cantidad  = cant_sale_ant - 1
+        prod_entra.cantidad = cant_entra_ant + 1
 
         self.refresh()
         self.inventario_actualizado.emit()

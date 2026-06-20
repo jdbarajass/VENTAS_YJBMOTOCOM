@@ -129,7 +129,7 @@ class InventarioPanel(QWidget):
         self._chk_solo_stock.toggled.connect(self._on_toggle_stock)
 
         self._filtro_talla = QComboBox()
-        self._filtro_talla.addItems(["Todas las tallas", "Sin talla", "XS", "S", "M", "L", "XL", "2XL"])
+        self._filtro_talla.addItems(["Todas las tallas", "Sin talla", "XS", "S", "M", "L", "XL", "2XL", "3XL"])
         self._filtro_talla.setFixedHeight(34)
         self._filtro_talla.setFixedWidth(140)
         self._filtro_talla.setStyleSheet(
@@ -648,6 +648,7 @@ class InventarioPanel(QWidget):
                 "Venta": QColor("#DC2626"),
                 "Ajuste": QColor("#2563EB"),
                 "Entrada": QColor("#15803D"),
+                "Eliminado": QColor("#7C2D12"),
             }.get(m["tipo"], QColor("#374151"))
             item_tipo.setForeground(color_tipo)
             self._tabla_mov.setItem(row, 3, item_tipo)
@@ -750,7 +751,7 @@ class InventarioPanel(QWidget):
             # Talla (col 3)
             talla_item = QTableWidgetItem(p.talla)
             talla_item.setTextAlignment(Qt.AlignCenter)
-            if p.talla != "N/A":
+            if p.talla:
                 talla_item.setForeground(QColor("#1D4ED8"))
             else:
                 talla_item.setForeground(QColor("#9CA3AF"))
@@ -922,10 +923,14 @@ class InventarioPanel(QWidget):
             QMessageBox.warning(self, "Dato inválido", str(exc))
             return
 
-        if self._editando_id is None:
-            insertar_producto(p)
-        else:
-            actualizar_producto(p)
+        try:
+            if self._editando_id is None:
+                insertar_producto(p)
+            else:
+                actualizar_producto(p)
+        except ValueError as exc:
+            QMessageBox.warning(self, "Código de barras duplicado", str(exc))
+            return
 
         self._frame_form.setVisible(False)
         self._editando_id = None
@@ -1300,7 +1305,11 @@ class InventarioPanel(QWidget):
             QMessageBox.warning(self, "Dato inválido", str(exc))
             return
 
-        insertar_producto(p)
+        try:
+            insertar_producto(p)
+        except ValueError as exc:
+            QMessageBox.warning(self, "Código de barras duplicado", str(exc))
+            return
         self.refresh()
         self.inventario_actualizado.emit()
 

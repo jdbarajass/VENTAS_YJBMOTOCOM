@@ -27,7 +27,28 @@ def _row_to_producto(row: sqlite3.Row) -> Producto:
 # CREATE
 # ------------------------------------------------------------------
 
+def codigo_barras_en_uso(codigo: str, excluir_id: int | None = None) -> bool:
+    """True si `codigo` ya está asignado a otro producto del inventario."""
+    if not codigo:
+        return False
+    conn = DatabaseConnection.get()
+    if excluir_id is None:
+        row = conn.execute(
+            "SELECT 1 FROM inventario WHERE codigo_barras = ? LIMIT 1", (codigo,)
+        ).fetchone()
+    else:
+        row = conn.execute(
+            "SELECT 1 FROM inventario WHERE codigo_barras = ? AND id != ? LIMIT 1",
+            (codigo, excluir_id),
+        ).fetchone()
+    return row is not None
+
+
 def insertar_producto(p: Producto) -> int:
+    if codigo_barras_en_uso(p.codigo_barras):
+        raise ValueError(
+            f"El código de barras '{p.codigo_barras}' ya está asignado a otro producto."
+        )
     conn = DatabaseConnection.get()
     cursor = conn.execute(
         """
@@ -39,6 +60,8 @@ def insertar_producto(p: Producto) -> int:
     )
     conn.commit()
     p.id = cursor.lastrowid
+    if p.cantidad > 0:
+        registrar_movimiento(p.id, p.producto.strip(), "Entrada", 0, p.cantidad)
     return cursor.lastrowid
 
 
@@ -102,6 +125,10 @@ def obtener_producto_por_id(producto_id: int) -> Producto | None:
 def actualizar_producto(p: Producto) -> bool:
     if p.id is None:
         raise ValueError("No se puede actualizar un producto sin id.")
+    if codigo_barras_en_uso(p.codigo_barras, excluir_id=p.id):
+        raise ValueError(
+            f"El código de barras '{p.codigo_barras}' ya está asignado a otro producto."
+        )
     conn = DatabaseConnection.get()
     # Leer cantidad actual antes de actualizar (para el historial)
     row_ant = conn.execute(
@@ -221,10 +248,18 @@ def actualizar_cantidad_con_tipo(
 
 def eliminar_producto(producto_id: int) -> bool:
     conn = DatabaseConnection.get()
+    row = conn.execute(
+        "SELECT producto, cantidad FROM inventario WHERE id = ?", (producto_id,)
+    ).fetchone()
     cursor = conn.execute(
         "DELETE FROM inventario WHERE id = ?", (producto_id,)
     )
     conn.commit()
+    if cursor.rowcount > 0 and row is not None and row["cantidad"] > 0:
+        registrar_movimiento(
+            producto_id, row["producto"], "Eliminado", row["cantidad"], 0,
+            notas="Producto eliminado del inventario",
+        )
     return cursor.rowcount > 0
 
 

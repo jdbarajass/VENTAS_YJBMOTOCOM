@@ -639,6 +639,10 @@ class VentaForm(QWidget):
         self._placeholder_vendedor = _PLACEHOLDER_VENDEDOR
         self.campo_vendedor = QComboBox()
         self.campo_vendedor.setFixedHeight(34)
+        # Evita que el placeholder largo ("— Selecciona vendedor —") fuerce un ancho
+        # mínimo enorme en pantallas pequeñas — el texto se trunca, el desplegable no.
+        self.campo_vendedor.setSizeAdjustPolicy(QComboBox.AdjustToMinimumContentsLengthWithIcon)
+        self.campo_vendedor.setMinimumContentsLength(14)
         self._poblar_vendedores()
         _aplicar_estilo_combo(self.campo_vendedor, placeholder=True)
         form.addRow("Vendedor*:", self.campo_vendedor)
@@ -652,9 +656,25 @@ class VentaForm(QWidget):
         f_hdr = QFont(); f_hdr.setPointSize(11); f_hdr.setBold(True)
         lbl_prods.setFont(f_hdr)
 
-        # Encabezado de columnas
-        lbl_cols = QLabel("Nombre del producto / Talla                    Costo          Precio venta   Cant.")
-        lbl_cols.setStyleSheet("color:#9CA3AF; font-size:10px;")
+        # Encabezado de columnas — layout real (no texto con espacios fijos) para
+        # que se achique en pantallas pequeñas en vez de forzar un ancho mínimo enorme.
+        hdr_cols = QHBoxLayout()
+        hdr_cols.setContentsMargins(8, 0, 8, 0)
+        hdr_cols.setSpacing(6)
+
+        def _lbl_col(texto: str, ancho: int | None = None) -> QLabel:
+            l = QLabel(texto)
+            l.setStyleSheet("color:#9CA3AF; font-size:10px;")
+            if ancho:
+                l.setFixedWidth(ancho)
+            else:
+                l.setWordWrap(True)
+            return l
+
+        hdr_cols.addWidget(_lbl_col("Nombre del producto / Talla"), stretch=1)
+        hdr_cols.addWidget(_lbl_col("Costo", 115))
+        hdr_cols.addWidget(_lbl_col("Precio venta", 130))
+        hdr_cols.addWidget(_lbl_col("Cant.", 66))
 
         btn_add_linea = QPushButton("+ Producto")
         btn_add_linea.setFixedHeight(28)
@@ -668,7 +688,7 @@ class VentaForm(QWidget):
         hdr.addStretch()
         hdr.addWidget(btn_add_linea)
         layout.addLayout(hdr)
-        layout.addWidget(lbl_cols)
+        layout.addLayout(hdr_cols)
 
         # --- Barra de escaneo de código de barras ---
         scan_frame = QFrame()
@@ -723,6 +743,9 @@ class VentaForm(QWidget):
         self.campo_metodo.addItems(METODOS_PAGO)
         self.campo_metodo.setCurrentIndex(0)
         self.campo_metodo.setFixedHeight(34)
+        # Igual que el combo de vendedor: el placeholder largo no debe forzar el ancho mínimo.
+        self.campo_metodo.setSizeAdjustPolicy(QComboBox.AdjustToMinimumContentsLengthWithIcon)
+        self.campo_metodo.setMinimumContentsLength(9)
         _aplicar_estilo_combo(self.campo_metodo, placeholder=True)
         self._btn_combinado = QPushButton("Combinado")
         self._btn_combinado.setCheckable(True)
@@ -749,8 +772,6 @@ class VentaForm(QWidget):
         self.campo_sub_transferencia.setFixedHeight(34)
         self.campo_sub_transferencia.setStyleSheet(_get_combo_style())
         form2.addRow(self.lbl_sub_transferencia, self.campo_sub_transferencia)
-        self.lbl_sub_transferencia.setVisible(False)
-        self.campo_sub_transferencia.setVisible(False)
 
         # Sub-tipo de datafono (oculto por defecto)
         self.lbl_sub_datafono = QLabel("Tipo tarjeta:")
@@ -759,14 +780,11 @@ class VentaForm(QWidget):
         self.campo_sub_datafono.setFixedHeight(34)
         self.campo_sub_datafono.setStyleSheet(_get_combo_style())
         form2.addRow(self.lbl_sub_datafono, self.campo_sub_datafono)
-        self.lbl_sub_datafono.setVisible(False)
-        self.campo_sub_datafono.setVisible(False)
 
         # Panel de pagos combinados (oculto hasta activar el toggle)
         self._filas_pago: list[tuple] = []  # (QComboBox_metodo, MoneyLineEdit, QWidget_row, QComboBox_sub)
         self._panel_combinado = self._build_panel_combinado()
         form2.addRow("", self._panel_combinado)
-        self._panel_combinado.setVisible(False)
 
         # Observaciones
         self.campo_notas = QTextEdit()
@@ -774,6 +792,14 @@ class VentaForm(QWidget):
         self.campo_notas.setFixedHeight(55)
         self.campo_notas.setTabChangesFocus(True)
         form2.addRow("Observaciones:", self.campo_notas)
+
+        # Las filas opcionales se ocultan con setRowVisible (no solo setVisible) para
+        # que QFormLayout no siga reservando su ancho mínimo cuando están ocultas —
+        # de lo contrario el formulario se vuelve mucho más ancho de lo necesario.
+        self._form_metodo = form2
+        self._form_metodo.setRowVisible(self.campo_sub_transferencia, False)
+        self._form_metodo.setRowVisible(self.campo_sub_datafono, False)
+        self._form_metodo.setRowVisible(self._panel_combinado, False)
 
         layout.addLayout(form2)
         layout.addSpacing(4)
@@ -992,6 +1018,7 @@ class VentaForm(QWidget):
         # Total a cobrar con comisión trasladada (visible solo si Addi/Datafono/etc. cobra comisión)
         self._lbl_cobrar_titulo = QLabel("Total a cobrar (incluye comisión)")
         self._lbl_cobrar_titulo.setStyleSheet("color:#B45309; font-size:10px;")
+        self._lbl_cobrar_titulo.setWordWrap(True)
         self._lbl_cobrar_titulo.setVisible(False)
         self._lbl_cobrar_total = QLabel("")
         self._lbl_cobrar_total.setStyleSheet(
@@ -1041,6 +1068,7 @@ class VentaForm(QWidget):
         # Comisión
         self.lbl_comision_titulo = QLabel("Comisión (0.00 %)")
         self.lbl_comision_titulo.setStyleSheet("color: #6B7280; font-size: 11px;")
+        self.lbl_comision_titulo.setWordWrap(True)
         self.lbl_comision = QLabel("$ 0")
         self.lbl_comision.setFont(self._font_valor())
         self.lbl_comision.setStyleSheet("color: #B45309;")
@@ -1157,9 +1185,8 @@ class VentaForm(QWidget):
     def _on_toggle_combinado(self, activo: bool) -> None:
         """Activa/desactiva el modo pago combinado."""
         self.campo_metodo.setEnabled(not activo)
-        self.lbl_sub_transferencia.setVisible(False)
-        self.campo_sub_transferencia.setVisible(False)
-        self._panel_combinado.setVisible(activo)
+        self._form_metodo.setRowVisible(self.campo_sub_transferencia, False)
+        self._form_metodo.setRowVisible(self._panel_combinado, activo)
 
         if activo:
             # Inicializar con dos filas vacías si no hay ninguna
@@ -1350,10 +1377,8 @@ class VentaForm(QWidget):
         es_placeholder = (metodo == _PLACEHOLDER_METODO)
         es_transferencia = (metodo == "Transferencia")
         es_datafono = (metodo == "Datafono")
-        self.lbl_sub_transferencia.setVisible(es_transferencia)
-        self.campo_sub_transferencia.setVisible(es_transferencia)
-        self.lbl_sub_datafono.setVisible(es_datafono)
-        self.campo_sub_datafono.setVisible(es_datafono)
+        self._form_metodo.setRowVisible(self.campo_sub_transferencia, es_transferencia)
+        self._form_metodo.setRowVisible(self.campo_sub_datafono, es_datafono)
         _aplicar_estilo_combo(self.campo_metodo, placeholder=es_placeholder)
         self._actualizar_preview()
 
@@ -1621,9 +1646,8 @@ class VentaForm(QWidget):
         self.campo_metodo.setCurrentIndex(0)
         _aplicar_estilo_combo(self.campo_metodo, placeholder=True)
         self.campo_metodo.setEnabled(True)
-        self.lbl_sub_transferencia.setVisible(False)
         self.campo_sub_transferencia.setCurrentIndex(0)
-        self.campo_sub_transferencia.setVisible(False)
+        self._form_metodo.setRowVisible(self.campo_sub_transferencia, False)
         self.campo_notas.clear()
         # Resetear barra de escaneo
         self._campo_scan.clear()
@@ -1631,7 +1655,7 @@ class VentaForm(QWidget):
         # Resetear modo combinado
         self._btn_combinado.setChecked(False)
         self._limpiar_filas_pago()
-        self._panel_combinado.setVisible(False)
+        self._form_metodo.setRowVisible(self._panel_combinado, False)
         # Resetear vendedor
         self.campo_vendedor.setCurrentIndex(0)
         _aplicar_estilo_combo(self.campo_vendedor, placeholder=True)

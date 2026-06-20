@@ -11,6 +11,7 @@ from PySide6.QtWidgets import (
     QLabel, QLineEdit, QComboBox, QTextEdit,
     QPushButton, QDateEdit, QFrame, QMessageBox,
     QSpinBox, QCompleter, QScrollArea, QCheckBox,
+    QSplitter,
 )
 from PySide6.QtCore import Qt, QDate, QTimer, Signal, QStringListModel
 from PySide6.QtGui import QFont
@@ -588,6 +589,16 @@ class VentaForm(QWidget):
         root.setContentsMargins(0, 0, 0, 0)
         root.setSpacing(0)
 
+        # Splitter arrastrable entre el formulario y el resumen — el usuario puede
+        # mover el divisor para darle más o menos espacio a cada lado.
+        splitter = QSplitter(Qt.Horizontal)
+        splitter.setHandleWidth(6)
+        splitter.setStyleSheet(
+            "QSplitter::handle { background:#E5E7EB; }"
+            "QSplitter::handle:hover { background:#93C5FD; }"
+        )
+        self._splitter = splitter
+
         # Panel izquierdo (formulario) dentro de un scroll para manejar muchos productos
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
@@ -602,9 +613,14 @@ class VentaForm(QWidget):
         pw_lay.setContentsMargins(12, 24, 28, 24)
         pw_lay.addWidget(self._panel_preview())
 
-        root.addWidget(scroll, stretch=3)
-        root.addWidget(self._separador_vertical())
-        root.addWidget(preview_wrapper, stretch=2)
+        splitter.addWidget(scroll)
+        splitter.addWidget(preview_wrapper)
+        splitter.setStretchFactor(0, 3)
+        splitter.setStretchFactor(1, 2)
+        splitter.setCollapsible(0, False)
+        splitter.setCollapsible(1, False)
+
+        root.addWidget(splitter)
 
     def _panel_formulario(self) -> QWidget:
         panel = QWidget()
@@ -1105,12 +1121,6 @@ class VentaForm(QWidget):
     # ------------------------------------------------------------------
     # Helpers de UI
     # ------------------------------------------------------------------
-
-    def _separador_vertical(self) -> QFrame:
-        sep = QFrame()
-        sep.setFrameShape(QFrame.VLine)
-        sep.setStyleSheet("color: #E5E7EB;")
-        return sep
 
     def _separador_horizontal(self) -> QFrame:
         sep = QFrame()

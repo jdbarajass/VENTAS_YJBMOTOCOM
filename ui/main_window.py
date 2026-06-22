@@ -772,6 +772,8 @@ class MainWindow(QMainWindow):
 
     def _bloquear_sesion(self) -> None:
         """Bloquea las páginas protegidas y redirige al inicio si es necesario."""
+        if self._rol == "admin":
+            return  # Admin nunca pierde el acceso a páginas protegidas por inactividad
         if not self._paginas_desbloqueadas:
             return
         self._paginas_desbloqueadas.clear()

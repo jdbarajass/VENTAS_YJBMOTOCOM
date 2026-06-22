@@ -165,12 +165,61 @@ class CalculadoraPanel(QWidget):
         cuerpo.addWidget(self._panel_derecha(), stretch=5)
         root.addLayout(cuerpo, stretch=1)
 
+        root.addWidget(self._panel_explicacion_formulas())
+
         scroll.setWidget(contenido)
         outer.addWidget(scroll)
 
         if self._modo_pct == "margen":
             self._spin_g.setMaximum(95)
         self._actualizar_encabezados_cascos()
+
+    # ─── Panel explicativo: fórmulas y por qué usar margen real ──────────
+
+    def _panel_explicacion_formulas(self) -> QFrame:
+        frame = QFrame()
+        frame.setStyleSheet(
+            "QFrame{background:#EFF6FF;border:1px solid #BFDBFE;border-radius:10px;}"
+        )
+        lay = QVBoxLayout(frame)
+        lay.setContentsMargins(18, 14, 18, 14)
+        lay.setSpacing(6)
+
+        titulo = QLabel("📐  Fórmulas y por qué usar margen real")
+        f = QFont(); f.setBold(True); f.setPointSize(11)
+        titulo.setFont(f)
+        titulo.setStyleSheet("color:#1E3A8A;background:transparent;border:none;")
+        lay.addWidget(titulo)
+
+        formulas = QLabel(
+            "<b>% Margen real</b> (sobre el precio de venta):  "
+            "Precio = Costo ÷ (1 − %margen / 100)   →   %margen = Ganancia ÷ Precio<br>"
+            "<b>% Sobre costo</b> (markup tradicional):  "
+            "Precio = Costo × (1 + %costo / 100)   →   %costo = Ganancia ÷ Costo"
+        )
+        formulas.setStyleSheet(
+            "color:#1E3A8A;font-size:11px;background:transparent;border:none;"
+        )
+        formulas.setTextFormat(Qt.RichText)
+        lay.addWidget(formulas)
+
+        explicacion = QLabel(
+            "El margen sobre costo siempre parece más alto que el margen real porque se "
+            "calcula sobre un número más pequeño (el costo) en vez del precio que realmente "
+            "se cobra. Por ejemplo, un 50% \"sobre costo\" equivale a solo 33,3% de margen "
+            "real — la misma ganancia en pesos, pero un porcentaje que engaña sobre qué tan "
+            "rentable es la venta. El margen real (ganancia ÷ precio de venta) es el que "
+            "coincide con cómo se mide la rentabilidad en el resto del sistema (Dashboard, "
+            "Historial, Ganancia Neta), por eso es el más confiable para decidir si un precio "
+            "deja la ganancia que el negocio realmente necesita."
+        )
+        explicacion.setWordWrap(True)
+        explicacion.setStyleSheet(
+            "color:#374151;font-size:11px;background:transparent;border:none;"
+        )
+        lay.addWidget(explicacion)
+
+        return frame
 
     # ─── Panel izquierdo: Precio de Venta ────────────────────────────────
 
@@ -620,15 +669,25 @@ class CalculadoraPanel(QWidget):
         pct_costo = ganancia / costo * 100
         self._lbl_pv.setText(f"Precio de venta:  {cop(precio)}")
         if self._modo_pct == "margen":
+            precio_trad = round(costo * (1 + pct / 100))
             self._lbl_g_pesos.setText(
                 f"Ganancia:  {cop(ganancia)}   •   {pct}% margen real"
             )
-            self._lbl_margen.setText(f"Equivale a {pct_costo:.1f}% sobre costo")
+            self._lbl_margen.setText(
+                f"Equivale a {pct_costo:.1f}% sobre costo  •  "
+                f"Con el método tradicional ({pct}% sobre costo): {cop(precio_trad)}"
+            )
         else:
+            precio_margen = round(costo / (1 - pct / 100)) if pct < 100 else None
             self._lbl_g_pesos.setText(
                 f"Ganancia:  {cop(ganancia)}   •   {pct}% sobre costo"
             )
-            self._lbl_margen.setText(f"Margen sobre precio de venta: {margen:.1f}%")
+            txt_margen_real = (
+                f"Con {pct}% margen real: {cop(precio_margen)}" if precio_margen else ""
+            )
+            self._lbl_margen.setText(
+                f"Margen sobre precio de venta: {margen:.1f}%  •  {txt_margen_real}"
+            )
         self._recalcular_dcto()
 
     def _recalcular_dcto(self):

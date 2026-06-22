@@ -483,6 +483,7 @@ class ConfigPanel(QWidget):
         self._campo_nuevo_usuario = QLineEdit()
         self._campo_nuevo_usuario.setPlaceholderText("Nombre del nuevo usuario")
         self._campo_nuevo_usuario.setFixedHeight(32)
+        self._campo_nuevo_usuario.setMaxLength(50)
         self._campo_nuevo_usuario.setStyleSheet(self._estilo_campo())
 
         self._combo_rol_nuevo = QComboBox()
@@ -601,6 +602,13 @@ class ConfigPanel(QWidget):
         clave = self._campo_clave_nuevo.text()
         if not nombre or not clave:
             self._lbl_usuarios_feedback.setText("Completa nombre y contraseña.")
+            self._lbl_usuarios_feedback.setStyleSheet("font-size:11px; color:#DC2626;")
+            return
+        if len(nombre) > 50:
+            self._lbl_usuarios_feedback.setText(
+                "El nombre no puede superar 50 caracteres "
+                "(¿pegaste texto por accidente?)."
+            )
             self._lbl_usuarios_feedback.setStyleSheet("font-size:11px; color:#DC2626;")
             return
         if len(clave) < 4:

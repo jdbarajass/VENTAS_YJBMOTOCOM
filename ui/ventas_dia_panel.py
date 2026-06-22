@@ -10,17 +10,75 @@ from PySide6.QtWidgets import (
     QPushButton, QDateEdit, QTableWidget, QTableWidgetItem,
     QHeaderView, QAbstractItemView, QMessageBox,
     QFrame, QLineEdit, QScrollArea, QComboBox,
+    QDialog, QFormLayout, QDialogButtonBox,
 )
 from PySide6.QtCore import Qt, QDate, Signal
 from PySide6.QtGui import QFont, QColor
 
 from controllers.ventas_dia_controller import VentasDiaController
+from controllers.venta_controller import VentaController
 from database.config_repo import obtener_configuracion
 from ui.edit_venta_dialog import EditVentaDialog
-from ui.venta_form import MoneyLineEdit
+from ui.venta_form import MoneyLineEdit, METODOS_PAGO, TRANSFERENCIA_SUBTIPOS, DATAFONO_SUBTIPOS
 from utils.formatters import cop, fecha_corta
 from models.gasto_dia import CATEGORIAS_GASTO
 from database.cuentas_repo import obtener_todas as _obtener_cuentas, debitar_gasto
+
+
+class _CambiarMetodoMasivoDialog(QDialog):
+    """Diálogo pequeño para elegir el nuevo método de pago a aplicar a varias ventas."""
+
+    def __init__(self, n_ventas: int, parent=None) -> None:
+        super().__init__(parent)
+        self.setWindowTitle("Cambiar método de pago")
+        self.setMinimumWidth(320)
+
+        lay = QVBoxLayout(self)
+        lay.addWidget(QLabel(f"Se aplicará a <b>{n_ventas}</b> venta(s) seleccionada(s):"))
+
+        form = QFormLayout()
+        self._combo_metodo = QComboBox()
+        self._combo_metodo.addItems(METODOS_PAGO)
+        form.addRow("Método de pago:", self._combo_metodo)
+
+        self._lbl_sub_transferencia = QLabel("Tipo transferencia:")
+        self._combo_sub_transferencia = QComboBox()
+        self._combo_sub_transferencia.addItems(TRANSFERENCIA_SUBTIPOS)
+        form.addRow(self._lbl_sub_transferencia, self._combo_sub_transferencia)
+        self._lbl_sub_transferencia.setVisible(False)
+        self._combo_sub_transferencia.setVisible(False)
+
+        self._lbl_sub_datafono = QLabel("Tipo tarjeta:")
+        self._combo_sub_datafono = QComboBox()
+        self._combo_sub_datafono.addItems(DATAFONO_SUBTIPOS)
+        form.addRow(self._lbl_sub_datafono, self._combo_sub_datafono)
+        self._lbl_sub_datafono.setVisible(False)
+        self._combo_sub_datafono.setVisible(False)
+
+        lay.addLayout(form)
+
+        self._combo_metodo.currentTextChanged.connect(self._on_metodo_changed)
+
+        botones = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        botones.accepted.connect(self.accept)
+        botones.rejected.connect(self.reject)
+        lay.addWidget(botones)
+
+    def _on_metodo_changed(self, metodo: str) -> None:
+        es_transferencia = (metodo == "Transferencia")
+        es_datafono = (metodo == "Datafono")
+        self._lbl_sub_transferencia.setVisible(es_transferencia)
+        self._combo_sub_transferencia.setVisible(es_transferencia)
+        self._lbl_sub_datafono.setVisible(es_datafono)
+        self._combo_sub_datafono.setVisible(es_datafono)
+
+    def metodo_completo(self) -> str:
+        metodo = self._combo_metodo.currentText()
+        if metodo == "Transferencia":
+            return f"Transferencia {self._combo_sub_transferencia.currentText()}"
+        if metodo == "Datafono":
+            return f"Datafono {self._combo_sub_datafono.currentText()}"
+        return metodo
 
 # Columnas de la tabla (índices)
 COL_ID       = 0   # oculto
@@ -120,12 +178,23 @@ class VentasDiaPanel(QWidget):
         )
         self.btn_hoy.clicked.connect(self._ir_hoy)
 
+        self.btn_metodo_masivo = QPushButton("✏ Cambiar método (seleccionadas)")
+        self.btn_metodo_masivo.setFixedHeight(34)
+        self.btn_metodo_masivo.setStyleSheet(
+            "QPushButton { border:1px solid #D1D5DB; border-radius:5px; padding:0 12px; }"
+            "QPushButton:hover:enabled { background:#F3F4F6; }"
+        )
+        self.btn_metodo_masivo.setEnabled(False)
+        self.btn_metodo_masivo.clicked.connect(self._on_editar_metodo_masivo)
+
         lay.addWidget(titulo)
         lay.addSpacing(16)
         lay.addWidget(btn_prev)
         lay.addWidget(self.date_selector)
         lay.addWidget(btn_next)
         lay.addWidget(self.btn_hoy)
+        lay.addSpacing(16)
+        lay.addWidget(self.btn_metodo_masivo)
         lay.addStretch()
         return lay
 
@@ -176,8 +245,13 @@ class VentasDiaPanel(QWidget):
         hh.setSectionResizeMode(COL_NOTAS,    QHeaderView.Stretch)
         hh.setSectionResizeMode(COL_ACCIONES, QHeaderView.Fixed);       self.tabla.setColumnWidth(COL_ACCIONES, 200)
         self.tabla.setMinimumHeight(180)
+        self.tabla.itemSelectionChanged.connect(self._on_seleccion_cambiada)
 
         return self.tabla
+
+    def _on_seleccion_cambiada(self) -> None:
+        filas = set(idx.row() for idx in self.tabla.selectedIndexes())
+        self.btn_metodo_masivo.setEnabled(len(filas) >= 2)
 
     def _panel_gastos_dia(self) -> QFrame:
         """Panel compacto para registrar gastos operativos del día."""
@@ -707,6 +781,47 @@ class VentasDiaPanel(QWidget):
             self._ctrl.eliminar(venta_id)
             self._cargar_datos()
             self.venta_modificada.emit()
+
+    def _on_editar_metodo_masivo(self) -> None:
+        """Cambia el método de pago de varias ventas seleccionadas a la vez."""
+        filas = sorted(set(idx.row() for idx in self.tabla.selectedIndexes()))
+        if len(filas) < 2:
+            return
+        ids = []
+        for fila in filas:
+            item_id = self.tabla.item(fila, COL_ID)
+            if item_id and item_id.text():
+                ids.append(int(item_id.text()))
+
+        ventas = [v for v in self._ventas if v.id in ids]
+        validas = [v for v in ventas if v.pagos_combinados is None]
+        excluidas = len(ventas) - len(validas)
+
+        if not validas:
+            QMessageBox.information(
+                self, "Sin ventas válidas",
+                "Las ventas seleccionadas tienen pago combinado y no se pueden "
+                "incluir en un cambio masivo de método de pago."
+            )
+            return
+
+        dialog = _CambiarMetodoMasivoDialog(len(validas), self)
+        if dialog.exec() != QDialog.Accepted:
+            return
+        nuevo_metodo = dialog.metodo_completo()
+
+        ctrl = VentaController()
+        for venta in validas:
+            venta.metodo_pago = nuevo_metodo
+            ctrl.actualizar_venta_existente(venta)
+
+        self._cargar_datos()
+        self.venta_modificada.emit()
+
+        msg = f"✓ {len(validas)} venta(s) actualizada(s) a '{nuevo_metodo}'."
+        if excluidas:
+            msg += f"\n{excluidas} venta(s) con pago combinado se excluyeron."
+        QMessageBox.information(self, "Cambio de método aplicado", msg)
 
     def _on_ver_recibo(self, venta_id: int) -> None:
         """Abre el diálogo de vista previa del recibo (con opción de imprimir)."""

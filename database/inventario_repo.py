@@ -20,6 +20,7 @@ def _row_to_producto(row: sqlite3.Row) -> Producto:
         codigo_barras=row["codigo_barras"] or "",
         stock_minimo=row["stock_minimo"] if "stock_minimo" in keys else 0,
         categoria=row["categoria"] if "categoria" in keys else "",
+        talla=row["talla"] if "talla" in keys else "",
     )
 
 
@@ -52,11 +53,11 @@ def insertar_producto(p: Producto) -> int:
     conn = DatabaseConnection.get()
     cursor = conn.execute(
         """
-        INSERT INTO inventario (serial, producto, costo_unitario, cantidad, codigo_barras, stock_minimo, categoria)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO inventario (serial, producto, costo_unitario, cantidad, codigo_barras, stock_minimo, categoria, talla)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
         """,
         (p.serial, p.producto.strip(), p.costo_unitario, p.cantidad,
-         p.codigo_barras, p.stock_minimo, p.categoria.strip()),
+         p.codigo_barras, p.stock_minimo, p.categoria.strip(), p.talla.strip()),
     )
     conn.commit()
     p.id = cursor.lastrowid
@@ -145,11 +146,12 @@ def actualizar_producto(p: Producto) -> bool:
             cantidad       = ?,
             codigo_barras  = ?,
             stock_minimo   = ?,
-            categoria      = ?
+            categoria      = ?,
+            talla          = ?
         WHERE id = ?
         """,
         (p.serial, p.producto.strip(), p.costo_unitario, p.cantidad,
-         p.codigo_barras, p.stock_minimo, p.categoria.strip(), p.id),
+         p.codigo_barras, p.stock_minimo, p.categoria.strip(), p.talla.strip(), p.id),
     )
     conn.commit()
     if cursor.rowcount > 0 and cant_ant != p.cantidad:

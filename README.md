@@ -228,7 +228,7 @@ Las páginas **Configuración**, **Exportar/Importar** y **Cuentas** requieren c
 | Rol | Acceso |
 |-----|--------|
 | **Admin** | Todo, incluyendo Configuración, Exportar/Importar y Cuentas |
-| **Vendedor** | Todo excepto Configuración, Exportar/Importar y Cuentas |
+| **Vendedor** | Todo excepto Configuración, Exportar/Importar y Cuentas; el Dashboard muestra una vista resumida sin datos financieros (costos, comisiones, márgenes, utilidad real) |
 
 ### Excel exportado
 Las hojas **Inventario** y **Configuración** del Excel exportado quedan protegidas con contraseña de worksheet (solo lectura).
@@ -255,6 +255,9 @@ El sistema de migraciones es **forward-only e idempotente** (seguro de ejecutar 
 | 12 | timeout_minutos en configuracion |
 | 13 | hora en ventas (análisis de horas pico) |
 | 14 | CREATE TABLE cuentas, cuentas_movimientos, cuentas_cierres + seed de 6 cuentas por defecto |
+| 15–25 | Gastos con cuenta de débito, comisiones por cuenta (Nequi/NU/QR/Daviplata/Datafono), stock_minimo y categoria en inventario, historial de movimientos de inventario, productos vinculados a facturas (`facturas_items`), precio_ofertado en ventas, cuenta_id en facturas/abonos |
+| 26 | talla en inventario (antes inferida del nombre del producto vía regex `-T:`) + backfill automático que migra la talla embebida y limpia el nombre |
+| 27 | backup_automatico_activo, backup_intervalo_horas en configuracion (backup programado mientras la app está abierta) |
 
 La tabla `schema_version` registra qué migraciones ya se aplicaron. Al actualizar el `.exe` en producción, solo se aplican las versiones nuevas.
 
@@ -307,6 +310,19 @@ La tabla `schema_version` registra qué migraciones ya se aplicaron. Al actualiz
 | 6.1 | Modo oscuro: toggle en Configuración para cambiar tema claro/oscuro |
 | 6.2 | Tiempo de timeout de sesión configurable desde el panel Configuración (1–60 min) |
 
+### Fase 7 — Cierre de auditoría de mejoras pendientes ✅
+| # | Mejora |
+|---|--------|
+| 7.1 | **Talla editable en inventario** — columna real `talla` en BD (antes se inferí­a del nombre del producto con regex `-T:M`); migración con backfill automático que limpia los nombres existentes; formularios de edición e ingreso, cargue de pedidos PDF, export Excel y PDF actualizados |
+| 7.2 | **Filtro en el panel de auditoría** — combo "Todo / Solo configuración / Solo usuarios / Solo sesiones" sobre el log de `log_acciones` ya existente en Configuración |
+| 7.3 | **Impresión directa de inventario** — botón "🖨 Imprimir" junto a "⬇ PDF"; genera el PDF a un archivo temporal y abre el diálogo de impresión de Windows (mismo patrón que el reporte mensual de Historial) |
+| 7.4 | **Backup automático programado** — además del backup al arrancar, un timer periódico (configurable en horas, activable/desactivable) ejecuta backups mientras la app permanece abierta; configurable desde Configuración → Apariencia y Sesión |
+| 7.5 | **Gráfica de tendencia de 7 días en el PDF mensual** — el PDF de reporte mensual ya tenía una gráfica de ingresos diarios; se agregó la gráfica de ganancia neta de los últimos 7 días (verde/rojo alrededor de línea de cero) que replica la del Dashboard |
+| 7.6 | **Edición masiva de ventas** — botón "✏ Cambiar método (seleccionadas)" en Ventas del Día: selecciona varias ventas del mismo día (Ctrl/Shift+clic) y cambia el método de pago en lote, recalculando comisión y movimientos de cuentas para cada una; excluye automáticamente ventas con pago combinado |
+| 7.7 | **Recordatorios activos periódicos** — el aviso de notas/facturas/fiados próximos a vencer (ya existente al iniciar la app) ahora se repite cada 4 horas mientras la app permanece abierta, no solo una vez al arrancar |
+| 7.8 | **Modo resumen para el rol Vendedor en el Dashboard** — se ocultan costos, comisiones, ganancia bruta/neta, utilidad real, gastos del día, metas/utilidad de la proyección mensual, comisiones del mes y la gráfica de tendencia; el vendedor solo ve ventas, ingresos, ingresos por método y productos vendidos (sin la columna de ganancia) |
+| 7.9 | **Calculadora — selector "% Margen real" vs "% Sobre costo"** — toggle en la cabecera de la Calculadora que cambia si las chips/spinbox de porcentaje representan el margen real sobre el precio de venta o el markup tradicional sobre el costo; afecta los módulos "Precio de Venta" y "Cascos desde Factura"; por defecto inicia en margen real |
+
 ### Fixes y mejoras post-fases ✅
 | # | Descripción |
 |---|-------------|
@@ -321,7 +337,8 @@ La tabla `schema_version` registra qué migraciones ya se aplicaron. Al actualiz
 
 ## Notas técnicas
 
-- **Backup automático**: se ejecuta al arrancar, guarda hasta 7 copias rotativas en la carpeta `backups/`. Antes de una importación también se hace backup automático.
+- **Backup automático**: se ejecuta al arrancar, guarda hasta 7 copias rotativas en la carpeta `backups/`. Antes de una importación también se hace backup automático. Además, un timer programado (configurable en horas desde Configuración, activable/desactivable) repite el backup mientras la app permanece abierta.
+- **Recordatorios activos**: al arrancar (y luego cada 4 horas mientras la app está abierta) se revisan notas próximas a vencer, facturas próximas y fiados con más de 30 días pendientes, mostrando un aviso si hay algo urgente.
 - **Impresora térmica**: compatible con ESC/POS vía USB. Se configura por nombre de Windows en el panel Configuración. Si no hay impresora configurada, los recibos se generan como PDF.
 - **Escaneo de barras**: el campo de escaneo en el formulario de venta acepta cualquier lector USB HID (se comporta como teclado). Al presionar Enter busca el código en inventario y lo agrega al carrito.
 - **Pagos combinados**: una venta puede dividirse entre varios métodos de pago. La comisión se calcula proporcionalmente sobre cada parte.

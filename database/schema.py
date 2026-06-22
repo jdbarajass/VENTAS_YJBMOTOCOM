@@ -20,7 +20,7 @@ from database.connection import DatabaseConnection
 
 # ── Versión actual del esquema ────────────────────────────────────────────────
 # Incrementar este número cada vez que se añada una migración a _MIGRACIONES.
-_VERSION_ACTUAL = 25
+_VERSION_ACTUAL = 27
 
 
 # ── Lista de migraciones (forward-only) ───────────────────────────────────────
@@ -194,6 +194,13 @@ _MIGRACIONES = [
     (25, "Agregar comision_datafono a configuracion (Datafono Tarjeta Débito/Crédito)", [
         "ALTER TABLE configuracion ADD COLUMN comision_datafono REAL NOT NULL DEFAULT 0",
     ]),
+    (26, "Agregar columna talla a inventario (antes inferida del nombre del producto)", [
+        "ALTER TABLE inventario ADD COLUMN talla TEXT NOT NULL DEFAULT ''",
+    ]),
+    (27, "Agregar backup automático programado a configuracion", [
+        "ALTER TABLE configuracion ADD COLUMN backup_automatico_activo INTEGER NOT NULL DEFAULT 1",
+        "ALTER TABLE configuracion ADD COLUMN backup_intervalo_horas INTEGER NOT NULL DEFAULT 24",
+    ]),
 ]
 
 
@@ -210,6 +217,7 @@ def initialize_schema() -> None:
     _setup_version_table(conn)
     _aplicar_migraciones_pendientes(conn)
     _reparar_migraciones_fallidas(conn)
+    _backfill_talla_desde_nombre(conn)
     conn.commit()
     log.info("Schema inicializado correctamente (versión %d)", _VERSION_ACTUAL)
 
@@ -422,6 +430,33 @@ def _aplicar_migraciones_pendientes(conn: sqlite3.Connection) -> None:
             (version, descripcion),
         )
         log.info("Migración %d aplicada correctamente", version)
+
+
+def _backfill_talla_desde_nombre(conn: sqlite3.Connection) -> None:
+    """
+    Migra la talla embebida en el nombre del producto (formato "-T:M") a la
+    columna real `talla`, y limpia el sufijo del nombre. Idempotente: solo
+    afecta productos sin talla en la columna que aún tengan el sufijo.
+    """
+    import re
+    if not _columna_existe(conn, "inventario", "talla"):
+        return
+    patron = re.compile(r"\s*-T:(\w+)\s*$")
+    filas = conn.execute(
+        "SELECT id, producto FROM inventario WHERE talla = '' OR talla IS NULL"
+    ).fetchall()
+    for fila in filas:
+        m = patron.search(fila["producto"] or "")
+        if not m:
+            continue
+        talla = m.group(1)
+        nombre_limpio = patron.sub("", fila["producto"]).strip()
+        conn.execute(
+            "UPDATE inventario SET talla = ?, producto = ? WHERE id = ?",
+            (talla, nombre_limpio, fila["id"]),
+        )
+    if filas:
+        log.info("Backfill de talla: %d productos revisados", len(filas))
 
 
 # ── Utilidades ────────────────────────────────────────────────────────────────

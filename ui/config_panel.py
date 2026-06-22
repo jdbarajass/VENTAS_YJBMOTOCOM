@@ -9,7 +9,7 @@ from PySide6.QtWidgets import (
     QLabel, QDoubleSpinBox, QSpinBox, QLineEdit,
     QPushButton, QFrame, QMessageBox, QScrollArea,
     QGroupBox, QComboBox, QTableWidget, QTableWidgetItem,
-    QHeaderView, QAbstractItemView,
+    QHeaderView, QAbstractItemView, QCheckBox,
 )
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QFont, QColor
@@ -344,6 +344,33 @@ class ConfigPanel(QWidget):
         fila_timeout.addStretch()
         lay.addLayout(fila_timeout)
 
+        # Backup automático programado
+        fila_backup = QHBoxLayout()
+        fila_backup.setSpacing(12)
+        self._chk_backup_auto = QCheckBox("Backup automático cada:")
+        self._chk_backup_auto.setStyleSheet("font-size:12px;")
+        self._chk_backup_auto.setFixedWidth(180)
+        self._chk_backup_auto.toggled.connect(
+            lambda activo: self._spin_backup_horas.setEnabled(activo)
+        )
+
+        self._spin_backup_horas = QSpinBox()
+        self._spin_backup_horas.setRange(1, 168)
+        self._spin_backup_horas.setValue(24)
+        self._spin_backup_horas.setSuffix(" h")
+        self._spin_backup_horas.setFixedHeight(34)
+        self._spin_backup_horas.setFixedWidth(100)
+        self._spin_backup_horas.setStyleSheet(self._estilo_campo())
+
+        lbl_hint_backup = QLabel("mientras la app esté abierta (1-168 h)")
+        lbl_hint_backup.setStyleSheet("color:#6B7280; font-size:11px;")
+
+        fila_backup.addWidget(self._chk_backup_auto)
+        fila_backup.addWidget(self._spin_backup_horas)
+        fila_backup.addWidget(lbl_hint_backup)
+        fila_backup.addStretch()
+        lay.addLayout(fila_backup)
+
         return box
 
     def _on_toggle_modo_oscuro(self, checked: bool) -> None:
@@ -656,6 +683,18 @@ class ConfigPanel(QWidget):
         lay.addWidget(desc)
 
         fila_btn = QHBoxLayout()
+        self._combo_filtro_auditoria = QComboBox()
+        self._combo_filtro_auditoria.addItem("Todo", None)
+        self._combo_filtro_auditoria.addItem("Solo configuración", "Configuración")
+        self._combo_filtro_auditoria.addItem("Solo usuarios", "usuario")
+        self._combo_filtro_auditoria.addItem("Solo sesiones", "sesión")
+        self._combo_filtro_auditoria.setFixedHeight(28)
+        self._combo_filtro_auditoria.setFixedWidth(160)
+        self._combo_filtro_auditoria.currentIndexChanged.connect(
+            lambda _: self._cargar_tabla_auditoria()
+        )
+        fila_btn.addWidget(self._combo_filtro_auditoria)
+
         btn_refrescar = QPushButton("↻ Actualizar")
         btn_refrescar.setFixedHeight(28)
         btn_refrescar.setFixedWidth(110)
@@ -697,7 +736,8 @@ class ConfigPanel(QWidget):
 
     def _cargar_tabla_auditoria(self) -> None:
         from utils.auditoria import obtener_log
-        registros = obtener_log(50)
+        filtro = self._combo_filtro_auditoria.currentData()
+        registros = obtener_log(50, accion_contiene=filtro)
         self._tabla_auditoria.setRowCount(len(registros))
         for row, r in enumerate(registros):
             self._tabla_auditoria.setRowHeight(row, 24)
@@ -786,6 +826,9 @@ class ConfigPanel(QWidget):
         self._btn_modo_oscuro.setChecked(cfg.modo_oscuro)
         self._btn_modo_oscuro.setText("☾  Modo Oscuro" if cfg.modo_oscuro else "☀  Modo Claro")
         self._spin_timeout.setValue(cfg.timeout_minutos)
+        self._chk_backup_auto.setChecked(cfg.backup_automatico_activo)
+        self._spin_backup_horas.setValue(cfg.backup_intervalo_horas)
+        self._spin_backup_horas.setEnabled(cfg.backup_automatico_activo)
 
         # Impresora guardada
         idx = self._combo_impresora.findText(cfg.nombre_impresora)
@@ -839,6 +882,8 @@ class ConfigPanel(QWidget):
                 nombre_impresora=self._combo_impresora.currentText().strip(),
                 modo_oscuro=self._btn_modo_oscuro.isChecked(),
                 timeout_minutos=self._spin_timeout.value(),
+                backup_automatico_activo=self._chk_backup_auto.isChecked(),
+                backup_intervalo_horas=self._spin_backup_horas.value(),
             )
             self._ctrl.guardar(cfg)
             self._lbl_feedback.setText("✔  Configuración guardada correctamente.")
@@ -856,6 +901,8 @@ class ConfigPanel(QWidget):
                 ("comision_nequi", "Com. Nequi"), ("comision_nu", "Com. NU"),
                 ("comision_qr", "Com. QR"), ("comision_daviplata", "Com. Daviplata"),
                 ("nombre_impresora", "Impresora"), ("timeout_minutos", "Timeout"),
+                ("backup_automatico_activo", "Backup automático"),
+                ("backup_intervalo_horas", "Intervalo backup"),
             ]
             for attr, etiqueta in _campos_cfg:
                 v_ant = getattr(cfg_actual, attr, None)

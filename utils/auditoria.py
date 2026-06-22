@@ -37,15 +37,26 @@ def registrar(accion: str, detalle: str = "") -> None:
         pass
 
 
-def obtener_log(limite: int = 50) -> list[dict]:
-    """Retorna los últimos `limite` registros de auditoría, más recientes primero."""
+def obtener_log(limite: int = 50, accion_contiene: str | None = None) -> list[dict]:
+    """
+    Retorna los últimos `limite` registros de auditoría, más recientes primero.
+    Si `accion_contiene` se indica, filtra solo las acciones cuyo texto lo contenga
+    (case-insensitive), por ejemplo "configuración" o "usuario".
+    """
     try:
         from database.connection import DatabaseConnection
         conn = DatabaseConnection.get()
-        rows = conn.execute(
-            "SELECT fecha, hora, accion, detalle, usuario FROM log_acciones ORDER BY id DESC LIMIT ?",
-            (limite,),
-        ).fetchall()
+        if accion_contiene:
+            rows = conn.execute(
+                "SELECT fecha, hora, accion, detalle, usuario FROM log_acciones "
+                "WHERE accion LIKE ? ORDER BY id DESC LIMIT ?",
+                (f"%{accion_contiene}%", limite),
+            ).fetchall()
+        else:
+            rows = conn.execute(
+                "SELECT fecha, hora, accion, detalle, usuario FROM log_acciones ORDER BY id DESC LIMIT ?",
+                (limite,),
+            ).fetchall()
         return [
             {"fecha": r[0], "hora": r[1], "accion": r[2], "detalle": r[3], "usuario": r[4]}
             for r in rows

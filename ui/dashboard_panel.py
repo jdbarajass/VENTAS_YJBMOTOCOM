@@ -290,9 +290,10 @@ class DashboardPanel(QWidget):
 
     navegar_a = Signal(int)   # emite el índice de página al hacer clic en una alerta
 
-    def __init__(self, parent=None):
+    def __init__(self, parent=None, rol: str = ""):
         super().__init__(parent)
         self._ctrl = DashboardController()
+        self._es_vendedor = (rol == "vendedor")
         self._build_ui()
         self.refresh()
 
@@ -468,6 +469,9 @@ class DashboardPanel(QWidget):
         for c in (self.card_ventas, self.card_ingresos, self.card_costos, self.card_comisiones):
             aplicar_sombra(c)
             lay.addWidget(c)
+        if self._es_vendedor:
+            self.card_costos.setVisible(False)
+            self.card_comisiones.setVisible(False)
         return lay
 
     # ── Fila 2: 3 tarjetas grandes ───────────────────────────────────────────
@@ -483,6 +487,10 @@ class DashboardPanel(QWidget):
         lay.addWidget(self.card_g_bruta,  stretch=1)
         lay.addWidget(self.card_g_neta,   stretch=1)
         lay.addWidget(self.card_utilidad, stretch=2)
+        if self._es_vendedor:
+            self.card_g_bruta.setVisible(False)
+            self.card_g_neta.setVisible(False)
+            self.card_utilidad.setVisible(False)
         return lay
 
     # ── Fila 3: ingresos por método | gastos del día ──────────────────────────
@@ -519,12 +527,15 @@ class DashboardPanel(QWidget):
 
     def _panel_gastos_dia(self) -> QFrame:
         """Panel derecho: 4 mini-tarjetas en grid 2×2 con los gastos del día."""
-        frame = QFrame()
+        self._frame_gastos_dia = QFrame()
+        frame = self._frame_gastos_dia
         frame.setFrameShape(QFrame.StyledPanel)
         frame.setStyleSheet(
             "QFrame { background:#FFFFFF; border:1px solid #E5E7EB; border-radius:10px; }"
         )
         aplicar_sombra(frame)
+        if self._es_vendedor:
+            frame.setVisible(False)
         lay = QVBoxLayout(frame)
         lay.setContentsMargins(16, 14, 16, 14)
         lay.setSpacing(10)
@@ -586,6 +597,11 @@ class DashboardPanel(QWidget):
             aplicar_sombra(c, radio=6, opacidad=10)
             cards_lay.addWidget(c)
 
+        if self._es_vendedor:
+            self._card_proy_meta.setVisible(False)
+            self._card_proy_util.setVisible(False)
+            self._card_proy_dif.setVisible(False)
+
         lay.addLayout(cards_lay)
         return self._frame_proy
 
@@ -629,6 +645,8 @@ class DashboardPanel(QWidget):
             "QFrame { background:#FFFFFF; border:1px solid #E5E7EB; border-radius:10px; }"
         )
         aplicar_sombra(frame)
+        if self._es_vendedor:
+            frame.setVisible(False)
         lay = QVBoxLayout(frame)
         lay.setContentsMargins(20, 12, 20, 12)
         lay.setSpacing(6)
@@ -665,6 +683,7 @@ class DashboardPanel(QWidget):
 
         # Encabezado de columnas
         hdr = QHBoxLayout()
+        self._lbl_hdr_ganancia = None
         for texto, stretch, alin in [
             ("Producto",      5, Qt.AlignLeft),
             ("Cant.",         1, Qt.AlignCenter),
@@ -675,6 +694,10 @@ class DashboardPanel(QWidget):
             l.setStyleSheet("color:#6B7280; font-size:10px; font-weight:bold;")
             l.setAlignment(alin)
             hdr.addWidget(l, stretch=stretch)
+            if texto == "Ganancia neta":
+                self._lbl_hdr_ganancia = l
+        if self._es_vendedor:
+            self._lbl_hdr_ganancia.setVisible(False)
         lay.addLayout(hdr)
 
         sep = QFrame(); sep.setFrameShape(QFrame.HLine)
@@ -909,6 +932,8 @@ class DashboardPanel(QWidget):
             lbl_gan = QLabel(cop(ganancia))
             lbl_gan.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
             lbl_gan.setStyleSheet(f"font-size:11px; font-weight:bold; color:{color_g};")
+            if self._es_vendedor:
+                lbl_gan.setVisible(False)
 
             fila.addWidget(lbl_nombre, stretch=4)
             fila.addWidget(lbl_cant,   stretch=1)
@@ -953,7 +978,7 @@ class DashboardPanel(QWidget):
                 item.widget().deleteLater()
 
         comisiones = p.get("comisiones_plataforma", {})
-        if not comisiones:
+        if not comisiones or self._es_vendedor:
             self._frame_comisiones_panel.setVisible(False)
         else:
             self._frame_comisiones_panel.setVisible(True)

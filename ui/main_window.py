@@ -76,6 +76,8 @@ class MainWindow(QMainWindow):
         self._actualizar_badge_facturas()
         self._actualizar_badge_notas()
         self._iniciar_timeout_sesion()
+        self._iniciar_backup_programado()
+        self._iniciar_recordatorios_periodicos()
         # Verificar facturas vencidas 800ms después de mostrar la ventana
         QTimer.singleShot(800, self._alertar_facturas_vencimiento)
 
@@ -346,7 +348,7 @@ class MainWindow(QMainWindow):
         self._stack.addWidget(self._ventas_dia)
 
         # Página 3 — Dashboard Diario
-        self._dashboard = DashboardPanel()
+        self._dashboard = DashboardPanel(rol=self._rol)
         self._stack.addWidget(self._dashboard)
 
         # Página 4 — Historial Mensual
@@ -676,6 +678,7 @@ class MainWindow(QMainWindow):
         self._timeout_minutos = obtener_configuracion().timeout_minutos
         self._timer_sesion.setInterval(self._timeout_minutos * 60 * 1000)
         self._timer_sesion.start()
+        self._iniciar_backup_programado()
         self._status.showMessage(
             "Configuración guardada  •  Cálculos actualizados automáticamente"
         )
@@ -727,6 +730,40 @@ class MainWindow(QMainWindow):
         self._timer_sesion.setSingleShot(True)
         self._timer_sesion.timeout.connect(self._bloquear_sesion)
         self._timer_sesion.start()
+
+    # ------------------------------------------------------------------
+    # Backup automático programado
+    # ------------------------------------------------------------------
+
+    def _iniciar_backup_programado(self) -> None:
+        """Inicia (o detiene) el timer de backup periódico según la configuración actual."""
+        from database.config_repo import obtener_configuracion
+        cfg = obtener_configuracion()
+        if not hasattr(self, "_timer_backup"):
+            self._timer_backup = QTimer(self)
+            self._timer_backup.timeout.connect(self._ejecutar_backup_programado)
+        self._timer_backup.stop()
+        if cfg.backup_automatico_activo:
+            self._timer_backup.setInterval(cfg.backup_intervalo_horas * 60 * 60 * 1000)
+            self._timer_backup.start()
+
+    def _ejecutar_backup_programado(self) -> None:
+        """Ejecuta un backup periódico mientras la app permanece abierta."""
+        from utils.backup import hacer_backup
+        ruta = hacer_backup()
+        if ruta:
+            self._status.showMessage(f"Backup automático guardado  •  {ruta.name}")
+
+    # ------------------------------------------------------------------
+    # Recordatorios activos periódicos
+    # ------------------------------------------------------------------
+
+    def _iniciar_recordatorios_periodicos(self) -> None:
+        """Repite el aviso de facturas/notas/fiados próximos cada 4h mientras la app está abierta."""
+        self._timer_recordatorios = QTimer(self)
+        self._timer_recordatorios.setInterval(4 * 60 * 60 * 1000)
+        self._timer_recordatorios.timeout.connect(self._alertar_facturas_vencimiento)
+        self._timer_recordatorios.start()
 
     def _resetear_timeout(self) -> None:
         """Reinicia el contador de inactividad ante cualquier interacción."""

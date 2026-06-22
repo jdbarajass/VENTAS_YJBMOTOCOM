@@ -28,6 +28,8 @@ def _row_to_config(row: sqlite3.Row) -> Configuracion:
         nombre_impresora=row["nombre_impresora"] if "nombre_impresora" in keys else "",
         modo_oscuro=bool(row["modo_oscuro"]) if "modo_oscuro" in keys else False,
         timeout_minutos=int(row["timeout_minutos"]) if "timeout_minutos" in keys else 10,
+        backup_automatico_activo=bool(row["backup_automatico_activo"]) if "backup_automatico_activo" in keys else True,
+        backup_intervalo_horas=int(row["backup_intervalo_horas"]) if "backup_intervalo_horas" in keys else 24,
     )
 
 
@@ -62,7 +64,9 @@ def guardar_configuracion(cfg: Configuracion) -> None:
             clave_inventario       = ?,
             nombre_impresora       = ?,
             modo_oscuro            = ?,
-            timeout_minutos        = ?
+            timeout_minutos        = ?,
+            backup_automatico_activo = ?,
+            backup_intervalo_horas   = ?
         WHERE id = 1
         """,
         (
@@ -83,6 +87,8 @@ def guardar_configuracion(cfg: Configuracion) -> None:
             cfg.nombre_impresora,
             int(cfg.modo_oscuro),
             cfg.timeout_minutos,
+            int(cfg.backup_automatico_activo),
+            cfg.backup_intervalo_horas,
         ),
     )
     conn.commit()

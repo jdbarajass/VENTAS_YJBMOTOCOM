@@ -28,6 +28,8 @@ class Configuracion:
     nombre_impresora: str = ""           # Nombre Windows de la impresora térmica POS
     modo_oscuro: bool = False            # Tema oscuro activado
     timeout_minutos: int = 10            # Minutos de inactividad antes de bloquear sesión
+    backup_automatico_activo: bool = True  # Backup periódico mientras la app está abierta
+    backup_intervalo_horas: int = 24       # Cada cuántas horas se ejecuta el backup periódico
 
     # ------------------------------------------------------------------
     # Propiedades derivadas

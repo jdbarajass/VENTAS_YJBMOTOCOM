@@ -22,6 +22,16 @@ _DCTOS_CLIENTE    = [5, 10, 15, 20]
 _DCTOS_PROVEEDOR  = [0, 3, 5, 8, 10]
 
 
+def _precio_desde_pct(costo: float, pct: float, modo: str) -> float:
+    """Calcula el precio de venta a partir de un costo y un porcentaje.
+    modo='margen': pct es el margen real sobre el precio de venta.
+    modo='costo':  pct es el markup tradicional sobre el costo.
+    """
+    if modo == "margen":
+        return costo / (1 - pct / 100)
+    return costo * (1 + pct / 100)
+
+
 # ──────────────────────────────────────────────────────────────────────────────
 # Helpers visuales
 # ──────────────────────────────────────────────────────────────────────────────
@@ -98,6 +108,7 @@ class _ChipGroup(QWidget):
 class CalculadoraPanel(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
+        self._modo_pct = "margen"
         self._build_ui()
 
     # ─── Layout principal ────────────────────────────────────────────────
@@ -124,6 +135,23 @@ class CalculadoraPanel(QWidget):
         lbl_sub.setStyleSheet("color:#6B7280;font-size:11px;")
         cab.addWidget(lbl_sub)
         cab.addStretch()
+
+        self._btn_modo_margen = QPushButton("% Margen real")
+        self._btn_modo_costo  = QPushButton("% Sobre costo")
+        for btn, checked in [(self._btn_modo_margen, True), (self._btn_modo_costo, False)]:
+            btn.setCheckable(True); btn.setChecked(checked)
+            btn.setFixedHeight(28); btn.setFixedWidth(120)
+            btn.setStyleSheet(
+                "QPushButton{border:1px solid #CBD5E1;border-radius:5px;"
+                "font-size:11px;font-weight:bold;}"
+                "QPushButton:checked{background:#2563EB;color:white;border:1px solid #2563EB;}"
+            )
+        grp_modo = QButtonGroup(self); grp_modo.setExclusive(True)
+        grp_modo.addButton(self._btn_modo_margen)
+        grp_modo.addButton(self._btn_modo_costo)
+        grp_modo.buttonClicked.connect(self._on_toggle_modo_pct)
+        cab.addWidget(self._btn_modo_margen)
+        cab.addWidget(self._btn_modo_costo)
         root.addLayout(cab)
         root.addWidget(_sep_h())
 
@@ -139,6 +167,10 @@ class CalculadoraPanel(QWidget):
 
         scroll.setWidget(contenido)
         outer.addWidget(scroll)
+
+        if self._modo_pct == "margen":
+            self._spin_g.setMaximum(95)
+        self._actualizar_encabezados_cascos()
 
     # ─── Panel izquierdo: Precio de Venta ────────────────────────────────
 
@@ -403,9 +435,9 @@ class CalculadoraPanel(QWidget):
         lay.addWidget(self._frame_costo_real)
 
         # Tabla comparativa
-        lbl_t = QLabel("Tabla de precios de venta según % ganancia:")
-        lbl_t.setStyleSheet("font-size:10px;color:#6B7280;font-weight:bold;")
-        lay.addWidget(lbl_t)
+        self._lbl_tabla_titulo = QLabel("Tabla de precios de venta según % ganancia:")
+        self._lbl_tabla_titulo.setStyleSheet("font-size:10px;color:#6B7280;font-weight:bold;")
+        lay.addWidget(self._lbl_tabla_titulo)
 
         self._tabla = QTableWidget()
         self._tabla.setColumnCount(3)
@@ -480,6 +512,18 @@ class CalculadoraPanel(QWidget):
         if self._btn_manual.isChecked():
             self._campo_buscar.clear()
         self._recalcular()
+
+    def _on_toggle_modo_pct(self):
+        self._modo_pct = "margen" if self._btn_modo_margen.isChecked() else "costo"
+        if self._modo_pct == "margen":
+            self._spin_g.setMaximum(95)
+            if self._spin_g.value() > 95:
+                self._spin_g.setValue(95)
+        else:
+            self._spin_g.setMaximum(300)
+        self._actualizar_encabezados_cascos()
+        self._recalcular()
+        self._recalcular_cascos()
 
     def _on_buscar(self, texto: str):
         if len(texto) < 2:
@@ -567,17 +611,24 @@ class CalculadoraPanel(QWidget):
         if not costo:
             self._lbl_pv.setText("Precio de venta:  —")
             self._lbl_g_pesos.setText("Ganancia:  —")
-            self._lbl_margen.setText("Margen sobre precio de venta:  —")
+            self._lbl_margen.setText("—")
             self._frame_dcto.setVisible(False)
             return
-        precio   = round(costo * (1 + pct / 100))
+        precio   = round(_precio_desde_pct(costo, pct, self._modo_pct))
         ganancia = precio - costo
         margen   = ganancia / precio * 100
+        pct_costo = ganancia / costo * 100
         self._lbl_pv.setText(f"Precio de venta:  {cop(precio)}")
-        self._lbl_g_pesos.setText(
-            f"Ganancia:  {cop(ganancia)}   •   {pct}% sobre costo"
-        )
-        self._lbl_margen.setText(f"Margen sobre precio de venta: {margen:.1f}%")
+        if self._modo_pct == "margen":
+            self._lbl_g_pesos.setText(
+                f"Ganancia:  {cop(ganancia)}   •   {pct}% margen real"
+            )
+            self._lbl_margen.setText(f"Equivale a {pct_costo:.1f}% sobre costo")
+        else:
+            self._lbl_g_pesos.setText(
+                f"Ganancia:  {cop(ganancia)}   •   {pct}% sobre costo"
+            )
+            self._lbl_margen.setText(f"Margen sobre precio de venta: {margen:.1f}%")
         self._recalcular_dcto()
 
     def _recalcular_dcto(self):
@@ -587,7 +638,7 @@ class CalculadoraPanel(QWidget):
         if not costo:
             self._frame_dcto.setVisible(False)
             return
-        precio_base = round(costo * (1 + pct_g / 100))
+        precio_base = round(_precio_desde_pct(costo, pct_g, self._modo_pct))
         if not pct_d:
             self._frame_dcto.setVisible(False)
             return
@@ -608,6 +659,14 @@ class CalculadoraPanel(QWidget):
     # ──────────────────────────────────────────────────────────────────────
     # Lógica — Calculadora de Cascos
     # ──────────────────────────────────────────────────────────────────────
+
+    def _actualizar_encabezados_cascos(self):
+        if self._modo_pct == "margen":
+            self._lbl_tabla_titulo.setText("Tabla de precios de venta según % margen real:")
+            self._tabla.setHorizontalHeaderLabels(["% Margen", "Precio de venta", "Ganancia $"])
+        else:
+            self._lbl_tabla_titulo.setText("Tabla de precios de venta según % ganancia:")
+            self._tabla.setHorizontalHeaderLabels(["% Ganancia", "Precio de venta", "Ganancia $"])
 
     def _recalcular_cascos(self):
         precio_raw = self._precio_factura.valor_int()
@@ -632,7 +691,7 @@ class CalculadoraPanel(QWidget):
         self._lbl_costo_real.setText(cop(costo_real))
 
         for i, pct in enumerate(_GANANCIAS):
-            pv  = round(costo_real * (1 + pct / 100))
+            pv  = round(_precio_desde_pct(costo_real, pct, self._modo_pct))
             gan = pv - costo_real
             color = (
                 QColor("#15803D") if pct >= 45

@@ -242,6 +242,15 @@ class InventarioPanel(QWidget):
         )
         btn_pdf.clicked.connect(self._on_exportar_pdf)
 
+        btn_imprimir = QPushButton("🖨 Imprimir")
+        btn_imprimir.setFixedHeight(34)
+        btn_imprimir.setStyleSheet(
+            "QPushButton { border:1px solid #64748B; border-radius:5px; padding:0 12px;"
+            "color:#374151; font-size:12px; }"
+            "QPushButton:hover { background:#F1F5F9; }"
+        )
+        btn_imprimir.clicked.connect(self._on_imprimir_inventario)
+
         lay.addWidget(titulo)
         lay.addSpacing(16)
         lay.addWidget(self._campo_busqueda)
@@ -253,6 +262,8 @@ class InventarioPanel(QWidget):
         lay.addWidget(self._chk_solo_stock)
         lay.addStretch()
         lay.addWidget(btn_pdf)
+        lay.addSpacing(8)
+        lay.addWidget(btn_imprimir)
         lay.addSpacing(8)
         lay.addWidget(btn_nuevo)
         return lay
@@ -956,10 +967,7 @@ class InventarioPanel(QWidget):
         self._lbl_form_titulo.setText("Editar Producto")
         self._btn_guardar_form.setText("Actualizar")
         self._f_serial.setText(p.serial)
-        # Mostrar nombre sin el sufijo -T:TALLA en el campo producto
-        import re as _re2
-        nombre_limpio = _re2.sub(r"\s*-T:\S+$", "", p.producto, flags=_re2.IGNORECASE).strip()
-        self._f_producto.setText(nombre_limpio)
+        self._f_producto.setText(p.producto)
         self._f_talla.setText(p.talla)
         self._f_costo.set_valor(int(p.costo_unitario))
         self._f_cantidad.setValue(p.cantidad)
@@ -978,11 +986,7 @@ class InventarioPanel(QWidget):
             return
 
         costo = float(self._f_costo.valor_int())
-
-        # Incorporar la talla al nombre si fue indicada
         talla = self._f_talla.text().strip().upper()
-        if talla:
-            producto_nombre = f"{producto_nombre} -T:{talla}"
 
         try:
             p = Producto(
@@ -993,6 +997,7 @@ class InventarioPanel(QWidget):
                 codigo_barras=self._f_barras.text().strip(),
                 stock_minimo=self._f_stock_min.value(),
                 categoria=self._f_categoria.text().strip(),
+                talla=talla,
                 id=self._editando_id,
             )
         except ValueError as exc:
@@ -1057,6 +1062,34 @@ class InventarioPanel(QWidget):
             QMessageBox.information(self, "PDF generado", f"Guardado en:\n{ruta}")
         except Exception as e:
             QMessageBox.critical(self, "Error al generar PDF", str(e))
+
+    def _on_imprimir_inventario(self) -> None:
+        dialogo = _ExportarInventarioDialog(self._productos, self._categoria_producto, self)
+        if dialogo.exec() != QDialog.Accepted:
+            return
+        opciones = dialogo.opciones()
+
+        import os, tempfile
+        from pathlib import Path
+        from PySide6.QtPrintSupport import QPrinter, QPrintDialog
+        from services.pdf_reporte import generar_pdf_inventario
+
+        try:
+            with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as tmp:
+                ruta_tmp = Path(tmp.name)
+
+            generar_pdf_inventario(self._productos, ruta_tmp, **opciones)
+
+            printer = QPrinter(QPrinter.HighResolution)
+            dlg = QPrintDialog(printer, self)
+            if dlg.exec() != QPrintDialog.Accepted:
+                ruta_tmp.unlink(missing_ok=True)
+                return
+
+            # Abrir el PDF con el visor del sistema (imprimirá desde allí)
+            os.startfile(str(ruta_tmp))
+        except Exception as e:
+            QMessageBox.critical(self, "Error al imprimir", str(e))
 
     def _limpiar_form(self) -> None:
         self._f_serial.clear()
@@ -1369,18 +1402,16 @@ class InventarioPanel(QWidget):
         serial   = self._ing_serial.text().strip()
         barras   = self._ing_barras.text().strip()
 
-        # Nombre con talla embebida si no es N/A
-        nombre_completo = nombre
-        if talla and talla != "N/A":
-            nombre_completo = f"{nombre} -T:{talla}"
+        talla_real = "" if talla == "N/A" else talla
 
         try:
             p = Producto(
                 serial=serial,
-                producto=nombre_completo,
+                producto=nombre,
                 costo_unitario=costo,
                 cantidad=cantidad,
                 codigo_barras=barras,
+                talla=talla_real,
             )
         except (ValueError, TypeError) as exc:
             QMessageBox.warning(self, "Dato inválido", str(exc))
@@ -1403,7 +1434,7 @@ class InventarioPanel(QWidget):
 
         QMessageBox.information(
             self, "Producto ingresado",
-            f"✓ '{nombre_completo}' agregado con serial {serial}."
+            f"✓ '{nombre}' agregado con serial {serial}."
         )
 
     # ──────────────────────────────────────────────────────────────────────

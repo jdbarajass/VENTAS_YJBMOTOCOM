@@ -127,6 +127,12 @@ def generar_reporte_mensual_pdf(
         elementos.append(grafica_dias)
         elementos.append(Spacer(1, 0.5 * cm))
 
+    grafica_tendencia = _grafica_tendencia_7dias(resumen)
+    if grafica_tendencia is not None:
+        elementos.append(_titulo_seccion("Tendencia de Ganancia Neta (Últimos 7 días)", estilos))
+        elementos.append(grafica_tendencia)
+        elementos.append(Spacer(1, 0.5 * cm))
+
     grafica_metodos = _grafica_metodos_pago(ventas)
     if grafica_metodos is not None:
         elementos.append(_titulo_seccion("Ingresos por Método de Pago", estilos))
@@ -713,6 +719,63 @@ def _grafica_ingresos_diarios(resumen: ResumenMensual) -> Drawing | None:
         # Etiqueta día
         drawing.add(String(x + barra_ancho / 2, 18, dia_lbl,
                            fontSize=6, fillColor=colors.HexColor("#6B7280"),
+                           textAnchor="middle"))
+
+    return drawing
+
+
+def _grafica_tendencia_7dias(resumen: ResumenMensual) -> Drawing | None:
+    """
+    Gráfica de barras de ganancia neta de los últimos 7 días del mes,
+    replicando el estilo de _TendenciaWidget en el Dashboard (verde/rojo
+    alrededor de una línea de cero).
+    Retorna None si no hay datos.
+    """
+    dias = resumen.resumen_por_dia[-7:]
+    if not dias:
+        return None
+
+    W, H = 480, 180
+    drawing = Drawing(W, H)
+
+    valores = [rd.ganancia_neta for rd in dias]
+    max_abs = max((abs(v) for v in valores), default=1) or 1
+
+    pad_l, pad_r = 16, 16
+    area_h = H - 40
+    zero_y = 20 + area_h / 2
+
+    bar_w_slot = (W - pad_l - pad_r) / len(dias)
+    barra_ancho = bar_w_slot * 0.55
+
+    # Línea de cero
+    drawing.add(Line(pad_l, zero_y, W - pad_r, zero_y,
+                     strokeColor=colors.HexColor("#CBD5E1"), strokeWidth=0.75))
+
+    for i, rd in enumerate(dias):
+        x = pad_l + i * bar_w_slot + (bar_w_slot - barra_ancho) / 2
+        h_barra = (abs(rd.ganancia_neta) / max_abs) * (area_h / 2) if max_abs > 0 else 0
+        h_barra = max(h_barra, 1.5)
+
+        if rd.ganancia_neta >= 0:
+            color_barra = _VERDE
+            y = zero_y
+        else:
+            color_barra = _ROJO
+            y = zero_y - h_barra
+        drawing.add(Rect(x, y, barra_ancho, h_barra, fillColor=color_barra, strokeColor=None))
+
+        # Etiqueta de fecha
+        drawing.add(String(x + barra_ancho / 2, 6, rd.fecha.strftime("%d/%m"),
+                           fontSize=6, fillColor=colors.HexColor("#6B7280"),
+                           textAnchor="middle"))
+
+        # Valor (en miles si aplica)
+        val = rd.ganancia_neta
+        val_str = f"{val / 1000:.0f}k" if abs(val) >= 1000 else f"{val:.0f}"
+        text_y = (y + h_barra + 3) if val >= 0 else (y - 8)
+        drawing.add(String(x + barra_ancho / 2, text_y, val_str,
+                           fontSize=6, fillColor=colors.HexColor("#374151"),
                            textAnchor="middle"))
 
     return drawing

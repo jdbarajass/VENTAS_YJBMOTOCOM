@@ -5,6 +5,7 @@ y actualizar el inventario de cascos (suma stock o crea nuevas referencias).
 """
 from __future__ import annotations
 
+import re
 from pathlib import Path
 from typing import NamedTuple
 
@@ -500,6 +501,10 @@ class CarguesPedidosWidget(QWidget):
         for row, fila in enumerate(self._filas):
             editor = self._tabla.cellWidget(row, COL_NOMBRE)
             nombre_final = editor.text().strip() if editor else fila.nombre_sugerido
+            # El nombre sugerido trae el sufijo "-T:talla" embebido (ver
+            # services/pdf_pedido_parser._generar_nombre); la talla ya vive
+            # en su propia columna, así que se limpia del nombre.
+            nombre_final = re.sub(r"\s*-T:\S+\s*$", "", nombre_final, flags=re.IGNORECASE).strip()
 
             try:
                 if fila.inv_id is not None:
@@ -519,14 +524,15 @@ class CarguesPedidosWidget(QWidget):
 
                     conn.execute(
                         """INSERT INTO inventario
-                           (serial, producto, costo_unitario, cantidad, codigo_barras)
-                           VALUES (?, ?, ?, ?, ?)""",
+                           (serial, producto, costo_unitario, cantidad, codigo_barras, talla)
+                           VALUES (?, ?, ?, ?, ?, ?)""",
                         (
                             nuevo_serial,
                             nombre_final,
                             round(fila.costo_sin_iva),
                             fila.cantidad,
                             fila.cb_generado,
+                            fila.talla,
                         ),
                     )
                     creados += 1

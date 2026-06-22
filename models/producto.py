@@ -3,10 +3,7 @@ models/producto.py
 Modelo de dominio puro para un producto del inventario.
 """
 
-import re
 from dataclasses import dataclass
-
-_PAT_TALLA = re.compile(r"-T:(\w+)$")
 
 
 @dataclass
@@ -18,6 +15,7 @@ class Producto:
     codigo_barras: str = ""
     stock_minimo: int = 0
     categoria: str = ""
+    talla: str = ""
     id: int | None = None
 
     def __post_init__(self) -> None:
@@ -27,12 +25,6 @@ class Producto:
             raise ValueError("El costo unitario no puede ser negativo.")
         if self.cantidad < 0:
             self.cantidad = 0
-
-    @property
-    def talla(self) -> str:
-        """Extrae la talla del nombre del producto (formato -T:M). '' si no aplica."""
-        m = _PAT_TALLA.search(self.producto or "")
-        return m.group(1) if m else ""
 
     @property
     def bajo_stock(self) -> bool:

@@ -30,13 +30,14 @@ def obtener_usuario_por_nombre(nombre: str) -> Usuario | None:
     return Usuario(id=row[0], nombre=row[1], rol=row[2], clave_hash=row[3]) if row else None
 
 
-def insertar_usuario(usuario: Usuario) -> int:
+def insertar_usuario(usuario: Usuario, commit: bool = True) -> int:
     conn = DatabaseConnection.get()
     cursor = conn.execute(
         "INSERT INTO usuarios (nombre, rol, clave_hash) VALUES (?, ?, ?)",
         (usuario.nombre.strip(), usuario.rol, usuario.clave_hash),
     )
-    conn.commit()
+    if commit:
+        conn.commit()
     return cursor.lastrowid
 
 

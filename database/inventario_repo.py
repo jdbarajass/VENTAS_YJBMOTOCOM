@@ -45,7 +45,8 @@ def codigo_barras_en_uso(codigo: str, excluir_id: int | None = None) -> bool:
     return row is not None
 
 
-def insertar_producto(p: Producto) -> int:
+def insertar_producto(p: Producto, commit: bool = True) -> int:
+    """Si commit=False, no confirma la transacción (uso en importación masiva)."""
     if codigo_barras_en_uso(p.codigo_barras):
         raise ValueError(
             f"El código de barras '{p.codigo_barras}' ya está asignado a otro producto."
@@ -59,10 +60,11 @@ def insertar_producto(p: Producto) -> int:
         (p.serial, p.producto.strip(), p.costo_unitario, p.cantidad,
          p.codigo_barras, p.stock_minimo, p.categoria.strip(), p.talla.strip()),
     )
-    conn.commit()
+    if commit:
+        conn.commit()
     p.id = cursor.lastrowid
     if p.cantidad > 0:
-        registrar_movimiento(p.id, p.producto.strip(), "Entrada", 0, p.cantidad)
+        registrar_movimiento(p.id, p.producto.strip(), "Entrada", 0, p.cantidad, commit=commit)
     return cursor.lastrowid
 
 
@@ -265,9 +267,10 @@ def eliminar_producto(producto_id: int) -> bool:
     return cursor.rowcount > 0
 
 
-def eliminar_todo_inventario() -> int:
+def eliminar_todo_inventario(commit: bool = True) -> int:
     """Borra todo el inventario. Retorna la cantidad de filas eliminadas."""
     conn = DatabaseConnection.get()
     cursor = conn.execute("DELETE FROM inventario")
-    conn.commit()
+    if commit:
+        conn.commit()
     return cursor.rowcount

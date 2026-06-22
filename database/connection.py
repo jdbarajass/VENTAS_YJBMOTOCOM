@@ -53,6 +53,10 @@ class DatabaseConnection:
             # WAL mode: mejor rendimiento en escrituras concurrentes
             cls._instance.execute("PRAGMA journal_mode=WAL;")
             cls._instance.execute("PRAGMA foreign_keys=ON;")
+            # synchronous=NORMAL es seguro en modo WAL (no corrompe la BD) y evita
+            # forzar fsync físico en cada commit — acelera notablemente escrituras
+            # frecuentes (ventas, importación masiva) en discos/CPU lentos.
+            cls._instance.execute("PRAGMA synchronous=NORMAL;")
         return cls._instance
 
     @classmethod

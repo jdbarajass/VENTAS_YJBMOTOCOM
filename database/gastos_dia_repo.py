@@ -121,15 +121,16 @@ def eliminar_gasto(gasto_id: int) -> bool:
     return cursor.rowcount > 0
 
 
-def eliminar_gastos_por_mes(año: int, mes: int) -> None:
+def eliminar_gastos_por_mes(año: int, mes: int, commit: bool = True) -> None:
     prefix = f"{año:04d}-{mes:02d}-%"
     conn = DatabaseConnection.get()
     conn.execute("DELETE FROM gastos_dia WHERE fecha LIKE ?", (prefix,))
-    conn.commit()
+    if commit:
+        conn.commit()
 
 
-def insertar_gasto_directo(gasto: GastoDia) -> int:
-    """Inserta un gasto sin commit inmediato opcional — para importación masiva."""
+def insertar_gasto_directo(gasto: GastoDia, commit: bool = True) -> int:
+    """Inserta un gasto. Si commit=False, no confirma (uso en importación masiva)."""
     conn = DatabaseConnection.get()
     cursor = conn.execute(
         "INSERT INTO gastos_dia (fecha, descripcion, monto, categoria, cuenta_pago) "
@@ -137,5 +138,6 @@ def insertar_gasto_directo(gasto: GastoDia) -> int:
         (gasto.fecha.isoformat(), gasto.descripcion.strip(),
          gasto.monto, gasto.categoria, getattr(gasto, "cuenta_pago", "Efectivo")),
     )
-    conn.commit()
+    if commit:
+        conn.commit()
     return cursor.lastrowid

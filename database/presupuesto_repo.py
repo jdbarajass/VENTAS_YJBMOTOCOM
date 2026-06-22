@@ -21,7 +21,8 @@ def obtener_presupuesto_mes(anio: int, mes: int) -> dict[str, float]:
 
 
 def guardar_presupuesto_categoria(anio: int, mes: int,
-                                  categoria: str, monto: float) -> None:
+                                  categoria: str, monto: float,
+                                  commit: bool = True) -> None:
     """Inserta o actualiza el presupuesto de una categoría en un mes dado."""
     conn = DatabaseConnection.get()
     conn.execute(
@@ -33,7 +34,8 @@ def guardar_presupuesto_categoria(anio: int, mes: int,
         """,
         (anio, mes, categoria, monto),
     )
-    conn.commit()
+    if commit:
+        conn.commit()
 
 
 def obtener_todos_presupuestos() -> list[dict]:
@@ -54,11 +56,12 @@ def obtener_todos_presupuestos() -> list[dict]:
     ]
 
 
-def eliminar_todos_presupuestos() -> None:
+def eliminar_todos_presupuestos(commit: bool = True) -> None:
     """Borra todos los registros de presupuesto_mensual."""
     conn = DatabaseConnection.get()
     conn.execute("DELETE FROM presupuesto_mensual")
-    conn.commit()
+    if commit:
+        conn.commit()
 
 
 def copiar_presupuesto_mes(anio_origen: int, mes_origen: int,

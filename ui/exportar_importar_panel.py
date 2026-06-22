@@ -699,7 +699,10 @@ class ExportarImportarPanel(QWidget):
 
     def _ejecutar_importacion(self, res) -> list[str]:
         """Reemplaza ventas, préstamos, inventario, facturas, abonos, gastos, notas y config.
-        Retorna lista de advertencias (puede estar vacía)."""
+        Toda la operación corre en una sola transacción: si algo falla a mitad de
+        camino, se revierte todo (no queda la BD a medio importar). Retorna lista
+        de advertencias (puede estar vacía)."""
+        from database.connection import DatabaseConnection
         from database.ventas_repo import (
             eliminar_ventas_por_mes, insertar_venta,
         )
@@ -718,114 +721,123 @@ class ExportarImportarPanel(QWidget):
         from database.config_repo import guardar_configuracion, obtener_configuracion
         from services.calculator import completar_venta
 
+        conn = DatabaseConnection.get()
         advertencias: list[str] = []
-        cfg_actual = obtener_configuracion()
 
-        # Ventas: eliminar los meses del archivo y reinsertar
-        for año_m, mes_m in res.meses_afectados:
-            eliminar_ventas_por_mes(año_m, mes_m)
-        cfg_para_calc = res.configuracion if res.configuracion else cfg_actual
-        for v in res.ventas:
-            completar_venta(v, cfg_para_calc)
-            insertar_venta(v)
+        try:
+            cfg_actual = obtener_configuracion()
 
-        # Préstamos
-        eliminar_todos_prestamos()
-        for p in res.prestamos:
-            insertar_prestamo(p)
+            # Ventas: eliminar los meses del archivo y reinsertar
+            for año_m, mes_m in res.meses_afectados:
+                eliminar_ventas_por_mes(año_m, mes_m, commit=False)
+            cfg_para_calc = res.configuracion if res.configuracion else cfg_actual
+            for v in res.ventas:
+                completar_venta(v, cfg_para_calc)
+                insertar_venta(v, commit=False)
 
-        # Inventario
-        eliminar_todo_inventario()
-        for prod in res.productos:
-            insertar_producto(prod)
+            # Préstamos
+            eliminar_todos_prestamos(commit=False)
+            for p in res.prestamos:
+                insertar_prestamo(p, commit=False)
 
-        # Abonos primero (antes de borrar facturas para evitar FK issues)
-        from database.abonos_factura_repo import eliminar_todos_abonos, insertar_abono
-        eliminar_todos_abonos()
+            # Inventario
+            eliminar_todo_inventario(commit=False)
+            for prod in res.productos:
+                insertar_producto(prod, commit=False)
 
-        # Facturas
-        eliminar_todas_facturas()
-        factura_id_map: dict[tuple, int] = {}
-        for f in res.facturas:
-            new_id = insertar_factura_directa(f)
-            key = (f.descripcion.strip().lower(), f.proveedor.strip().lower())
-            factura_id_map[key] = new_id
+            # Abonos primero (antes de borrar facturas para evitar FK issues)
+            from database.abonos_factura_repo import eliminar_todos_abonos, insertar_abono
+            eliminar_todos_abonos(commit=False)
 
-        # Abonos — vincular a las facturas recién insertadas
-        if res.abonos_raw:
-            from models.abono_factura import AbonoFactura
-            abonos_omitidos = 0
-            for ab in res.abonos_raw:
-                key = (ab["factura_desc"].strip().lower(), ab["factura_prov"].strip().lower())
-                factura_id = factura_id_map.get(key)
-                if factura_id is None:
-                    abonos_omitidos += 1
-                    log.warning("Abono omitido: factura '%s' / '%s' no encontrada",
-                                ab["factura_desc"], ab["factura_prov"])
-                    continue
-                try:
-                    insertar_abono(AbonoFactura(
-                        factura_id=factura_id,
-                        monto=ab["monto"],
-                        fecha=ab["fecha"],
-                        notas=ab["notas"],
-                    ))
-                except (ValueError, Exception) as exc:
-                    abonos_omitidos += 1
-                    log.warning("Abono omitido por error: %s", exc)
-            if abonos_omitidos:
-                advertencias.append(
-                    f"{abonos_omitidos} abono(s) no se importaron porque su factura "
-                    "no coincide exactamente con ninguna factura del archivo."
+            # Facturas
+            eliminar_todas_facturas(commit=False)
+            factura_id_map: dict[tuple, int] = {}
+            for f in res.facturas:
+                new_id = insertar_factura_directa(f, commit=False)
+                key = (f.descripcion.strip().lower(), f.proveedor.strip().lower())
+                factura_id_map[key] = new_id
+
+            # Abonos — vincular a las facturas recién insertadas
+            if res.abonos_raw:
+                from models.abono_factura import AbonoFactura
+                abonos_omitidos = 0
+                for ab in res.abonos_raw:
+                    key = (ab["factura_desc"].strip().lower(), ab["factura_prov"].strip().lower())
+                    factura_id = factura_id_map.get(key)
+                    if factura_id is None:
+                        abonos_omitidos += 1
+                        log.warning("Abono omitido: factura '%s' / '%s' no encontrada",
+                                    ab["factura_desc"], ab["factura_prov"])
+                        continue
+                    try:
+                        insertar_abono(AbonoFactura(
+                            factura_id=factura_id,
+                            monto=ab["monto"],
+                            fecha=ab["fecha"],
+                            notas=ab["notas"],
+                        ), commit=False)
+                    except (ValueError, Exception) as exc:
+                        abonos_omitidos += 1
+                        log.warning("Abono omitido por error: %s", exc)
+                if abonos_omitidos:
+                    advertencias.append(
+                        f"{abonos_omitidos} abono(s) no se importaron porque su factura "
+                        "no coincide exactamente con ninguna factura del archivo."
+                    )
+
+            # Gastos operativos
+            for año_m, mes_m in res.meses_gastos_afectados:
+                eliminar_gastos_por_mes(año_m, mes_m, commit=False)
+            for g in res.gastos:
+                insertar_gasto_directo(g, commit=False)
+
+            # Configuración (si viene en el archivo)
+            if res.configuracion:
+                guardar_configuracion(res.configuracion, commit=False)
+
+            # Notas y Pendientes (solo si la hoja vino en el archivo)
+            if res.notas is not None:
+                from database.notas_repo import eliminar_todas_notas, insertar_nota
+                eliminar_todas_notas(commit=False)
+                for n in res.notas:
+                    insertar_nota(n, commit=False)
+
+            # Presupuesto mensual — reemplazar todo si viene la hoja
+            if res.presupuestos is not None:
+                from database.presupuesto_repo import (
+                    eliminar_todos_presupuestos, guardar_presupuesto_categoria,
                 )
+                eliminar_todos_presupuestos(commit=False)
+                for p in res.presupuestos:
+                    guardar_presupuesto_categoria(
+                        p["anio"], p["mes"], p["categoria"], p["monto_presupuestado"],
+                        commit=False,
+                    )
 
-        # Gastos operativos
-        for año_m, mes_m in res.meses_gastos_afectados:
-            eliminar_gastos_por_mes(año_m, mes_m)
-        for g in res.gastos:
-            insertar_gasto_directo(g)
+            # Usuarios — agrega los nuevos; los existentes (por nombre) no se tocan
+            if res.usuarios:
+                from database.usuarios_repo import obtener_usuario_por_nombre, insertar_usuario
+                from database.usuarios_repo import Usuario
+                from utils.security import hashear_clave
+                nuevos = 0
+                for u_data in res.usuarios:
+                    if not obtener_usuario_por_nombre(u_data["nombre"]):
+                        insertar_usuario(Usuario(
+                            nombre=u_data["nombre"],
+                            rol=u_data["rol"],
+                            clave_hash=hashear_clave("1234"),
+                        ), commit=False)
+                        nuevos += 1
+                if nuevos:
+                    advertencias.append(
+                        f"{nuevos} usuario(s) creado(s) con contraseña temporal '1234' — "
+                        "cámbiala en Configuración → Gestión de Usuarios."
+                    )
 
-        # Configuración (si viene en el archivo)
-        if res.configuracion:
-            guardar_configuracion(res.configuracion)
-
-        # Notas y Pendientes (solo si la hoja vino en el archivo)
-        if res.notas is not None:
-            from database.notas_repo import eliminar_todas_notas, insertar_nota
-            eliminar_todas_notas()
-            for n in res.notas:
-                insertar_nota(n)
-
-        # Presupuesto mensual — reemplazar todo si viene la hoja
-        if res.presupuestos is not None:
-            from database.presupuesto_repo import (
-                eliminar_todos_presupuestos, guardar_presupuesto_categoria,
-            )
-            eliminar_todos_presupuestos()
-            for p in res.presupuestos:
-                guardar_presupuesto_categoria(
-                    p["anio"], p["mes"], p["categoria"], p["monto_presupuestado"]
-                )
-
-        # Usuarios — agrega los nuevos; los existentes (por nombre) no se tocan
-        if res.usuarios:
-            from database.usuarios_repo import obtener_usuario_por_nombre, insertar_usuario
-            from database.usuarios_repo import Usuario
-            from utils.security import hashear_clave
-            nuevos = 0
-            for u_data in res.usuarios:
-                if not obtener_usuario_por_nombre(u_data["nombre"]):
-                    insertar_usuario(Usuario(
-                        nombre=u_data["nombre"],
-                        rol=u_data["rol"],
-                        clave_hash=hashear_clave("1234"),
-                    ))
-                    nuevos += 1
-            if nuevos:
-                advertencias.append(
-                    f"{nuevos} usuario(s) creado(s) con contraseña temporal '1234' — "
-                    "cámbiala en Configuración → Gestión de Usuarios."
-                )
+            conn.commit()
+        except Exception:
+            conn.rollback()
+            raise
 
         return advertencias
 

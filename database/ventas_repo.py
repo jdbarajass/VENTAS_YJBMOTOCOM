@@ -67,10 +67,12 @@ def siguiente_numero_factura() -> int:
     return row[0]
 
 
-def insertar_venta(venta: Venta) -> int:
+def insertar_venta(venta: Venta, commit: bool = True) -> int:
     """
     Persiste una nueva venta y retorna el id generado.
     Actualiza venta.id en el objeto pasado.
+    Si commit=False, no confirma la transacción (uso en importación masiva,
+    donde el llamador hace un solo commit/rollback al final).
     """
     conn = DatabaseConnection.get()
     pagos_json = json.dumps(venta.pagos_combinados) if venta.pagos_combinados else None
@@ -116,7 +118,8 @@ def insertar_venta(venta: Venta) -> int:
             precio_ofertado,
         ),
     )
-    conn.commit()
+    if commit:
+        conn.commit()
     venta.id = cursor.lastrowid
     return cursor.lastrowid
 
@@ -282,12 +285,13 @@ def eliminar_ventas_por_fecha(fecha: date) -> int:
     return cursor.rowcount
 
 
-def eliminar_ventas_por_mes(año: int, mes: int) -> int:
+def eliminar_ventas_por_mes(año: int, mes: int, commit: bool = True) -> int:
     """Elimina todas las ventas de un mes/año. Retorna la cantidad eliminada."""
     prefix = f"{año:04d}-{mes:02d}-%"
     conn = DatabaseConnection.get()
     cursor = conn.execute(
         "DELETE FROM ventas WHERE fecha LIKE ?", (prefix,)
     )
-    conn.commit()
+    if commit:
+        conn.commit()
     return cursor.rowcount

@@ -138,13 +138,14 @@ def eliminar_factura(factura_id: int) -> bool:
     return cur.rowcount > 0
 
 
-def eliminar_todas_facturas() -> None:
+def eliminar_todas_facturas(commit: bool = True) -> None:
     conn = DatabaseConnection.get()
     conn.execute("DELETE FROM facturas")
-    conn.commit()
+    if commit:
+        conn.commit()
 
 
-def insertar_factura_directa(f) -> int:
+def insertar_factura_directa(f, commit: bool = True) -> int:
     """Igual que insertar_factura pero acepta estado arbitrario (para importación)."""
     conn = DatabaseConnection.get()
     fv = f.fecha_vencimiento.strftime("%Y-%m-%d") if getattr(f, "fecha_vencimiento", None) else None
@@ -157,5 +158,6 @@ def insertar_factura_directa(f) -> int:
         (f.descripcion, f.proveedor, f.monto,
          f.fecha_llegada.strftime("%Y-%m-%d"), f.estado, f.notas, fv, fp),
     )
-    conn.commit()
+    if commit:
+        conn.commit()
     return cur.lastrowid

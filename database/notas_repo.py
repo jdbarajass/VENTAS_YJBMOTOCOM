@@ -57,14 +57,15 @@ def obtener_notas_vencidas() -> list[Nota]:
     return [_row_to_nota(r) for r in rows]
 
 
-def insertar_nota(nota: Nota) -> int:
+def insertar_nota(nota: Nota, commit: bool = True) -> int:
     conn = DatabaseConnection.get()
     cur = conn.execute(
         "INSERT INTO notas (texto, tipo, completado, fecha_creacion, fecha_limite) "
         "VALUES (?,?,?,?,?)",
         (nota.texto, nota.tipo, int(nota.completado), nota.fecha_creacion, nota.fecha_limite),
     )
-    conn.commit()
+    if commit:
+        conn.commit()
     return cur.lastrowid
 
 
@@ -92,7 +93,8 @@ def eliminar_nota(nota_id: int) -> None:
     conn.commit()
 
 
-def eliminar_todas_notas() -> None:
+def eliminar_todas_notas(commit: bool = True) -> None:
     conn = DatabaseConnection.get()
     conn.execute("DELETE FROM notas")
-    conn.commit()
+    if commit:
+        conn.commit()

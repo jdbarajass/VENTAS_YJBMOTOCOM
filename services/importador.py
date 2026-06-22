@@ -361,12 +361,16 @@ def _leer_usuarios(ws) -> list[dict]:
     Lee la hoja «Usuarios».
     Fila 1 = título, fila 2 = encabezados, fila 3+ = datos.
     Columnas: Nombre | Rol
+    Ignora la fila de nota instructiva que el exportador escribe al final
+    (texto largo, sin valor real de "Rol" propio de un usuario).
     Retorna lista de dicts {nombre, rol}.
     """
     usuarios: list[dict] = []
     for row_idx in range(3, ws.max_row + 1):
         nombre = str(ws.cell(row_idx, 1).value or "").strip()
         if not nombre:
+            continue
+        if len(nombre) > 50 or nombre.lower().startswith("roles válidos"):
             continue
         rol_raw = str(ws.cell(row_idx, 2).value or "vendedor").strip().lower()
         rol = "admin" if rol_raw == "admin" else "vendedor"

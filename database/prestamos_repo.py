@@ -32,7 +32,7 @@ def _row_to_prestamo(row: sqlite3.Row) -> Prestamo:
     )
 
 
-def insertar_prestamo(p: Prestamo) -> int:
+def insertar_prestamo(p: Prestamo, commit: bool = True) -> int:
     """Persiste un nuevo préstamo y retorna el id asignado."""
     conn = DatabaseConnection.get()
     cursor = conn.execute(
@@ -42,7 +42,8 @@ def insertar_prestamo(p: Prestamo) -> int:
         """,
         (p.fecha.isoformat(), p.hora, p.producto, p.almacen, p.observaciones, p.estado),
     )
-    conn.commit()
+    if commit:
+        conn.commit()
     return cursor.lastrowid
 
 
@@ -99,9 +100,10 @@ def eliminar_prestamo(prestamo_id: int) -> bool:
     return cursor.rowcount > 0
 
 
-def eliminar_todos_prestamos() -> int:
+def eliminar_todos_prestamos(commit: bool = True) -> int:
     """Elimina todos los préstamos. Retorna la cantidad eliminada."""
     conn = DatabaseConnection.get()
     cursor = conn.execute("DELETE FROM prestamos")
-    conn.commit()
+    if commit:
+        conn.commit()
     return cursor.rowcount

@@ -140,7 +140,12 @@ def main() -> None:
     app.processEvents()
 
     window = MainWindow(usuario=login.usuario_nombre, rol=login.usuario_rol)
-    _splash.finish(window)
+    # Cerrar el splash ANTES de mostrar la ventana: si la construcción tardó más
+    # de 800ms, el aviso de recordatorios (_alertar_facturas_vencimiento) puede
+    # disparar aquí mismo al procesar eventos pendientes — si el splash (que
+    # siempre está encima de todo) sigue abierto en ese momento, su diálogo
+    # modal queda escondido detrás y la app parece congelada para siempre.
+    _splash.close()
     window.showMaximized()
 
     # Cerrar BD limpiamente al salir

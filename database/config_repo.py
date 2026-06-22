@@ -42,7 +42,7 @@ def obtener_configuracion() -> Configuracion:
     return _row_to_config(row)
 
 
-def guardar_configuracion(cfg: Configuracion) -> None:
+def guardar_configuracion(cfg: Configuracion, commit: bool = True) -> None:
     """Actualiza la fila única de configuración (siempre id=1)."""
     conn = DatabaseConnection.get()
     conn.execute(
@@ -91,4 +91,5 @@ def guardar_configuracion(cfg: Configuracion) -> None:
             cfg.backup_intervalo_horas,
         ),
     )
-    conn.commit()
+    if commit:
+        conn.commit()

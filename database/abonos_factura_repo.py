@@ -35,14 +35,15 @@ def _row_to_abono(row: sqlite3.Row) -> AbonoFactura:
     )
 
 
-def insertar_abono(a: AbonoFactura) -> int:
+def insertar_abono(a: AbonoFactura, commit: bool = True) -> int:
     conn = DatabaseConnection.get()
     cur = conn.execute(
         """INSERT INTO abonos_factura (factura_id, monto, fecha, notas, cuenta_id)
            VALUES (?, ?, ?, ?, ?)""",
         (a.factura_id, a.monto, a.fecha.strftime("%Y-%m-%d"), a.notas, a.cuenta_id),
     )
-    conn.commit()
+    if commit:
+        conn.commit()
     a.id = cur.lastrowid
     return cur.lastrowid
 
@@ -86,10 +87,11 @@ def eliminar_abonos_por_factura(factura_id: int) -> None:
     conn.commit()
 
 
-def eliminar_todos_abonos() -> None:
+def eliminar_todos_abonos(commit: bool = True) -> None:
     conn = DatabaseConnection.get()
     conn.execute("DELETE FROM abonos_factura")
-    conn.commit()
+    if commit:
+        conn.commit()
 
 
 def obtener_todos_abonos_con_factura() -> list[dict]:

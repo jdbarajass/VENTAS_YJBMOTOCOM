@@ -14,8 +14,10 @@ def registrar_movimiento(
     cantidad_ant: int,
     cantidad_nva: int,
     notas: str = "",
+    commit: bool = True,
 ) -> None:
-    """Inserta un registro de movimiento. Llamado automáticamente por los repos de inventario."""
+    """Inserta un registro de movimiento. Llamado automáticamente por los repos de inventario.
+    Si commit=False, no confirma la transacción (uso en importación masiva)."""
     if cantidad_ant == cantidad_nva:
         return
     ahora = datetime.now()
@@ -38,7 +40,8 @@ def registrar_movimiento(
             notas,
         ),
     )
-    conn.commit()
+    if commit:
+        conn.commit()
 
 
 def obtener_movimientos_recientes(limite: int = 200) -> list[dict]:

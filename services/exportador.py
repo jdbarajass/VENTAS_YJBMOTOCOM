@@ -924,7 +924,7 @@ def _escribir_hoja_fiado(ws, fiados: list) -> None:
     ncols = len(_HEADERS_FIADO)
     ws.merge_cells(f"A1:{get_column_letter(ncols)}1")
     t = ws["A1"]
-    t.value = "YJBMOTOCOM — Clientes Deudores (Fiado)"
+    t.value = "YJBMOTOCOM — Apartados de Clientes (Fiado)"
     t.font = Font(name="Calibri", bold=True, size=13, color="FFFFFF")
     t.fill = PatternFill("solid", fgColor="7C3AED")
     t.alignment = Alignment(horizontal="center", vertical="center")
@@ -971,7 +971,7 @@ def _escribir_hoja_abonos_fiado(ws, abonos: list) -> None:
     ncols = len(_HEADERS_ABONOS_FIADO)
     ws.merge_cells(f"A1:{get_column_letter(ncols)}1")
     t = ws["A1"]
-    t.value = "YJBMOTOCOM — Abonos de Clientes Deudores"
+    t.value = "YJBMOTOCOM — Abonos de Apartados de Clientes"
     t.font = Font(name="Calibri", bold=True, size=13, color="FFFFFF")
     t.fill = PatternFill("solid", fgColor="5B21B6")
     t.alignment = Alignment(horizontal="center", vertical="center")

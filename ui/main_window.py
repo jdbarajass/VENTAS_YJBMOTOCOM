@@ -234,7 +234,7 @@ class MainWindow(QMainWindow):
             (PAGE_HISTORIAL,   "📅  Historial Mensual"),
             (PAGE_INVENTARIO,  "📦  Inventario"),
             (PAGE_PRESTAMOS,   "🤝  Préstamos"),
-            (PAGE_FIADO,       "💸  Clientes Deudores"),
+            (PAGE_FIADO,       "💸  Apartados y Abonos"),
             (PAGE_FACTURAS,    "🧾  Facturas"),
             (PAGE_PRESUPUESTO, "💰  Presupuesto"),
             (PAGE_NOTAS,       "📝  Notas y Pendientes"),
@@ -387,7 +387,7 @@ class MainWindow(QMainWindow):
         self._cuentas = CuentasPanel()
         self._stack.addWidget(self._cuentas)
 
-        # Página 13 — Clientes Deudores (Fiado)
+        # Página 13 — Apartados y Abonos de Clientes (Fiado)
         self._fiado = FiadoPanel()
         self._stack.addWidget(self._fiado)
 

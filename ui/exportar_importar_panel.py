@@ -170,8 +170,8 @@ class ExportarImportarPanel(QWidget):
         self._chk_config      = QCheckBox("Configuración")
         self._chk_presupuesto = QCheckBox("Presupuesto mensual")
         self._chk_cuentas      = QCheckBox("Cuentas (saldos, movimientos y cierres)")
-        self._chk_fiado        = QCheckBox("Clientes Deudores (Fiado)")
-        self._chk_abonos_fiado = QCheckBox("Abonos de Clientes (Fiado)")
+        self._chk_fiado        = QCheckBox("Apartados de Clientes (Fiado)")
+        self._chk_abonos_fiado = QCheckBox("Abonos de Apartados")
         self._chk_mov_inv      = QCheckBox("Movimientos de Inventario")
 
         for chk in (self._chk_prestamos, self._chk_inventario,
@@ -487,9 +487,9 @@ class ExportarImportarPanel(QWidget):
                               f"{len(movimientos_export)} movimiento(s), "
                               f"{len(cierres_export)} cierre(s)")
             if fiado_export is not None:
-                lineas.append(f"  • {len(fiado_export)} cliente(s) deudor(es) (fiado)")
+                lineas.append(f"  • {len(fiado_export)} apartado(s)/fiado(s) de cliente")
             if abonos_fiado_export is not None:
-                lineas.append(f"  • {len(abonos_fiado_export)} abono(s) de clientes (fiado)")
+                lineas.append(f"  • {len(abonos_fiado_export)} abono(s) de apartados")
             if mov_inv_export is not None:
                 lineas.append(f"  • {len(mov_inv_export)} movimiento(s) de inventario")
 

@@ -242,10 +242,10 @@ class FiadoPanel(QWidget):
 
     def _barra_titulo(self) -> QHBoxLayout:
         lay = QHBoxLayout()
-        titulo = QLabel("Clientes Deudores (Fiado)")
+        titulo = QLabel("Apartados y Abonos de Clientes")
         f = QFont(); f.setPointSize(16); f.setBold(True)
         titulo.setFont(f)
-        desc = QLabel("Control de deudas y abonos de clientes")
+        desc = QLabel("Productos apartados o fiados a clientes, con sus abonos hasta saldar la deuda")
         desc.setStyleSheet("color:#6B7280;font-size:12px;")
 
         self._chk_pendientes = QCheckBox("Solo pendientes")
@@ -347,12 +347,25 @@ class FiadoPanel(QWidget):
             "QLineEdit{border-radius:4px;padding:0 8px;}"
             "QLineEdit:focus{border:2px solid #DC2626;}"
         )
+        self._f_abono_inicial = MoneyLineEdit()
+        self._f_abono_inicial.setPlaceholderText("Abono inicial (opcional)")
+        self._f_abono_inicial.setFixedHeight(30); self._f_abono_inicial.setFixedWidth(160)
+        self._f_abono_inicial.setStyleSheet(
+            "QLineEdit{border-radius:4px;padding:0 8px;}"
+            "QLineEdit:focus{border:2px solid #DC2626;}"
+        )
 
         for w, l in [(self._f_cliente, "Cliente:"), (self._f_cedula, "Cédula:"),
                      (self._f_tel, "Teléfono:"), (self._f_monto, "Monto ($):")]:
             col = QVBoxLayout(); col.setSpacing(2)
             col.addWidget(_lbl(l)); col.addWidget(w)
             fila1.addLayout(col)
+
+        self._lbl_abono_inicial = _lbl("Abono inicial ($):")
+        self._col_abono_inicial = QVBoxLayout(); self._col_abono_inicial.setSpacing(2)
+        self._col_abono_inicial.addWidget(self._lbl_abono_inicial)
+        self._col_abono_inicial.addWidget(self._f_abono_inicial)
+        fila1.addLayout(self._col_abono_inicial)
 
         self._f_fecha = QDateEdit()
         self._f_fecha.setDate(QDate.currentDate())
@@ -574,6 +587,8 @@ class FiadoPanel(QWidget):
         self._lbl_form_titulo.setText("Nueva Deuda")
         self._btn_guardar.setText("Guardar")
         self._limpiar_form()
+        self._lbl_abono_inicial.setVisible(True)
+        self._f_abono_inicial.setVisible(True)
         self._frame_form.setVisible(True)
         self._f_cliente.setFocus()
 
@@ -595,6 +610,8 @@ class FiadoPanel(QWidget):
         self._f_monto.set_valor(int(f.monto_total))
         self._f_fecha.setDate(QDate(f.fecha.year, f.fecha.month, f.fecha.day))
         self._f_notas.setText(f.notas)
+        self._lbl_abono_inicial.setVisible(False)
+        self._f_abono_inicial.setVisible(False)
         self._frame_form.setVisible(True)
         self._f_cliente.setFocus()
 
@@ -613,16 +630,25 @@ class FiadoPanel(QWidget):
         if monto <= 0:
             QMessageBox.warning(self, "Campo requerido", "El monto debe ser mayor a cero.")
             return
+        abono_inicial = float(self._f_abono_inicial.valor_int()) if self._editando_id is None else 0.0
+        if abono_inicial > monto:
+            QMessageBox.warning(
+                self, "Dato inválido",
+                "El abono inicial no puede ser mayor al monto de la deuda."
+            )
+            return
         qd = self._f_fecha.date()
         fecha = date(qd.year(), qd.month(), qd.day())
         try:
             if self._editando_id is None:
-                self._ctrl.registrar(
+                nuevo_id = self._ctrl.registrar(
                     cliente, desc, monto, fecha,
                     self._f_cedula.text().strip(),
                     self._f_tel.text().strip(),
                     self._f_notas.text().strip(),
                 )
+                if abono_inicial > 0:
+                    self._ctrl.registrar_abono(nuevo_id, abono_inicial, fecha, "Abono inicial")
             else:
                 todas = self._ctrl.cargar_todos()
                 f_orig = next((x for x in todas if x.id == self._editando_id), None)
@@ -679,4 +705,5 @@ class FiadoPanel(QWidget):
     def _limpiar_form(self) -> None:
         self._f_cliente.clear(); self._f_cedula.clear(); self._f_tel.clear()
         self._f_desc.clear(); self._f_monto.clear(); self._f_notas.clear()
+        self._f_abono_inicial.clear()
         self._f_fecha.setDate(QDate.currentDate())

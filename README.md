@@ -330,6 +330,28 @@ La tabla `schema_version` registra qué migraciones ya se aplicaron. Al actualiz
 | 7.15 | **Importación más rápida y atómica** — `synchronous=NORMAL` en la conexión SQLite (recomendado por SQLite en modo WAL, acelera toda escritura de la app); la importación masiva de Excel ahora corre en una sola transacción (antes hacía ~1.500 commits individuales) — si algo falla a mitad de camino, se revierte todo en vez de dejar la BD a medias; se agregó un parámetro `commit` opcional a 14 funciones de escritura en `database/` (ventas, inventario, préstamos, facturas, abonos, gastos, notas, presupuesto, usuarios, configuración) sin cambiar su comportamiento por defecto en ningún otro lugar de la app |
 | 7.16 | **Filtro de la nota instructiva al importar usuarios** — `_leer_usuarios()` ignoraba la fila de nota que el exportador escribe al final de la hoja "Usuarios", creando un usuario fantasma con ese texto como nombre en cada ciclo exportar→importar; ahora se descarta cualquier fila con nombre >50 caracteres o que empiece con "Roles válidos" |
 
+### Fase 8 — Respaldo en Excel realmente completo (exportar/importar) ✅
+Auditoría: se comparó cada una de las 18 tablas de datos de usuario contra lo que `services/exportador.py`/`services/importador.py` realmente exportan e importan de vuelta. Se encontraron 3 tipos de brecha y se cerraron todas:
+
+| # | Mejora |
+|---|--------|
+| 8.1 | **Ventas — 8 campos que faltaban**: hora, vendedor, cliente (nombre/cédula/tel), N° factura, descuento, SKU, precio ofertado y grupo de venta no se exportaban ni importaban (solo 12 de 20 campos reales). Se añadió una hoja "Ventas" extendida (22 columnas) usada solo en el respaldo completo — las plantillas manuales de carga de ventas siguen con el formato simple de 12 columnas para no complicar el llenado a mano |
+| 8.2 | **Inventario** — se agregó "Stock mínimo" a la exportación/importación; además se corrigió que el importador nunca leía la Talla de vuelta aunque sí se exportaba |
+| 8.3 | **Facturas** — se agregó la columna "Cuenta" (de qué medio de pago salió) a la exportación/importación |
+| 8.4 | **Configuración** — solo se exportaban 11 de 19 campos; se agregaron las 5 comisiones por cuenta (Nequi/NU/QR/Daviplata/Datafono) y los 2 ajustes de backup automático |
+| 8.5 | **Cuentas, Movimientos de Cuentas, Cierres Mensuales, Fiado, Abonos de Fiado y Movimientos de Inventario** — antes se exportaban pero el importador no tenía ninguna función para leerlas de vuelta; si se restauraba desde un backup, esos datos se perdían aunque estuvieran en el archivo. Ahora las 6 hojas son completamente importables, vinculando cada registro a su cuenta/producto/factura por nombre (los ids cambian al reinsertar) |
+| 8.6 | **Facturas Items y Log de Auditoría** — no se exportaban en absoluto; ahora ambas hojas se generan en el respaldo completo. El log de auditoría se **agrega** al existente al importar (nunca lo reemplaza, es un historial acumulable) |
+| 8.7 | **Toda la importación corre en una sola transacción atómica** — si algo falla a mitad de camino, se revierte todo (ver 7.15); se probó forzando un fallo deliberado y confirmando reversión total, incluyendo las 6 tablas nuevas de este punto |
+
+**Bugs reales corregidos en el camino** (no solo huecos, datos que se perdían o vinculaban mal):
+- La columna "Cuenta" en "Mov. Cuentas" guardaba el ID numérico en vez del nombre — se rompía al reimportar si los IDs cambiaban tras recrear las cuentas.
+- Importar Configuración **resetaba la contraseña** al valor de fábrica (nunca se preservaba la actual) — ahora se preserva siempre.
+- Colisión de palabra clave en el detector de columnas de inventario: "Stock mínimo" se confundía con "Cantidad" (ambas contienen "stock") — se corrigió el orden de detección.
+
+**Limitación conocida (no corregible sin riesgo):** los movimientos de inventario guardan el nombre del producto como texto, no un id estable — si un producto se renombra (ej. la limpieza de tallas de la Fase 1), sus movimientos históricos ya no se pueden vincular al reimportar un backup anterior al renombre. Es inherente al diseño, no un bug.
+
+**Verificación de ciclo completo:** se exportó todo desde una copia de la BD real, se vaciaron las 14 tablas (incluyendo borrar un usuario a propósito), se reimportó, y las 13 tablas comparables quedaron idénticas — incluido el usuario recuperado y la contraseña intacta. Auditoría posterior de no-regresión: se probaron formatos de Excel anteriores a esta fase (compatibilidad hacia atrás), el flujo de "Importar Inventario" independiente, y los flujos normales de venta/factura/fiado/préstamo/inventario fuera de import-export — todo sin cambios de comportamiento.
+
 ### Fixes y mejoras post-fases ✅
 | # | Descripción |
 |---|-------------|

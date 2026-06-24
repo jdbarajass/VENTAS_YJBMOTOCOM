@@ -173,12 +173,14 @@ class ExportarImportarPanel(QWidget):
         self._chk_fiado        = QCheckBox("Apartados de Clientes (Fiado)")
         self._chk_abonos_fiado = QCheckBox("Abonos de Apartados")
         self._chk_mov_inv      = QCheckBox("Movimientos de Inventario")
+        self._chk_log_auditoria = QCheckBox("Log de auditoría")
 
         for chk in (self._chk_prestamos, self._chk_inventario,
                     self._chk_facturas, self._chk_gastos,
                     self._chk_notas, self._chk_abonos, self._chk_config,
                     self._chk_presupuesto, self._chk_cuentas,
-                    self._chk_fiado, self._chk_abonos_fiado, self._chk_mov_inv):
+                    self._chk_fiado, self._chk_abonos_fiado, self._chk_mov_inv,
+                    self._chk_log_auditoria):
             chk.setChecked(True)
             chk.setStyleSheet(chk_style)
             g_lay.addWidget(chk)
@@ -405,6 +407,10 @@ class ExportarImportarPanel(QWidget):
             prestamos     = obtener_todos_prestamos()     if self._chk_prestamos.isChecked()  else None
             productos     = obtener_todos_productos()     if self._chk_inventario.isChecked() else None
             facturas      = obtener_todas_facturas()      if self._chk_facturas.isChecked()   else None
+            facturas_items_export = None
+            if self._chk_facturas.isChecked():
+                from database.facturas_items_repo import obtener_todos_items as _get_items
+                facturas_items_export = _get_items()
             gastos        = obtener_todos_gastos()        if self._chk_gastos.isChecked()     else None
             configuracion = obtener_configuracion()       if self._chk_config.isChecked()     else None
             notas = (
@@ -454,12 +460,18 @@ class ExportarImportarPanel(QWidget):
                 from database.inventario_mov_repo import obtener_todos_movimientos as _get_mov_inv
                 mov_inv_export = _get_mov_inv()
 
+            log_export = None
+            if self._chk_log_auditoria.isChecked():
+                import utils.auditoria as _auditoria
+                log_export = _auditoria.obtener_log(limite=999_999)
+
             with CargandoModal(self, "Exportando datos…"):
                 exportar_todo(Path(ruta), ventas, prestamos, productos,
                               facturas, gastos, configuracion, notas, abonos,
                               usuarios_export, presupuestos_export,
                               cuentas_export, movimientos_export, cierres_export,
-                              fiado_export, abonos_fiado_export, mov_inv_export)
+                              fiado_export, abonos_fiado_export, mov_inv_export,
+                              facturas_items=facturas_items_export, log_acciones=log_export)
 
             # Construir resumen para el mensaje
             lineas = []
@@ -590,6 +602,8 @@ class ExportarImportarPanel(QWidget):
                     obtener_todos_abonos_fiado as _bk_abonos_fiado,
                 )
                 from database.inventario_mov_repo import obtener_todos_movimientos as _bk_mov_inv
+                from database.facturas_items_repo import obtener_todos_items as _bk_items
+                import utils.auditoria as _bk_auditoria
 
                 with CargandoModal(self, "Guardando respaldo…"):
                     _exportar_todo(
@@ -610,6 +624,8 @@ class ExportarImportarPanel(QWidget):
                         fiado=_bk_fiado(),
                         abonos_fiado=_bk_abonos_fiado(),
                         movimientos_inventario=_bk_mov_inv(),
+                        facturas_items=_bk_items(),
+                        log_acciones=_bk_auditoria.obtener_log(limite=999_999),
                     )
                 QMessageBox.information(
                     self,
@@ -720,6 +736,9 @@ class ExportarImportarPanel(QWidget):
         )
         from database.config_repo import guardar_configuracion, obtener_configuracion
         from services.calculator import completar_venta
+        import json as _json
+        from models.cuenta import MovimientoCuenta, CierreMensual
+        from models.fiado import AbonoFiado
 
         conn = DatabaseConnection.get()
         advertencias: list[str] = []
@@ -742,20 +761,42 @@ class ExportarImportarPanel(QWidget):
 
             # Inventario
             eliminar_todo_inventario(commit=False)
+            producto_id_map: dict[str, int] = {}
             for prod in res.productos:
                 insertar_producto(prod, commit=False)
+                producto_id_map[prod.producto.strip().lower()] = prod.id
 
             # Abonos primero (antes de borrar facturas para evitar FK issues)
             from database.abonos_factura_repo import eliminar_todos_abonos, insertar_abono
             eliminar_todos_abonos(commit=False)
 
-            # Facturas
+            # Facturas (al borrar, facturas_items se borra en cascada — FK ON DELETE CASCADE)
             eliminar_todas_facturas(commit=False)
             factura_id_map: dict[tuple, int] = {}
             for f in res.facturas:
                 new_id = insertar_factura_directa(f, commit=False)
                 key = (f.descripcion.strip().lower(), f.proveedor.strip().lower())
                 factura_id_map[key] = new_id
+
+            # Productos vinculados a facturas — vincular por (descripción, proveedor)
+            if res.facturas_items_raw:
+                from database.facturas_items_repo import insertar_item
+                items_omitidos = 0
+                for it in res.facturas_items_raw:
+                    key = (it["factura_desc"].strip().lower(), it["factura_prov"].strip().lower())
+                    factura_id = factura_id_map.get(key)
+                    if factura_id is None:
+                        items_omitidos += 1
+                        continue
+                    insertar_item(
+                        factura_id, it["descripcion_item"], it["cantidad"], it["precio_unitario"],
+                        commit=False,
+                    )
+                if items_omitidos:
+                    advertencias.append(
+                        f"{items_omitidos} producto(s) de factura no se importaron "
+                        "porque su factura no coincide con ninguna del archivo."
+                    )
 
             # Abonos — vincular a las facturas recién insertadas
             if res.abonos_raw:
@@ -791,8 +832,11 @@ class ExportarImportarPanel(QWidget):
             for g in res.gastos:
                 insertar_gasto_directo(g, commit=False)
 
-            # Configuración (si viene en el archivo)
+            # Configuración (si viene en el archivo) — la contraseña NUNCA se
+            # exporta/importa por seguridad; se preserva la actual para no
+            # resetearla al valor por defecto al restaurar un backup.
             if res.configuracion:
+                res.configuracion.clave_inventario = cfg_actual.clave_inventario
                 guardar_configuracion(res.configuracion, commit=False)
 
             # Notas y Pendientes (solo si la hoja vino en el archivo)
@@ -833,6 +877,126 @@ class ExportarImportarPanel(QWidget):
                         f"{nuevos} usuario(s) creado(s) con contraseña temporal '1234' — "
                         "cámbiala en Configuración → Gestión de Usuarios."
                     )
+
+            # Cuentas — upsert por nombre (nunca se borran: son un conjunto fijo
+            # de medios de pago, no se reemplazan como las demás tablas)
+            cuenta_id_map: dict[str, int] = {}
+            if res.cuentas:
+                from database.cuentas_repo import actualizar_o_crear_cuenta
+                for c in res.cuentas:
+                    nuevo_id = actualizar_o_crear_cuenta(c, commit=False)
+                    cuenta_id_map[c.nombre.strip().lower()] = nuevo_id
+
+            # Movimientos de cuentas — vincular a la cuenta por nombre
+            if res.movimientos_cuentas is not None:
+                from database.cuentas_repo import (
+                    eliminar_todos_movimientos, insertar_movimiento_directo,
+                )
+                eliminar_todos_movimientos(commit=False)
+                movs_omitidos = 0
+                for m in res.movimientos_cuentas:
+                    cuenta_id = cuenta_id_map.get(m["cuenta_nombre"].strip().lower())
+                    if cuenta_id is None:
+                        movs_omitidos += 1
+                        continue
+                    insertar_movimiento_directo(MovimientoCuenta(
+                        cuenta_id=cuenta_id, fecha=m["fecha"], tipo=m["tipo"],
+                        monto=m["monto"], descripcion=m["descripcion"], venta_id=m["venta_id"],
+                    ), commit=False)
+                if movs_omitidos:
+                    advertencias.append(
+                        f"{movs_omitidos} movimiento(s) de cuentas no se importaron "
+                        "porque su cuenta no coincide con ninguna del archivo."
+                    )
+
+            # Cierres mensuales de cuentas — reagrupar por (año, mes) antes de guardar
+            if res.cierres_cuentas is not None:
+                from database.cuentas_repo import eliminar_todos_cierres, insertar_cierre_directo
+                eliminar_todos_cierres(commit=False)
+                agrupados: dict[tuple, dict] = {}
+                for fila in res.cierres_cuentas:
+                    key = (fila["anio"], fila["mes"])
+                    grupo = agrupados.setdefault(key, {
+                        "datos": [], "fecha_cierre": fila["fecha_cierre"], "notas": fila["notas"],
+                    })
+                    grupo["datos"].append({
+                        "nombre": fila["cuenta_nombre"], "balance": fila["balance"],
+                    })
+                for (anio, mes), grupo in agrupados.items():
+                    insertar_cierre_directo(CierreMensual(
+                        anio=anio, mes=mes,
+                        datos_json=_json.dumps(grupo["datos"], ensure_ascii=False),
+                        notas=grupo["notas"], fecha_cierre=grupo["fecha_cierre"],
+                    ), commit=False)
+
+            # Fiado (apartados/deudas de clientes)
+            fiado_id_map: dict[tuple, int] = {}
+            if res.fiados is not None:
+                from database.fiado_repo import eliminar_todos_fiados, insertar_fiado
+                eliminar_todos_fiados(commit=False)
+                for f in res.fiados:
+                    nuevo_id = insertar_fiado(f, commit=False)
+                    key = (f.cliente_nombre.strip().lower(), f.descripcion.strip().lower())
+                    fiado_id_map[key] = nuevo_id
+
+            # Abonos de fiado — vincular por (cliente, descripción de la deuda)
+            if res.abonos_fiado_raw is not None:
+                from database.fiado_repo import eliminar_todos_abonos_fiado, insertar_abono_fiado
+                eliminar_todos_abonos_fiado(commit=False)
+                abonos_fiado_omitidos = 0
+                for ab in res.abonos_fiado_raw:
+                    key = (ab["cliente_nombre"].strip().lower(), ab["descripcion"].strip().lower())
+                    fiado_id = fiado_id_map.get(key)
+                    if fiado_id is None:
+                        abonos_fiado_omitidos += 1
+                        continue
+                    insertar_abono_fiado(AbonoFiado(
+                        fiado_id=fiado_id, monto=ab["monto"], fecha=ab["fecha"], notas=ab["notas"],
+                    ), commit=False)
+                if abonos_fiado_omitidos:
+                    advertencias.append(
+                        f"{abonos_fiado_omitidos} abono(s) de apartados no se importaron "
+                        "porque su deuda no coincide con ninguna del archivo."
+                    )
+
+            # Movimientos de inventario — vincular al producto por nombre
+            if res.movimientos_inventario is not None:
+                from database.inventario_mov_repo import (
+                    eliminar_todos_movimientos as eliminar_todos_mov_inv,
+                    insertar_movimiento_directo as insertar_mov_inv_directo,
+                )
+                eliminar_todos_mov_inv(commit=False)
+                mov_inv_omitidos = 0
+                for m in res.movimientos_inventario:
+                    producto_id = producto_id_map.get(m["producto_nombre"].strip().lower())
+                    if producto_id is None:
+                        mov_inv_omitidos += 1
+                        continue
+                    insertar_mov_inv_directo(
+                        fecha=m["fecha"], hora=m["hora"], producto_id=producto_id,
+                        producto=m["producto_nombre"], tipo=m["tipo"],
+                        cantidad_ant=m["cantidad_ant"], cantidad_nva=m["cantidad_nva"],
+                        notas=m["notas"], commit=False,
+                    )
+                if mov_inv_omitidos:
+                    advertencias.append(
+                        f"{mov_inv_omitidos} movimiento(s) de inventario no se importaron "
+                        "porque su producto no coincide con ninguno del archivo."
+                    )
+
+            # Log de auditoría — se AGREGA al existente, nunca lo reemplaza
+            # (es un historial acumulable, no un dato que se reemplaza completo)
+            if res.log_acciones:
+                from utils.auditoria import insertar_registro_directo
+                for r in res.log_acciones:
+                    insertar_registro_directo(
+                        r["fecha"], r["hora"], r["usuario"], r["accion"], r["detalle"],
+                        commit=False,
+                    )
+                advertencias.append(
+                    f"{len(res.log_acciones)} registro(s) de auditoría agregados al log "
+                    "(no se reemplazó el historial existente)."
+                )
 
             conn.commit()
         except Exception:

@@ -397,6 +397,84 @@ def revertir_abono_factura(
         log.warning("No se pudo revertir abono en cuenta %d: %s", cuenta_id, exc)
 
 
+# ── Restauración desde backup (importación masiva) ─────────────────────────────
+
+def actualizar_o_crear_cuenta(c: Cuenta, commit: bool = True) -> int:
+    """Upsert por nombre: si ya existe una cuenta con ese nombre, actualiza sus
+    datos; si no, la crea. Usado al restaurar un respaldo en Excel."""
+    conn = DatabaseConnection.get()
+    existente = conn.execute(
+        "SELECT id FROM cuentas WHERE nombre = ?", (c.nombre,)
+    ).fetchone()
+    if existente:
+        conn.execute(
+            """UPDATE cuentas SET metodo_pago=?, balance_actual=?, color=?,
+               activa=?, orden=? WHERE id=?""",
+            (c.metodo_pago, c.balance_actual, c.color, int(c.activa), c.orden, existente[0]),
+        )
+        cuenta_id = existente[0]
+    else:
+        cursor = conn.execute(
+            """INSERT INTO cuentas (nombre, metodo_pago, balance_actual, color, activa, orden)
+               VALUES (?, ?, ?, ?, ?, ?)""",
+            (c.nombre, c.metodo_pago, c.balance_actual, c.color, int(c.activa), c.orden),
+        )
+        cuenta_id = cursor.lastrowid
+    if commit:
+        conn.commit()
+    return cuenta_id
+
+
+def insertar_movimiento_directo(m: MovimientoCuenta, commit: bool = True) -> int:
+    """Inserta un movimiento histórico tal cual (sin la lógica de acreditar venta).
+    Usado al restaurar un respaldo en Excel."""
+    conn = DatabaseConnection.get()
+    cursor = conn.execute(
+        """INSERT INTO cuentas_movimientos (cuenta_id, fecha, tipo, monto, descripcion, venta_id)
+           VALUES (?, ?, ?, ?, ?, ?)""",
+        (m.cuenta_id, m.fecha, m.tipo, m.monto, m.descripcion, m.venta_id),
+    )
+    if commit:
+        conn.commit()
+    return cursor.lastrowid
+
+
+def insertar_cierre_directo(c: CierreMensual, commit: bool = True) -> int:
+    """Inserta (o reemplaza) un cierre mensual tal cual viene del respaldo."""
+    conn = DatabaseConnection.get()
+    conn.execute(
+        """INSERT INTO cuentas_cierres (anio, mes, datos_json, notas, fecha_cierre)
+           VALUES (?, ?, ?, ?, ?)
+           ON CONFLICT(anio, mes) DO UPDATE SET
+               datos_json = excluded.datos_json,
+               notas = excluded.notas,
+               fecha_cierre = excluded.fecha_cierre""",
+        (c.anio, c.mes, c.datos_json, c.notas, c.fecha_cierre),
+    )
+    if commit:
+        conn.commit()
+    cierre_id = conn.execute(
+        "SELECT id FROM cuentas_cierres WHERE anio = ? AND mes = ?", (c.anio, c.mes)
+    ).fetchone()[0]
+    return cierre_id
+
+
+def eliminar_todos_movimientos(commit: bool = True) -> int:
+    conn = DatabaseConnection.get()
+    cursor = conn.execute("DELETE FROM cuentas_movimientos")
+    if commit:
+        conn.commit()
+    return cursor.rowcount
+
+
+def eliminar_todos_cierres(commit: bool = True) -> int:
+    conn = DatabaseConnection.get()
+    cursor = conn.execute("DELETE FROM cuentas_cierres")
+    if commit:
+        conn.commit()
+    return cursor.rowcount
+
+
 # ── Utilitarios ───────────────────────────────────────────────────────────────
 
 def _row_to_cuenta(row) -> Cuenta:

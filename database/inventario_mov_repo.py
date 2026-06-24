@@ -44,6 +44,37 @@ def registrar_movimiento(
         conn.commit()
 
 
+def insertar_movimiento_directo(
+    fecha: str, hora: str, producto_id: int, producto: str, tipo: str,
+    cantidad_ant: int, cantidad_nva: int, notas: str = "", commit: bool = True,
+) -> int:
+    """Inserta un movimiento histórico exacto (fecha/hora/cantidades tal cual
+    vienen del Excel), sin el guard de `registrar_movimiento` que omite
+    movimientos donde cantidad_ant == cantidad_nva — usado para restaurar
+    fielmente un respaldo, no para uso operativo en vivo."""
+    conn = DatabaseConnection.get()
+    cursor = conn.execute(
+        """
+        INSERT INTO inventario_movimientos
+            (fecha, hora, producto_id, producto, tipo, cantidad_ant, cantidad_nva, diferencia, notas)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        (fecha, hora, producto_id, producto, tipo, cantidad_ant, cantidad_nva,
+         cantidad_nva - cantidad_ant, notas),
+    )
+    if commit:
+        conn.commit()
+    return cursor.lastrowid
+
+
+def eliminar_todos_movimientos(commit: bool = True) -> int:
+    conn = DatabaseConnection.get()
+    cursor = conn.execute("DELETE FROM inventario_movimientos")
+    if commit:
+        conn.commit()
+    return cursor.rowcount
+
+
 def obtener_movimientos_recientes(limite: int = 200) -> list[dict]:
     """Retorna los últimos `limite` movimientos ordenados por más reciente primero."""
     conn = DatabaseConnection.get()

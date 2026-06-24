@@ -64,6 +64,15 @@ _HEADERS_VENTAS = [
 
 _ANCHOS_VENTAS = [5, 12, 30, 8, 7, 15, 16, 14, 14, 15, 28, 1]
 
+# Encabezados extendidos — solo para la hoja "Ventas" del respaldo completo
+# (exportar_todo). Las plantillas manuales (generar_plantilla_ventas_*) siguen
+# usando _HEADERS_VENTAS (12 columnas) para no complicar el llenado a mano.
+_HEADERS_VENTAS_COMPLETO = _HEADERS_VENTAS + [
+    "Hora", "Vendedor", "Cliente", "Cédula", "Teléfono",
+    "N° Factura", "Descuento", "SKU", "Precio ofertado", "Grupo Venta ID",
+]
+_ANCHOS_VENTAS_COMPLETO = _ANCHOS_VENTAS + [9, 16, 22, 14, 14, 10, 12, 16, 16, 12]
+
 _EJEMPLOS_VENTAS = [
     (1, "04/04/2026", "Casco X-Sport T.M",    "M",   1, 85000, 120000, "Efectivo",            0,  35000, "", ""),
     (2, "04/04/2026", "Aceite 10W-40 1L",     "N/A", 2, 18000,  28000, "Transferencia NEQUI", 0,  20000, "", ""),
@@ -250,8 +259,8 @@ def _escribir_hoja_prestamos(ws, prestamos: list) -> None:
         ws.column_dimensions[get_column_letter(i)].width = ancho
 
 
-_HEADERS_INVENTARIO = ["Serial", "Producto", "Talla", "Costo unitario", "Cantidad", "Código barras", "Categoría"]
-_ANCHOS_INVENTARIO  = [12, 38, 8, 16, 12, 20, 18]
+_HEADERS_INVENTARIO = ["Serial", "Producto", "Talla", "Costo unitario", "Cantidad", "Código barras", "Categoría", "Stock mínimo"]
+_ANCHOS_INVENTARIO  = [12, 38, 8, 16, 12, 20, 18, 12]
 
 
 def _escribir_hoja_inventario(ws, productos: list) -> None:
@@ -262,7 +271,7 @@ def _escribir_hoja_inventario(ws, productos: list) -> None:
     hoy = _date.today().strftime("%d/%m/%Y")
 
     # Título
-    ws.merge_cells("A1:G1")
+    ws.merge_cells("A1:H1")
     t = ws["A1"]
     t.value = f"YJBMOTOCOM — Inventario ({hoy})"
     t.font = Font(name="Calibri", bold=True, size=13, color="FFFFFF")
@@ -272,7 +281,7 @@ def _escribir_hoja_inventario(ws, productos: list) -> None:
 
     # Encabezados
     ws.append(_HEADERS_INVENTARIO)
-    for col_idx in range(1, 8):
+    for col_idx in range(1, 9):
         cell = ws.cell(row=2, column=col_idx)
         cell.font = Font(bold=True, color="FFFFFF", name="Calibri", size=10)
         cell.fill = PatternFill("solid", fgColor="0284C7")
@@ -293,17 +302,18 @@ def _escribir_hoja_inventario(ws, productos: list) -> None:
             p.cantidad,
             p.codigo_barras or "",
             getattr(p, "categoria", "") or "",
+            getattr(p, "stock_minimo", 0) or 0,
         ])
         row = ws.max_row
         fondo = "F0F9FF" if i % 2 == 0 else "FFFFFF"
-        for col_idx in range(1, 8):
+        for col_idx in range(1, 9):
             c = ws.cell(row=row, column=col_idx)
             c.fill = PatternFill("solid", fgColor=fondo)
             c.border = borde
             c.font = Font(name="Calibri", size=10)
             c.alignment = Alignment(
                 vertical="center",
-                horizontal="center" if col_idx in (1, 3, 5, 6) else "left",
+                horizontal="center" if col_idx in (1, 3, 5, 6, 8) else "left",
             )
         ws.row_dimensions[row].height = 18
         if p.cantidad > 0:
@@ -320,9 +330,10 @@ def _escribir_hoja_inventario(ws, productos: list) -> None:
         total_unidades,
         "",
         "",
+        "",
     ])
     total_row = ws.max_row
-    for col_idx in range(1, 8):
+    for col_idx in range(1, 9):
         c = ws.cell(row=total_row, column=col_idx)
         c.font = Font(bold=True, name="Calibri", size=10)
         c.fill = PatternFill("solid", fgColor="E0F2FE")
@@ -335,16 +346,18 @@ def _escribir_hoja_inventario(ws, productos: list) -> None:
         ws.column_dimensions[get_column_letter(i)].width = ancho
 
 
-_HEADERS_FACTURAS = ["Descripción", "Proveedor", "Monto", "Fecha llegada", "Fecha vencimiento", "Estado", "Notas", "Fecha pago"]
-_ANCHOS_FACTURAS  = [38, 24, 16, 14, 16, 12, 34, 14]
+_HEADERS_FACTURAS = ["Descripción", "Proveedor", "Monto", "Fecha llegada", "Fecha vencimiento", "Estado", "Notas", "Fecha pago", "Cuenta"]
+_ANCHOS_FACTURAS  = [38, 24, 16, 14, 16, 12, 34, 14, 18]
 _FACTURA_ESTADO_COLOR = {
     "pendiente": "FEF3C7",
     "pagada":    "DCFCE7",
 }
 
 
-def _escribir_hoja_facturas(ws, facturas: list) -> None:
-    """Escribe título, encabezados y datos de facturas en el worksheet dado."""
+def _escribir_hoja_facturas(ws, facturas: list, cuentas: list | None = None) -> None:
+    """Escribe título, encabezados y datos de facturas en el worksheet dado.
+    `cuentas` (opcional) permite resolver cuenta_id → nombre en la columna "Cuenta"."""
+    _nombre_cuenta = {c.id: c.nombre for c in (cuentas or [])}
     lado = Side(style="thin", color="CCCCCC")
     borde = Border(left=lado, right=lado, top=lado, bottom=lado)
     ncols = len(_HEADERS_FACTURAS)
@@ -388,6 +401,7 @@ def _escribir_hoja_facturas(ws, facturas: list) -> None:
             f.estado,
             f.notas or "",
             fp_str,
+            _nombre_cuenta.get(getattr(f, "cuenta_id", None), ""),
         ])
         row = ws.max_row
         color = _FACTURA_ESTADO_COLOR.get(f.estado, "FFFFFF")
@@ -401,6 +415,108 @@ def _escribir_hoja_facturas(ws, facturas: list) -> None:
 
     # Anchos
     for i, ancho in enumerate(_ANCHOS_FACTURAS, start=1):
+        ws.column_dimensions[get_column_letter(i)].width = ancho
+
+
+_HEADERS_FACTURAS_ITEMS = ["Factura", "Proveedor", "Descripción Item", "Cantidad", "Precio Unitario", "Subtotal"]
+_ANCHOS_FACTURAS_ITEMS  = [32, 24, 36, 12, 16, 16]
+
+
+def _escribir_hoja_facturas_items(ws, items: list) -> None:
+    """Hoja con los productos/líneas vinculados a cada factura de proveedor.
+    `items` es la lista de dicts que retorna facturas_items_repo.obtener_todos_items()."""
+    lado = Side(style="thin", color="CCCCCC")
+    borde = Border(left=lado, right=lado, top=lado, bottom=lado)
+    ncols = len(_HEADERS_FACTURAS_ITEMS)
+
+    ws.merge_cells(f"A1:{get_column_letter(ncols)}1")
+    t = ws["A1"]
+    t.value = "YJBMOTOCOM — Productos por Factura"
+    t.font = Font(name="Calibri", bold=True, size=13, color="FFFFFF")
+    t.fill = PatternFill("solid", fgColor="92400E")
+    t.alignment = Alignment(horizontal="center", vertical="center")
+    ws.row_dimensions[1].height = 26
+
+    ws.append(_HEADERS_FACTURAS_ITEMS)
+    for col_idx in range(1, ncols + 1):
+        cell = ws.cell(row=2, column=col_idx)
+        cell.font = Font(bold=True, color="FFFFFF", name="Calibri", size=10)
+        cell.fill = PatternFill("solid", fgColor="B45309")
+        cell.alignment = Alignment(horizontal="center", vertical="center")
+        cell.border = borde
+    ws.row_dimensions[2].height = 20
+
+    for i, it in enumerate(items, start=1):
+        d = it if isinstance(it, dict) else dict(it)
+        cantidad = d.get("cantidad", 0)
+        precio_unitario = d.get("precio_unitario", 0)
+        ws.append([
+            d.get("factura_descripcion", ""),
+            d.get("factura_proveedor", ""),
+            d.get("descripcion_item", ""),
+            cantidad,
+            precio_unitario,
+            round((cantidad or 0) * (precio_unitario or 0), 2),
+        ])
+        row = ws.max_row
+        fondo = _GRIS_FILA if i % 2 == 0 else "FFFFFF"
+        for col_idx in range(1, ncols + 1):
+            c = ws.cell(row=row, column=col_idx)
+            c.fill = PatternFill("solid", fgColor=fondo)
+            c.border = borde
+            c.font = Font(name="Calibri", size=10)
+            c.alignment = Alignment(vertical="center")
+        ws.row_dimensions[row].height = 18
+
+    for i, ancho in enumerate(_ANCHOS_FACTURAS_ITEMS, start=1):
+        ws.column_dimensions[get_column_letter(i)].width = ancho
+
+
+_HEADERS_LOG_ACCIONES = ["Fecha", "Hora", "Usuario", "Acción", "Detalle"]
+_ANCHOS_LOG_ACCIONES  = [12, 10, 16, 24, 50]
+
+
+def _escribir_hoja_log_acciones(ws, registros: list) -> None:
+    """Hoja con el registro de auditoría (log_acciones). Es solo informativa —
+    al reimportar se AGREGA al log existente, nunca lo reemplaza."""
+    lado = Side(style="thin", color="CCCCCC")
+    borde = Border(left=lado, right=lado, top=lado, bottom=lado)
+    ncols = len(_HEADERS_LOG_ACCIONES)
+
+    ws.merge_cells(f"A1:{get_column_letter(ncols)}1")
+    t = ws["A1"]
+    t.value = "YJBMOTOCOM — Registro de Auditoría"
+    t.font = Font(name="Calibri", bold=True, size=13, color="FFFFFF")
+    t.fill = PatternFill("solid", fgColor="334155")
+    t.alignment = Alignment(horizontal="center", vertical="center")
+    ws.row_dimensions[1].height = 26
+
+    ws.append(_HEADERS_LOG_ACCIONES)
+    for col_idx in range(1, ncols + 1):
+        cell = ws.cell(row=2, column=col_idx)
+        cell.font = Font(bold=True, color="FFFFFF", name="Calibri", size=10)
+        cell.fill = PatternFill("solid", fgColor="1E293B")
+        cell.alignment = Alignment(horizontal="center", vertical="center")
+        cell.border = borde
+    ws.row_dimensions[2].height = 20
+
+    for i, r in enumerate(registros, start=1):
+        d = r if isinstance(r, dict) else dict(r)
+        ws.append([
+            d.get("fecha", ""), d.get("hora", ""), d.get("usuario", ""),
+            d.get("accion", ""), d.get("detalle", ""),
+        ])
+        row = ws.max_row
+        fondo = "F8FAFC" if i % 2 == 0 else "FFFFFF"
+        for col_idx in range(1, ncols + 1):
+            c = ws.cell(row=row, column=col_idx)
+            c.fill = PatternFill("solid", fgColor=fondo)
+            c.border = borde
+            c.font = Font(name="Calibri", size=9)
+            c.alignment = Alignment(vertical="center")
+        ws.row_dimensions[row].height = 16
+
+    for i, ancho in enumerate(_ANCHOS_LOG_ACCIONES, start=1):
         ws.column_dimensions[get_column_letter(i)].width = ancho
 
 
@@ -456,9 +572,12 @@ def _escribir_hoja_gastos(ws, gastos: list) -> None:
 _HEADERS_CONFIG = [
     "Arriendo", "Sueldo", "Servicios", "Otros gastos",
     "Días mes", "Comisión Bold (%)", "Comisión Addi (%)", "Comisión Transf. (%)",
+    "Comisión Nequi (%)", "Comisión NU (%)", "Comisión QR (%)",
+    "Comisión Daviplata (%)", "Comisión Datafono (%)",
     "Modo oscuro", "Inactividad (min)", "Impresora",
+    "Backup automático", "Backup cada (h)",
 ]
-_ANCHOS_CONFIG = [16, 16, 16, 16, 11, 18, 18, 20, 14, 18, 26]
+_ANCHOS_CONFIG = [16, 16, 16, 16, 11, 18, 18, 20, 18, 16, 16, 20, 20, 14, 18, 26, 16, 14]
 
 
 def _escribir_hoja_configuracion(ws, cfg) -> None:
@@ -485,12 +604,15 @@ def _escribir_hoja_configuracion(ws, cfg) -> None:
     ws.row_dimensions[2].height = 20
 
     if cfg is None:
-        valores = [0, 0, 0, 0, 30, 0, 0, 0, "No", 10, ""]
+        valores = [0, 0, 0, 0, 30, 0, 0, 0, 0, 0, 0, 0, 0, "No", 10, "", "Sí", 24]
     else:
         valores = [
             cfg.arriendo, cfg.sueldo, cfg.servicios, cfg.otros_gastos,
             cfg.dias_mes, cfg.comision_bold, cfg.comision_addi, cfg.comision_transferencia,
+            cfg.comision_nequi, cfg.comision_nu, cfg.comision_qr,
+            cfg.comision_daviplata, cfg.comision_datafono,
             "Sí" if cfg.modo_oscuro else "No", cfg.timeout_minutos, cfg.nombre_impresora or "",
+            "Sí" if cfg.backup_automatico_activo else "No", cfg.backup_intervalo_horas,
         ]
     ws.append(valores)
     row = ws.max_row
@@ -737,8 +859,11 @@ _HEADERS_MOV_CUENTAS = ["ID", "Cuenta", "Fecha", "Tipo", "Monto", "Descripción"
 _ANCHOS_MOV_CUENTAS  = [8, 20, 14, 22, 16, 44, 10]
 
 
-def _escribir_hoja_movimientos_cuentas(ws, movimientos: list) -> None:
-    """Hoja con el historial completo de movimientos de todas las cuentas."""
+def _escribir_hoja_movimientos_cuentas(ws, movimientos: list, cuentas: list | None = None) -> None:
+    """Hoja con el historial completo de movimientos de todas las cuentas.
+    `cuentas` (opcional) resuelve cuenta_id → nombre en la columna "Cuenta"
+    (necesario para poder reimportar el movimiento a la cuenta correcta)."""
+    _nombre_cuenta = {c.id: c.nombre for c in (cuentas or [])}
     lado = Side(style="thin", color="CCCCCC")
     borde = Border(left=lado, right=lado, top=lado, bottom=lado)
     ncols = len(_HEADERS_MOV_CUENTAS)
@@ -764,7 +889,7 @@ def _escribir_hoja_movimientos_cuentas(ws, movimientos: list) -> None:
         tipo_label = _TIPO_MOV_LABEL.get(m.tipo, m.tipo)
         ws.append([
             m.id,
-            m.cuenta_id,
+            _nombre_cuenta.get(m.cuenta_id, m.cuenta_id),
             m.fecha,
             tipo_label,
             m.monto,
@@ -1080,11 +1205,14 @@ def exportar_todo(
     fiado: list | None = None,
     abonos_fiado: list | None = None,
     movimientos_inventario: list | None = None,
+    facturas_items: list | None = None,
+    log_acciones: list | None = None,
 ) -> None:
     """
     Genera un .xlsx con las hojas que se pasen (None = omitir esa hoja).
     Hojas disponibles: Ventas | Préstamos | Inventario | Facturas | Gastos | Configuración |
-    Fiado | Abonos Fiado | Mov. Inventario
+    Notas | Abonos | Usuarios | Presupuesto | Cuentas | Mov. Cuentas | Cierres Cuentas |
+    Fiado | Abonos Fiado | Mov. Inventario | Facturas Items | Log Auditoría
     """
     wb = openpyxl.Workbook()
     primera_hoja_usada = False
@@ -1102,8 +1230,9 @@ def exportar_todo(
 
     # ── Hoja Ventas (opcional) ────────────────────────────────────────────
     if ventas is not None:
+        ncols_v = len(_HEADERS_VENTAS_COMPLETO)
         ws_v = _hoja("Ventas")
-        ws_v.merge_cells("A1:K1")
+        ws_v.merge_cells(f"A1:{get_column_letter(ncols_v)}1")
         titulo_c = ws_v["A1"]
         titulo_c.value = "YJBMOTOCOM — Historial de Ventas"
         titulo_c.font = Font(name="Calibri", bold=True, size=14, color="FFFFFF")
@@ -1112,8 +1241,8 @@ def exportar_todo(
         ws_v.row_dimensions[1].height = 28
 
         ws_v.append([])
-        ws_v.append(_HEADERS_VENTAS)
-        for col_idx in range(1, 13):
+        ws_v.append(_HEADERS_VENTAS_COMPLETO)
+        for col_idx in range(1, ncols_v + 1):
             cell = ws_v.cell(row=3, column=col_idx)
             if col_idx == 12:
                 cell.font = Font(bold=False, color="AAAAAA", name="Calibri", size=8)
@@ -1136,10 +1265,13 @@ def exportar_todo(
                 i, fecha_corta(v.fecha), v.producto, _talla_de(v.producto),
                 v.cantidad, v.costo, v.precio, v.metodo_pago,
                 v.comision, v.ganancia_neta, v.notas, pagos_json,
+                v.hora, v.vendedor, v.cliente_nombre, v.cliente_cedula, v.cliente_tel,
+                v.numero_factura or "", v.descuento, v.sku, v.precio_ofertado,
+                v.grupo_venta_id or "",
             ])
             row = ws_v.max_row
             fondo = _GRIS_FILA if i % 2 == 0 else "FFFFFF"
-            for col_idx in range(1, 13):
+            for col_idx in range(1, ncols_v + 1):
                 c = ws_v.cell(row=row, column=col_idx)
                 if col_idx == 12:
                     c.fill = PatternFill("solid", fgColor="F9FAFB")
@@ -1169,10 +1301,9 @@ def exportar_todo(
             "",              # Método pago
             total_comision,  # Comisión total
             total_neta,      # Ganancia neta total
-            "", "",
-        ])
+        ] + [""] * (ncols_v - 10))
         total_row = ws_v.max_row
-        for col_idx in range(1, 13):
+        for col_idx in range(1, ncols_v + 1):
             c = ws_v.cell(row=total_row, column=col_idx)
             c.font = Font(bold=True, name="Calibri", size=10)
             c.fill = PatternFill("solid", fgColor=_AZUL_SUAVE)
@@ -1182,9 +1313,8 @@ def exportar_todo(
             "solid", fgColor=_VERDE if total_neta >= 0 else _ROJO
         )
 
-        for i, ancho in enumerate(_ANCHOS_VENTAS, start=1):
+        for i, ancho in enumerate(_ANCHOS_VENTAS_COMPLETO, start=1):
             ws_v.column_dimensions[get_column_letter(i)].width = ancho
-        ws_v.column_dimensions["L"].width = 1
 
     # ── Hoja Préstamos (opcional) ─────────────────────────────────────────
     if prestamos is not None:
@@ -1198,7 +1328,7 @@ def exportar_todo(
 
     # ── Hoja Facturas (opcional) ──────────────────────────────────────────
     if facturas is not None:
-        _escribir_hoja_facturas(_hoja("Facturas"), facturas)
+        _escribir_hoja_facturas(_hoja("Facturas"), facturas, cuentas=cuentas)
 
     # ── Hoja Gastos (opcional) ────────────────────────────────────────────
     if gastos is not None:
@@ -1230,7 +1360,7 @@ def exportar_todo(
     if cuentas is not None:
         _escribir_hoja_cuentas(_hoja("Cuentas"), cuentas)
     if movimientos_cuentas is not None:
-        _escribir_hoja_movimientos_cuentas(_hoja("Mov. Cuentas"), movimientos_cuentas)
+        _escribir_hoja_movimientos_cuentas(_hoja("Mov. Cuentas"), movimientos_cuentas, cuentas=cuentas)
     if cierres_cuentas is not None:
         _escribir_hoja_cierres_cuentas(_hoja("Cierres Cuentas"), cierres_cuentas)
 
@@ -1243,6 +1373,14 @@ def exportar_todo(
     # ── Movimientos de inventario ──────────────────────────────────────────
     if movimientos_inventario is not None:
         _escribir_hoja_movimientos_inventario(_hoja("Mov. Inventario"), movimientos_inventario)
+
+    # ── Productos vinculados a facturas ─────────────────────────────────────
+    if facturas_items is not None:
+        _escribir_hoja_facturas_items(_hoja("Facturas Items"), facturas_items)
+
+    # ── Registro de auditoría ────────────────────────────────────────────────
+    if log_acciones is not None:
+        _escribir_hoja_log_acciones(_hoja("Log Auditoría"), log_acciones)
 
     # Si ninguna hoja fue incluida, agregar una de aviso
     if not primera_hoja_usada:

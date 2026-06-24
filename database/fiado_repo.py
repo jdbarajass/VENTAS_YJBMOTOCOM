@@ -35,7 +35,7 @@ def _row_to_abono(row) -> AbonoFiado:
 
 # ── Fiados ────────────────────────────────────────────────────────────────────
 
-def insertar_fiado(f: Fiado) -> int:
+def insertar_fiado(f: Fiado, commit: bool = True) -> int:
     conn = DatabaseConnection.get()
     cur = conn.execute(
         """INSERT INTO fiado
@@ -45,8 +45,17 @@ def insertar_fiado(f: Fiado) -> int:
         (f.cliente_nombre, f.cliente_cedula, f.cliente_tel, f.descripcion,
          f.monto_total, f.fecha.isoformat(), f.estado, f.notas),
     )
-    conn.commit()
+    if commit:
+        conn.commit()
     return cur.lastrowid
+
+
+def eliminar_todos_fiados(commit: bool = True) -> int:
+    conn = DatabaseConnection.get()
+    cur = conn.execute("DELETE FROM fiado")
+    if commit:
+        conn.commit()
+    return cur.rowcount
 
 
 def obtener_todos_fiados() -> list[Fiado]:
@@ -113,14 +122,23 @@ def eliminar_fiado(fiado_id: int) -> bool:
 
 # ── Abonos ────────────────────────────────────────────────────────────────────
 
-def insertar_abono_fiado(a: AbonoFiado) -> int:
+def insertar_abono_fiado(a: AbonoFiado, commit: bool = True) -> int:
     conn = DatabaseConnection.get()
     cur = conn.execute(
         "INSERT INTO abonos_fiado (fiado_id, monto, fecha, notas) VALUES (?,?,?,?)",
         (a.fiado_id, a.monto, a.fecha.isoformat(), a.notas),
     )
-    conn.commit()
+    if commit:
+        conn.commit()
     return cur.lastrowid
+
+
+def eliminar_todos_abonos_fiado(commit: bool = True) -> int:
+    conn = DatabaseConnection.get()
+    cur = conn.execute("DELETE FROM abonos_fiado")
+    if commit:
+        conn.commit()
+    return cur.rowcount
 
 
 def obtener_abonos_fiado(fiado_id: int) -> list[AbonoFiado]:

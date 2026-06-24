@@ -110,6 +110,8 @@ _KW_COSTO     = {"costo", "precio", "valor"}
 _KW_CANTIDAD  = {"cantidad", "stock", "bodega", "existencia", "unidades"}
 _KW_BARRAS    = {"codigo", "código", "barras", "ean", "upc", "barra"}
 _KW_CATEGORIA = {"categoria", "categoría", "tipo", "linea", "línea", "grupo"}
+_KW_TALLA         = {"talla"}
+_KW_STOCK_MINIMO  = {"mínimo", "minimo"}  # revisar ANTES de _KW_CANTIDAD ("stock" colisiona con "stock mínimo")
 
 
 @dataclass
@@ -127,11 +129,19 @@ def _detectar_columnas(fila_headers: list) -> dict[str, int | None]:
     mapa: dict[str, int | None] = {
         "serial": None, "producto": None, "costo": None,
         "cantidad": None, "codigo_barras": None, "categoria": None,
+        "talla": None, "stock_minimo": None,
     }
 
     for idx, cell in enumerate(fila_headers):
         valor = str(cell or "").lower().strip()
         if not valor:
+            continue
+
+        # "Stock mínimo" debe revisarse antes que _KW_CANTIDAD, porque su
+        # palabra clave "stock" colisiona con "stock mínimo".
+        if any(kw in valor for kw in _KW_STOCK_MINIMO):
+            if mapa["stock_minimo"] is None:
+                mapa["stock_minimo"] = idx
             continue
 
         if any(kw in valor for kw in _KW_SERIAL):
@@ -152,6 +162,9 @@ def _detectar_columnas(fila_headers: list) -> dict[str, int | None]:
         if any(kw in valor for kw in _KW_CATEGORIA):
             if mapa["categoria"] is None:
                 mapa["categoria"] = idx
+        if any(kw in valor for kw in _KW_TALLA):
+            if mapa["talla"] is None:
+                mapa["talla"] = idx
 
     return mapa
 
@@ -244,6 +257,13 @@ def importar_inventario_excel(ruta: Path) -> ResultadoInventario:
         # Categoría
         cat = str(_get("categoria", "") or "").strip()
 
+        # Talla / Stock mínimo (si el archivo los trae)
+        talla = str(_get("talla", "") or "").strip()
+        try:
+            stock_minimo = int(float(str(_get("stock_minimo", 0) or 0).replace(",", ".")))
+        except (ValueError, TypeError):
+            stock_minimo = 0
+
         try:
             p = Producto(
                 serial=serial,
@@ -252,6 +272,8 @@ def importar_inventario_excel(ruta: Path) -> ResultadoInventario:
                 cantidad=cantidad,
                 codigo_barras=cod,
                 categoria=cat,
+                talla=talla,
+                stock_minimo=stock_minimo,
             )
             resultado.productos.append(p)
         except ValueError as exc:

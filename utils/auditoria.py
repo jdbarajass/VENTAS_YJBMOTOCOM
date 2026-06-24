@@ -37,6 +37,23 @@ def registrar(accion: str, detalle: str = "") -> None:
         pass
 
 
+def insertar_registro_directo(
+    fecha: str, hora: str, usuario: str, accion: str, detalle: str = "",
+    commit: bool = True,
+) -> None:
+    """Inserta un registro histórico tal cual (fecha/hora/usuario propios, no
+    los de la sesión actual) — usado al restaurar un respaldo en Excel. El log
+    se AGREGA, nunca se reemplaza."""
+    from database.connection import DatabaseConnection
+    conn = DatabaseConnection.get()
+    conn.execute(
+        "INSERT INTO log_acciones (fecha, hora, accion, detalle, usuario) VALUES (?, ?, ?, ?, ?)",
+        (fecha, hora, accion, (detalle or "")[:500], usuario or "Sistema"),
+    )
+    if commit:
+        conn.commit()
+
+
 def obtener_log(limite: int = 50, accion_contiene: str | None = None) -> list[dict]:
     """
     Retorna los últimos `limite` registros de auditoría, más recientes primero.

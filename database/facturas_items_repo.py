@@ -6,7 +6,8 @@ CRUD para los items (líneas) de una factura por pagar.
 from database.connection import DatabaseConnection
 
 
-def insertar_item(factura_id: int, descripcion_item: str, cantidad: float, precio_unitario: float) -> int:
+def insertar_item(factura_id: int, descripcion_item: str, cantidad: float, precio_unitario: float,
+                   commit: bool = True) -> int:
     conn = DatabaseConnection.get()
     cur = conn.execute(
         """
@@ -15,8 +16,25 @@ def insertar_item(factura_id: int, descripcion_item: str, cantidad: float, preci
         """,
         (factura_id, descripcion_item.strip(), cantidad, precio_unitario),
     )
-    conn.commit()
+    if commit:
+        conn.commit()
     return cur.lastrowid
+
+
+def obtener_todos_items() -> list[dict]:
+    """Retorna todos los items de todas las facturas, con la descripción y
+    proveedor de su factura — usado para el respaldo completo en Excel."""
+    conn = DatabaseConnection.get()
+    rows = conn.execute(
+        """
+        SELECT fi.id, fi.factura_id, fi.descripcion_item, fi.cantidad, fi.precio_unitario,
+               f.descripcion AS factura_descripcion, f.proveedor AS factura_proveedor
+        FROM facturas_items fi
+        JOIN facturas f ON f.id = fi.factura_id
+        ORDER BY fi.factura_id, fi.id
+        """
+    ).fetchall()
+    return [dict(r) for r in rows]
 
 
 def obtener_items_factura(factura_id: int) -> list[dict]:

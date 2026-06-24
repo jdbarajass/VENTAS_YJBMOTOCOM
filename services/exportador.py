@@ -70,8 +70,19 @@ _ANCHOS_VENTAS = [5, 12, 30, 8, 7, 15, 16, 14, 14, 15, 28, 1]
 _HEADERS_VENTAS_COMPLETO = _HEADERS_VENTAS + [
     "Hora", "Vendedor", "Cliente", "Cédula", "Teléfono",
     "N° Factura", "Descuento", "SKU", "Precio ofertado", "Grupo Venta ID",
+    "Desglose pagos",
 ]
-_ANCHOS_VENTAS_COMPLETO = _ANCHOS_VENTAS + [9, 16, 22, 14, 14, 10, 12, 16, 16, 12]
+_ANCHOS_VENTAS_COMPLETO = _ANCHOS_VENTAS + [9, 16, 22, 14, 14, 10, 12, 16, 16, 12, 32]
+
+
+def _desglose_pagos(pagos_combinados: list | None) -> str:
+    """Versión legible de pagos_combinados para humanos (la columna 'Pagos JSON'
+    sigue siendo la fuente exacta que usa el importador)."""
+    if not pagos_combinados:
+        return ""
+    return " | ".join(
+        f"{p['metodo']}: ${p['monto']:,.0f}" for p in pagos_combinados
+    )
 
 _EJEMPLOS_VENTAS = [
     (1, "04/04/2026", "Casco X-Sport T.M",    "M",   1, 85000, 120000, "Efectivo",            0,  35000, "", ""),
@@ -1267,7 +1278,7 @@ def exportar_todo(
                 v.comision, v.ganancia_neta, v.notas, pagos_json,
                 v.hora, v.vendedor, v.cliente_nombre, v.cliente_cedula, v.cliente_tel,
                 v.numero_factura or "", v.descuento, v.sku, v.precio_ofertado,
-                v.grupo_venta_id or "",
+                v.grupo_venta_id or "", _desglose_pagos(v.pagos_combinados),
             ])
             row = ws_v.max_row
             fondo = _GRIS_FILA if i % 2 == 0 else "FFFFFF"

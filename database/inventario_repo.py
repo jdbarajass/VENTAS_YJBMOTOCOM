@@ -108,6 +108,17 @@ def obtener_producto_por_id(pid: int) -> Producto | None:
     return _row_to_producto(row) if row else None
 
 
+def obtener_variantes_por_nombre(nombre: str) -> list[Producto]:
+    """Retorna todos los registros de inventario con ese nombre exacto, ordenados por talla.
+    Usado para saber qué tallas existen de un producto y cuál tiene stock disponible."""
+    conn = DatabaseConnection.get()
+    rows = conn.execute(
+        "SELECT * FROM inventario WHERE LOWER(producto) = LOWER(?) ORDER BY talla ASC",
+        (nombre,),
+    ).fetchall()
+    return [_row_to_producto(r) for r in rows]
+
+
 def buscar_producto_por_nombre_y_talla(nombre: str, talla: str) -> Producto | None:
     """Retorna el producto cuyo nombre Y talla coinciden exactamente (case-insensitive).
     Usado para distinguir variantes de talla del mismo producto."""

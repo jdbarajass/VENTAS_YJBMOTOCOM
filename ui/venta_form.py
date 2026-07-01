@@ -366,68 +366,88 @@ class _LineaProducto:
             # Primero: coincidencia exacta por código de barras
             por_barras = obtener_producto_por_codigo_barras(texto)
             if por_barras:
-                clave = por_barras.producto
-                self._mapa_completer = {clave: por_barras}
-                self._completer_model.setStringList([clave])
+                self._mapa_completer = {por_barras.producto: por_barras}
+                self._completer_model.setStringList([por_barras.producto])
                 self.campo_producto.blockSignals(True)
                 self.campo_producto.setText(por_barras.producto)
                 self.campo_producto.blockSignals(False)
-                self._aplicar_producto(por_barras)
+                self._cargar_variantes(por_barras.producto)
                 return
-            # Búsqueda parcial por nombre
+            # Búsqueda parcial: mostrar solo nombres únicos en el dropdown
             prods = buscar_productos_por_nombre(texto)
             self._mapa_completer = {}
             lista_display = []
             for p in prods:
-                # Mostrar talla junto al nombre para distinguir variantes del mismo producto
-                talla = (getattr(p, "talla", "") or "").strip()
-                clave = f"{p.producto} — {talla}" if talla and talla not in ("N/A",) else p.producto
-                if clave in self._mapa_completer:
-                    clave = f"{clave} (#{p.id})"
-                self._mapa_completer[clave] = p
-                lista_display.append(clave)
+                if p.producto not in self._mapa_completer:
+                    self._mapa_completer[p.producto] = p
+                    lista_display.append(p.producto)
             self._completer_model.setStringList(lista_display)
-            # Auto-aplicar solo si hay exactamente 1 producto con ese nombre (sin ambigüedad de talla)
-            exactos = [p for p in prods if p.producto.lower() == texto.lower()]
+            # Auto-cargar si solo hay un nombre único que coincide exacto
+            exactos = [n for n in lista_display if n.lower() == texto.lower()]
             if len(exactos) == 1:
-                self._aplicar_producto(exactos[0])
+                self._cargar_variantes(exactos[0])
         except Exception:
             pass
 
-    def _on_seleccionado(self, clave: str) -> None:
-        p = self._mapa_completer.get(clave)
-        if p:
-            # El campo muestra solo el nombre limpio, no el "nombre — talla" del dropdown
-            self.campo_producto.blockSignals(True)
-            self.campo_producto.setText(p.producto)
-            self.campo_producto.blockSignals(False)
-            self._aplicar_producto(p)
-        else:
-            # Fallback para claves no encontradas en el mapa (no debería ocurrir)
-            try:
-                from database.inventario_repo import obtener_producto_por_nombre_exacto
-                p2 = obtener_producto_por_nombre_exacto(clave)
-                if p2:
-                    self._aplicar_producto(p2)
-            except Exception:
-                pass
+    def _on_seleccionado(self, nombre: str) -> None:
+        self.campo_producto.blockSignals(True)
+        self.campo_producto.setText(nombre)
+        self.campo_producto.blockSignals(False)
+        self._cargar_variantes(nombre)
 
     def _on_confirmado(self) -> None:
         texto = self.campo_producto.text().strip()
         if not texto or self._lbl_stock.isVisible():
             return
-        # Si ya hay un producto seleccionado con ese nombre exacto, no relanzar la búsqueda
+        # Si ya hay un producto cargado con ese nombre, no relanzar
         if self._producto_actual and self._producto_actual.producto.lower() == texto.lower():
             return
         try:
-            from database.inventario_repo import (
-                obtener_producto_por_nombre_exacto,
-                obtener_producto_por_codigo_barras,
-            )
-            p = obtener_producto_por_nombre_exacto(texto) or obtener_producto_por_codigo_barras(texto)
-            if p:
-                self.campo_producto.setText(p.producto)
-                self._aplicar_producto(p)
+            from database.inventario_repo import obtener_producto_por_codigo_barras
+            por_barras = obtener_producto_por_codigo_barras(texto)
+            if por_barras:
+                self.campo_producto.setText(por_barras.producto)
+            self._cargar_variantes(por_barras.producto if por_barras else texto)
+        except Exception:
+            pass
+
+    def _cargar_variantes(self, nombre: str) -> None:
+        """Carga el producto en el formulario por nombre.
+        Si tiene variantes de talla en BD → muestra combo con todas las tallas estándar
+        y pre-selecciona la primera con stock. Si no tiene tallas → aplica directo sin combo."""
+        try:
+            from database.inventario_repo import obtener_variantes_por_nombre
+            variantes = obtener_variantes_por_nombre(nombre)
+            con_talla = [v for v in variantes if (v.talla or "").strip() and v.talla not in ("N/A",)]
+            if con_talla:
+                # Producto con tallas: mostrar combo y pre-seleccionar la mejor
+                self._combo_talla.setVisible(True)
+                # Ordenar por posición en la lista estándar (XS→S→M→L→XL→2XL)
+                _orden = {t: i for i, t in enumerate(_TALLAS)}
+                con_talla_ord = sorted(con_talla, key=lambda v: _orden.get(v.talla.upper(), 99))
+                preferida = next((v for v in con_talla_ord if v.cantidad > 0), con_talla_ord[0])
+                self._combo_talla.blockSignals(True)
+                idx = self._combo_talla.findText(preferida.talla, Qt.MatchFixedString)
+                self._combo_talla.setCurrentIndex(idx if idx >= 0 else 1)
+                self._combo_talla.blockSignals(False)
+                self._aplicar_producto(preferida)
+            elif variantes:
+                # Producto sin talla (baúl, candado, etc.)
+                self._combo_talla.blockSignals(True)
+                self._combo_talla.setCurrentIndex(0)
+                self._combo_talla.blockSignals(False)
+                self._combo_talla.setVisible(False)
+                self._aplicar_producto(variantes[0])
+            else:
+                # No está en inventario — mostrar sin stock pero dejar el campo libre
+                self._combo_talla.setVisible(False)
+                self._lbl_stock.setText("Sin stock")
+                self._lbl_stock.setStyleSheet(
+                    "font-size:9px; padding:1px 5px; border-radius:3px;"
+                    "color:#DC2626; background:#FEE2E2;"
+                )
+                self._lbl_stock.setVisible(True)
+                self._on_change()
         except Exception:
             pass
 
@@ -437,64 +457,35 @@ class _LineaProducto:
         nombre = self.campo_producto.text().strip()
         if not nombre:
             return
-        # Buscar el producto con ese nombre + la talla nueva (columna separada)
         try:
             from database.inventario_repo import buscar_producto_por_nombre_y_talla
             p = buscar_producto_por_nombre_y_talla(nombre, nueva_talla)
             if p:
                 self._producto_actual = p
                 self.campo_costo.set_valor(int(p.costo_unitario))
-                if p.cantidad > 5:
-                    self._lbl_stock.setText(f"Stock: {p.cantidad}")
-                    self._lbl_stock.setStyleSheet(
-                        "font-size:9px; padding:1px 5px; border-radius:3px;"
-                        "color:#15803D; background:#DCFCE7;"
-                    )
-                elif p.cantidad > 0:
-                    self._lbl_stock.setText(f"Bajo: {p.cantidad}")
-                    self._lbl_stock.setStyleSheet(
-                        "font-size:9px; padding:1px 5px; border-radius:3px;"
-                        "color:#92400E; background:#FEF3C7;"
-                    )
-                else:
-                    self._lbl_stock.setText("Sin stock")
-                    self._lbl_stock.setStyleSheet(
-                        "font-size:9px; padding:1px 5px; border-radius:3px;"
-                        "color:#DC2626; background:#FEE2E2;"
-                    )
+                self._mostrar_stock(p.cantidad)
+            else:
+                # Talla no registrada en inventario: mostrar "Sin stock" pero permitir vender
+                self._producto_actual = None
+                self._lbl_stock.setText("Sin stock")
+                self._lbl_stock.setStyleSheet(
+                    "font-size:9px; padding:1px 5px; border-radius:3px;"
+                    "color:#DC2626; background:#FEE2E2;"
+                )
                 self._lbl_stock.setVisible(True)
-                self._on_change()
+            self._on_change()
         except Exception:
             pass
 
-    def _aplicar_producto(self, producto) -> None:
-        self._producto_actual = producto
-        # Mostrar talla desde el campo .talla (columna separada, no del nombre)
-        talla = (getattr(producto, "talla", "") or "").strip()
-        if talla and talla not in ("N/A",):
-            self._combo_talla.blockSignals(True)
-            idx = self._combo_talla.findText(talla, Qt.MatchFixedString)
-            self._combo_talla.setCurrentIndex(idx if idx >= 0 else 0)
-            self._combo_talla.blockSignals(False)
-            self._combo_talla.setVisible(True)
-        else:
-            self._combo_talla.blockSignals(True)
-            self._combo_talla.setCurrentIndex(0)
-            self._combo_talla.blockSignals(False)
-            self._combo_talla.setVisible(False)
-        self._sku = (
-            getattr(producto, "codigo_barras", "") or
-            getattr(producto, "serial", "") or ""
-        ).strip()
-        self.campo_costo.set_valor(int(producto.costo_unitario))
-        if producto.cantidad > 5:
-            self._lbl_stock.setText(f"Stock: {producto.cantidad}")
+    def _mostrar_stock(self, cantidad: int) -> None:
+        if cantidad > 5:
+            self._lbl_stock.setText(f"Stock: {cantidad}")
             self._lbl_stock.setStyleSheet(
                 "font-size:9px; padding:1px 5px; border-radius:3px;"
                 "color:#15803D; background:#DCFCE7;"
             )
-        elif producto.cantidad > 0:
-            self._lbl_stock.setText(f"Bajo: {producto.cantidad}")
+        elif cantidad > 0:
+            self._lbl_stock.setText(f"Bajo: {cantidad}")
             self._lbl_stock.setStyleSheet(
                 "font-size:9px; padding:1px 5px; border-radius:3px;"
                 "color:#92400E; background:#FEF3C7;"
@@ -506,6 +497,15 @@ class _LineaProducto:
                 "color:#DC2626; background:#FEE2E2;"
             )
         self._lbl_stock.setVisible(True)
+
+    def _aplicar_producto(self, producto) -> None:
+        self._producto_actual = producto
+        self._sku = (
+            getattr(producto, "codigo_barras", "") or
+            getattr(producto, "serial", "") or ""
+        ).strip()
+        self.campo_costo.set_valor(int(producto.costo_unitario))
+        self._mostrar_stock(producto.cantidad)
         self._on_change()
 
     def stock_actual(self) -> int | None:
@@ -565,9 +565,10 @@ class _LineaProducto:
             v = self._campo_ofertado.valor_int()
             if v > self.campo_precio.valor_int() > 0:
                 ofertado = float(v)
+        _t = self._combo_talla.currentText()
         return {
             "producto":        self.campo_producto.text().strip(),
-            "talla":           (self._producto_actual.talla if self._producto_actual else ""),
+            "talla":           (_t if self._combo_talla.isVisible() and _t != "—" else ""),
             "costo":           float(self.campo_costo.valor_int()),
             "precio":          float(self.campo_precio.valor_int()),
             "cantidad":        self.campo_cantidad.value(),

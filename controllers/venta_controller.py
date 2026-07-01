@@ -94,6 +94,7 @@ class VentaController:
         notas: str,
         cantidad: int = 1,
         pagos_combinados: list | None = None,
+        talla: str = "",
     ) -> Venta:
         """
         Valida, calcula comisión/ganancia y persiste una nueva venta.
@@ -124,7 +125,7 @@ class VentaController:
         # Descontar del inventario (silencioso si el producto no está en inventario)
         try:
             from database.inventario_repo import decrementar_cantidad
-            decrementar_cantidad(venta.producto, venta.cantidad)
+            decrementar_cantidad(venta.producto, venta.cantidad, talla)
         except Exception:
             pass
 
@@ -272,13 +273,17 @@ class VentaController:
                     # (la comisión la asume el cliente, no se descuenta de la ganancia)
                     venta.ganancia_neta = round(venta.ganancia_neta - ajuste, 2)
 
+        # Construir mapa producto → talla para el descuento de inventario
+        _talla_por_producto = {ln["producto"].strip(): ln.get("talla", "") for ln in lineas}
+
         # ── Fase 3: persistir y post-procesar ────────────────────────────────
         for venta in ventas:
             insertar_venta(venta)
 
             try:
                 from database.inventario_repo import decrementar_cantidad
-                decrementar_cantidad(venta.producto, venta.cantidad)
+                _talla = _talla_por_producto.get(venta.producto, "")
+                decrementar_cantidad(venta.producto, venta.cantidad, _talla)
             except Exception:
                 pass
 

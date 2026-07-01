@@ -101,6 +101,24 @@ def obtener_producto_por_nombre_exacto(nombre: str) -> Producto | None:
     return _row_to_producto(row) if row else None
 
 
+def obtener_producto_por_id(pid: int) -> Producto | None:
+    """Retorna el producto por su ID primario."""
+    conn = DatabaseConnection.get()
+    row = conn.execute("SELECT * FROM inventario WHERE id = ?", (pid,)).fetchone()
+    return _row_to_producto(row) if row else None
+
+
+def buscar_producto_por_nombre_y_talla(nombre: str, talla: str) -> Producto | None:
+    """Retorna el producto cuyo nombre Y talla coinciden exactamente (case-insensitive).
+    Usado para distinguir variantes de talla del mismo producto."""
+    conn = DatabaseConnection.get()
+    row = conn.execute(
+        "SELECT * FROM inventario WHERE LOWER(producto) = LOWER(?) AND LOWER(talla) = LOWER(?) LIMIT 1",
+        (nombre, talla),
+    ).fetchone()
+    return _row_to_producto(row) if row else None
+
+
 def obtener_producto_por_codigo_barras(codigo: str) -> Producto | None:
     """Retorna el producto cuyo código de barras coincide exactamente."""
     if not codigo:
@@ -171,25 +189,35 @@ def obtener_productos_bajo_stock() -> list[Producto]:
     return [_row_to_producto(r) for r in rows]
 
 
-def decrementar_cantidad(nombre_producto: str, cantidad: int) -> bool:
+def decrementar_cantidad(nombre_producto: str, cantidad: int, talla: str = "") -> bool:
     """
     Descuenta `cantidad` unidades del producto con ese nombre (case-insensitive).
+    Si se indica `talla`, solo afecta al registro con esa talla específica — imprescindible
+    cuando el mismo nombre existe en varias tallas (ej. CHAQUETA S / M / L).
+    Sin talla, actualiza todos los registros con ese nombre (comportamiento heredado para
+    productos sin variantes de talla).
     El stock nunca baja de 0. Retorna True si encontró el producto.
     """
     conn = DatabaseConnection.get()
-    row_ant = conn.execute(
-        "SELECT id, cantidad FROM inventario WHERE LOWER(producto) = LOWER(?) LIMIT 1",
-        (nombre_producto,),
-    ).fetchone()
-
-    cursor = conn.execute(
-        """
-        UPDATE inventario
-        SET cantidad = MAX(0, cantidad - ?)
-        WHERE LOWER(producto) = LOWER(?)
-        """,
-        (cantidad, nombre_producto),
-    )
+    _talla = (talla or "").strip()
+    if _talla and _talla not in ("—", "N/A"):
+        row_ant = conn.execute(
+            "SELECT id, cantidad FROM inventario WHERE LOWER(producto) = LOWER(?) AND LOWER(talla) = LOWER(?) LIMIT 1",
+            (nombre_producto, _talla),
+        ).fetchone()
+        cursor = conn.execute(
+            "UPDATE inventario SET cantidad = MAX(0, cantidad - ?) WHERE LOWER(producto) = LOWER(?) AND LOWER(talla) = LOWER(?)",
+            (cantidad, nombre_producto, _talla),
+        )
+    else:
+        row_ant = conn.execute(
+            "SELECT id, cantidad FROM inventario WHERE LOWER(producto) = LOWER(?) LIMIT 1",
+            (nombre_producto,),
+        ).fetchone()
+        cursor = conn.execute(
+            "UPDATE inventario SET cantidad = MAX(0, cantidad - ?) WHERE LOWER(producto) = LOWER(?)",
+            (cantidad, nombre_producto),
+        )
     conn.commit()
     if cursor.rowcount > 0 and row_ant is not None:
         cant_ant = row_ant["cantidad"]
@@ -200,21 +228,32 @@ def decrementar_cantidad(nombre_producto: str, cantidad: int) -> bool:
     return cursor.rowcount > 0
 
 
-def incrementar_cantidad(nombre_producto: str, cantidad: int) -> bool:
+def incrementar_cantidad(nombre_producto: str, cantidad: int, talla: str = "") -> bool:
     """
     Devuelve `cantidad` unidades al stock del producto (reversa de una venta eliminada).
+    Si se indica `talla`, solo restaura el registro con esa talla específica.
     Retorna True si encontró el producto.
     """
     conn = DatabaseConnection.get()
-    row_ant = conn.execute(
-        "SELECT id, cantidad FROM inventario WHERE LOWER(producto) = LOWER(?) LIMIT 1",
-        (nombre_producto,),
-    ).fetchone()
-
-    cursor = conn.execute(
-        "UPDATE inventario SET cantidad = cantidad + ? WHERE LOWER(producto) = LOWER(?)",
-        (cantidad, nombre_producto),
-    )
+    _talla = (talla or "").strip()
+    if _talla and _talla not in ("—", "N/A"):
+        row_ant = conn.execute(
+            "SELECT id, cantidad FROM inventario WHERE LOWER(producto) = LOWER(?) AND LOWER(talla) = LOWER(?) LIMIT 1",
+            (nombre_producto, _talla),
+        ).fetchone()
+        cursor = conn.execute(
+            "UPDATE inventario SET cantidad = cantidad + ? WHERE LOWER(producto) = LOWER(?) AND LOWER(talla) = LOWER(?)",
+            (cantidad, nombre_producto, _talla),
+        )
+    else:
+        row_ant = conn.execute(
+            "SELECT id, cantidad FROM inventario WHERE LOWER(producto) = LOWER(?) LIMIT 1",
+            (nombre_producto,),
+        ).fetchone()
+        cursor = conn.execute(
+            "UPDATE inventario SET cantidad = cantidad + ? WHERE LOWER(producto) = LOWER(?)",
+            (cantidad, nombre_producto),
+        )
     conn.commit()
     if cursor.rowcount > 0 and row_ant is not None:
         cant_ant = row_ant["cantidad"]

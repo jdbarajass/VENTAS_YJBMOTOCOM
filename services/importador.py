@@ -1004,6 +1004,8 @@ def importar_todo(ruta: Path) -> ResultadoImportacionTotal:
                 grupo_venta_id = int(ws_v.cell(row_idx, _base + 10).value or 0) or None
             except (ValueError, TypeError):
                 grupo_venta_id = None
+            # Leer talla de col 4 solo cuando el archivo tiene ese formato (_of == 1)
+            talla_excel = str(ws_v.cell(row_idx, 4).value or "").strip() if _of == 1 else ""
 
             try:
                 resultado.ventas.append(Venta(
@@ -1017,6 +1019,7 @@ def importar_todo(ruta: Path) -> ResultadoImportacionTotal:
                     cliente_tel=cliente_tel, numero_factura=numero_factura,
                     descuento=descuento, sku=sku,
                     precio_ofertado=precio_ofertado, grupo_venta_id=grupo_venta_id,
+                    talla=talla_excel,
                 ))
                 resultado.meses_afectados.add((venta_fecha.year, venta_fecha.month))
             except ValueError as exc:

@@ -1273,7 +1273,7 @@ def exportar_todo(
         for i, v in enumerate(ventas, start=1):
             pagos_json = json.dumps(v.pagos_combinados, ensure_ascii=False) if v.pagos_combinados else ""
             ws_v.append([
-                i, fecha_corta(v.fecha), v.producto, _talla_de(v.producto),
+                i, fecha_corta(v.fecha), v.producto, getattr(v, "talla", "") or _talla_de(v.producto),
                 v.cantidad, v.costo, v.precio, v.metodo_pago,
                 v.comision, v.ganancia_neta, v.notas, pagos_json,
                 v.hora, v.vendedor, v.cliente_nombre, v.cliente_cedula, v.cliente_tel,
@@ -1737,7 +1737,7 @@ def exportar_ventas_dia(ventas: list[Venta], fecha: date, ruta: Path) -> None:
             i,
             fecha_corta(v.fecha),
             v.producto,
-            _talla_de(v.producto),
+            getattr(v, "talla", "") or _talla_de(v.producto),
             v.cantidad,
             v.costo,
             v.precio,
@@ -1828,7 +1828,7 @@ def exportar_ventas_mes(ventas: list[Venta], año: int, mes: int, ruta: Path,
     total_neta = 0.0
     for i, v in enumerate(ventas, start=1):
         ws.append([
-            i, fecha_corta(v.fecha), v.producto, _talla_de(v.producto),
+            i, fecha_corta(v.fecha), v.producto, getattr(v, "talla", "") or _talla_de(v.producto),
             v.cantidad, v.costo, v.precio, v.metodo_pago,
             v.comision, v.ganancia_neta, v.notas,
         ])

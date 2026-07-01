@@ -310,13 +310,14 @@ class CarguesPedidosWidget(QWidget):
         except Exception:
             cbs = {}
 
-        # Verificar si ya existen en inventario
-        from database.inventario_repo import obtener_producto_por_nombre_exacto
+        # Verificar si ya existen en inventario (buscar por nombre+talla para evitar
+        # sumar stock a la talla incorrecta cuando el mismo producto tiene varias tallas)
+        from database.inventario_repo import buscar_producto_por_nombre_y_talla
 
         filas: list[_FilaImport] = []
         for i, item in enumerate(items):
             cb = cbs.get(i, "")
-            existente = obtener_producto_por_nombre_exacto(item.nombre_sugerido)
+            existente = buscar_producto_por_nombre_y_talla(item.nombre_sugerido, item.talla or "")
             filas.append(_FilaImport(
                 nombre_sugerido=item.nombre_sugerido,
                 talla=item.talla,
@@ -434,8 +435,8 @@ class CarguesPedidosWidget(QWidget):
         if row >= len(self._filas):
             return
         f = self._filas[row]
-        from database.inventario_repo import obtener_producto_por_nombre_exacto
-        existente = obtener_producto_por_nombre_exacto(nuevo_nombre.strip())
+        from database.inventario_repo import buscar_producto_por_nombre_y_talla
+        existente = buscar_producto_por_nombre_y_talla(nuevo_nombre.strip(), f.talla or "")
         self._filas[row] = _FilaImport(
             nombre_sugerido=nuevo_nombre.strip(),
             talla=f.talla,

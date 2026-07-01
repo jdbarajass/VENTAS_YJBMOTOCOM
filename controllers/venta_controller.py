@@ -119,6 +119,7 @@ class VentaController:
         )
         venta.numero_factura = nro_factura
         venta.hora = datetime.now().strftime("%H:%M")
+        venta.talla = talla
         completar_venta(venta, cfg)
         insertar_venta(venta)
 
@@ -230,6 +231,7 @@ class VentaController:
             venta.vendedor = vendedor
             venta.sku = ln.get("sku", "")
             venta.precio_ofertado = float(ln.get("precio_ofertado", 0) or 0)
+            venta.talla = ln.get("talla", "")
             if i == 0:
                 venta.cliente_nombre = cliente_nombre
                 venta.cliente_cedula = cliente_cedula
@@ -347,7 +349,7 @@ class VentaController:
         if resultado and venta is not None:
             try:
                 from database.inventario_repo import incrementar_cantidad
-                incrementar_cantidad(venta.producto, venta.cantidad)
+                incrementar_cantidad(venta.producto, venta.cantidad, getattr(venta, "talla", ""))
             except Exception:
                 pass
             try:

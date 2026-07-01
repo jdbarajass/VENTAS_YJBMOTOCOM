@@ -40,6 +40,8 @@ class Venta:
     sku: str = ""              # código/serial del producto
     # Precio que se le anunció al cliente antes del descuento. 0 = sin descuento.
     precio_ofertado: float = 0.0
+    # Talla del producto vendido (ej. "M", "L", "XL"). Vacío para productos sin talla.
+    talla: str = ""
 
     # ------------------------------------------------------------------
     # Propiedades derivadas (sin acceso a BD)

@@ -42,6 +42,7 @@ def _row_to_venta(row: sqlite3.Row) -> Venta:
     v.descuento = row["descuento"] if "descuento" in keys else 0
     v.sku = row["sku"] if "sku" in keys else ""
     v.precio_ofertado = float(row["precio_ofertado"]) if "precio_ofertado" in keys else 0.0
+    v.talla = row["talla"] if "talla" in keys else ""
     return v
 
 
@@ -86,14 +87,15 @@ def insertar_venta(venta: Venta, commit: bool = True) -> int:
     descuento = getattr(venta, "descuento", 0)
     sku = getattr(venta, "sku", "")
     precio_ofertado = getattr(venta, "precio_ofertado", 0.0)
+    talla = getattr(venta, "talla", "")
     cursor = conn.execute(
         """
         INSERT INTO ventas
             (fecha, producto, costo, precio, metodo_pago, cantidad,
              comision, ganancia_neta, notas, pagos_combinados, grupo_venta_id,
              numero_factura, hora, vendedor, cliente_nombre, cliente_cedula,
-             cliente_tel, descuento, sku, precio_ofertado)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+             cliente_tel, descuento, sku, precio_ofertado, talla)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         (
             venta.fecha.isoformat(),
@@ -116,6 +118,7 @@ def insertar_venta(venta: Venta, commit: bool = True) -> int:
             descuento,
             sku,
             precio_ofertado,
+            talla,
         ),
     )
     if commit:
@@ -211,6 +214,7 @@ def actualizar_venta(venta: Venta) -> bool:
     descuento      = getattr(venta, "descuento", 0)
     sku            = getattr(venta, "sku", "")
     precio_ofertado = getattr(venta, "precio_ofertado", 0.0)
+    talla = getattr(venta, "talla", "")
     cursor = conn.execute(
         """
         UPDATE ventas SET
@@ -230,7 +234,8 @@ def actualizar_venta(venta: Venta) -> bool:
             cliente_tel        = ?,
             descuento          = ?,
             sku                = ?,
-            precio_ofertado    = ?
+            precio_ofertado    = ?,
+            talla              = ?
         WHERE id = ?
         """,
         (
@@ -251,6 +256,7 @@ def actualizar_venta(venta: Venta) -> bool:
             descuento,
             sku,
             precio_ofertado,
+            talla,
             venta.id,
         ),
     )

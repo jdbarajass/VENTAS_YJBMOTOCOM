@@ -20,7 +20,7 @@ from database.connection import DatabaseConnection
 
 # ── Versión actual del esquema ────────────────────────────────────────────────
 # Incrementar este número cada vez que se añada una migración a _MIGRACIONES.
-_VERSION_ACTUAL = 27
+_VERSION_ACTUAL = 28
 
 
 # ── Lista de migraciones (forward-only) ───────────────────────────────────────
@@ -200,6 +200,9 @@ _MIGRACIONES = [
     (27, "Agregar backup automático programado a configuracion", [
         "ALTER TABLE configuracion ADD COLUMN backup_automatico_activo INTEGER NOT NULL DEFAULT 1",
         "ALTER TABLE configuracion ADD COLUMN backup_intervalo_horas INTEGER NOT NULL DEFAULT 24",
+    ]),
+    (28, "Agregar columna talla a ventas (necesaria para revertir stock a la talla correcta)", [
+        "ALTER TABLE ventas ADD COLUMN talla TEXT NOT NULL DEFAULT ''",
     ]),
 ]
 

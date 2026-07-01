@@ -559,6 +559,7 @@ class EditVentaDialog(QDialog):
             venta.numero_factura  = getattr(self._venta_original, "numero_factura", None)
             venta.hora            = getattr(self._venta_original, "hora", "")
             venta.grupo_venta_id  = getattr(self._venta_original, "grupo_venta_id", None)
+            venta.talla           = getattr(self._venta_original, "talla", "")
             self._ctrl.actualizar_venta_existente(venta)
             self.venta_actualizada.emit(venta)
             self.accept()

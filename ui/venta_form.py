@@ -500,6 +500,20 @@ class _LineaProducto:
 
     def _aplicar_producto(self, producto) -> None:
         self._producto_actual = producto
+        # Sincronizar el combo de talla con el producto (cubre el path de código de barras
+        # y cualquier otro caller que llegue directamente aquí sin pasar por _cargar_variantes)
+        talla = (getattr(producto, "talla", "") or "").strip()
+        if talla and talla not in ("N/A",):
+            self._combo_talla.blockSignals(True)
+            idx = self._combo_talla.findText(talla, Qt.MatchFixedString)
+            self._combo_talla.setCurrentIndex(idx if idx >= 0 else 0)
+            self._combo_talla.blockSignals(False)
+            self._combo_talla.setVisible(True)
+        else:
+            self._combo_talla.blockSignals(True)
+            self._combo_talla.setCurrentIndex(0)
+            self._combo_talla.blockSignals(False)
+            self._combo_talla.setVisible(False)
         self._sku = (
             getattr(producto, "codigo_barras", "") or
             getattr(producto, "serial", "") or ""

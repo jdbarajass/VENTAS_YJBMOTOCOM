@@ -591,8 +591,15 @@ class CalculadoraPanel(QWidget):
                 self._recalcular()
                 return
             prods = buscar_productos_por_nombre(texto)
-            self._cm.setStringList([p.producto for p in prods])
-            exacto = next((p for p in prods if p.producto.lower() == texto.lower()), None)
+            # Mostrar solo nombres únicos (un mismo producto puede tener varias tallas)
+            nombres_vistos = {}
+            for p in prods:
+                if p.producto not in nombres_vistos:
+                    nombres_vistos[p.producto] = p
+            self._cm.setStringList(list(nombres_vistos.keys()))
+            exacto = nombres_vistos.get(texto) or nombres_vistos.get(
+                next((n for n in nombres_vistos if n.lower() == texto.lower()), "")
+            )
             if exacto:
                 self._costo.set_valor(int(exacto.costo_unitario))
                 self._recalcular()

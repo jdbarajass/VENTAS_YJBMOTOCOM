@@ -263,6 +263,9 @@ class VistaDiariaDialog(QDialog):
             cell_lay.addWidget(btn_edit)
             tabla.setCellWidget(row, 5, cell_w)
 
+        tabla.resizeColumnToContents(0)
+        tabla.setColumnWidth(0, min(tabla.columnWidth(0), 480))
+
     def _build_totales(self) -> QFrame:
         """Sección inferior con desglose por método y grand total."""
         frame = QFrame()
@@ -474,6 +477,9 @@ class VistaDiariaDialog(QDialog):
                 item_est.setForeground(QColor("#6B7280"))
             tabla.setItem(row, 3, item_est)
 
+        tabla.resizeColumnToContents(1)
+        tabla.setColumnWidth(1, min(tabla.columnWidth(1), 320))
+
         lay.addWidget(tabla, stretch=1)
         return frame
 
@@ -539,6 +545,9 @@ class VistaDiariaDialog(QDialog):
             item_m.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
             item_m.setForeground(QColor("#DC2626"))
             tabla.setItem(row, 2, item_m)
+
+        tabla.resizeColumnToContents(0)
+        tabla.setColumnWidth(0, min(tabla.columnWidth(0), 320))
 
         lay.addWidget(tabla, stretch=1)
 

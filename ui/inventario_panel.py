@@ -874,6 +874,9 @@ class InventarioPanel(QWidget):
             # Acciones
             self.tabla.setCellWidget(row, 8, self._widget_acciones(p.id))
 
+        self.tabla.resizeColumnToContents(2)
+        self.tabla.setColumnWidth(2, min(self.tabla.columnWidth(2), 480))
+
     def _celda(self, row, col, texto, alin=Qt.AlignLeft | Qt.AlignVCenter):
         item = QTableWidgetItem(texto)
         item.setTextAlignment(alin)

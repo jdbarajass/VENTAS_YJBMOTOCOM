@@ -836,6 +836,9 @@ class HistorialPanel(QWidget):
             self.tabla_detalle.setCellWidget(row, 8, self._btn_editar(v.id))
             self.tabla_detalle.setCellWidget(row, 9, self._btn_eliminar(v.id))
 
+        self.tabla_detalle.resizeColumnToContents(0)
+        self.tabla_detalle.setColumnWidth(0, min(self.tabla_detalle.columnWidth(0), 480))
+
     def _on_busqueda_hist(self, texto: str) -> None:
         """Filtra la tabla de detalle por nombre de producto en todo el mes."""
         texto = texto.strip().lower()
@@ -914,6 +917,9 @@ class HistorialPanel(QWidget):
             self._celda_det(row, 7, fecha_corta(v.fecha))
             self.tabla_detalle.setCellWidget(row, 8, self._btn_editar(v.id))
             self.tabla_detalle.setCellWidget(row, 9, self._btn_eliminar(v.id))
+
+        self.tabla_detalle.resizeColumnToContents(0)
+        self.tabla_detalle.setColumnWidth(0, min(self.tabla_detalle.columnWidth(0), 480))
 
     def _cerrar_detalle(self) -> None:
         self._fecha_seleccionada = None

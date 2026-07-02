@@ -451,6 +451,9 @@ class PrestamosPanel(QWidget):
             # Botones de acción
             self.tabla.setCellWidget(row, 7, self._widget_acciones(p.id, p.estado))
 
+        self.tabla.resizeColumnToContents(3)
+        self.tabla.setColumnWidth(3, min(self.tabla.columnWidth(3), 480))
+
     def _actualizar_alerta(self) -> None:
         """Actualiza el banner de alerta de pendientes."""
         pendientes = [p for p in self._prestamos if p.estado == "pendiente"]

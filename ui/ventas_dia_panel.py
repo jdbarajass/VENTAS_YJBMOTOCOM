@@ -526,6 +526,10 @@ class VentasDiaPanel(QWidget):
             # Botones de acción
             self.tabla.setCellWidget(row, COL_ACCIONES, self._widget_acciones(v.id))
 
+        # Ajustar ancho de la columna Producto al contenido real, con tope máximo
+        self.tabla.resizeColumnToContents(COL_PRODUCTO)
+        self.tabla.setColumnWidth(COL_PRODUCTO, min(self.tabla.columnWidth(COL_PRODUCTO), 480))
+
     def _poblar_gastos(self) -> None:
         """Actualiza la lista visual de gastos operativos."""
         while self._gastos_lista_layout.count():

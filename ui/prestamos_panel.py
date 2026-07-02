@@ -4,7 +4,7 @@ Panel de gestión de préstamos a locales/almacenes.
 Permite registrar, hacer seguimiento y cerrar préstamos de productos.
 """
 
-from datetime import date
+from datetime import date, datetime
 
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
@@ -12,7 +12,7 @@ from PySide6.QtWidgets import (
     QFrame, QLineEdit, QDateEdit, QTimeEdit, QMessageBox, QCheckBox,
     QDialog, QComboBox, QDialogButtonBox, QScrollArea,
 )
-from PySide6.QtCore import Qt, QDate, QTime, Signal
+from PySide6.QtCore import Qt, QDate, QTime, QTimer, Signal
 from PySide6.QtGui import QFont
 
 from controllers.prestamos_controller import PrestamosController
@@ -169,6 +169,14 @@ class PrestamosPanel(QWidget):
         self._prestamos: list = []
         self._build_ui()
         self._cargar_datos()
+        # Actualiza el campo hora cada 30 segundos para que siempre muestre
+        # la hora actual (evita que quede congelada en la hora de apertura).
+        self._timer_hora = QTimer(self)
+        self._timer_hora.setInterval(30_000)
+        self._timer_hora.timeout.connect(
+            lambda: self.campo_hora.setTime(QTime.currentTime())
+        )
+        self._timer_hora.start()
 
     # ------------------------------------------------------------------
     # Construcción de UI
@@ -574,9 +582,9 @@ class PrestamosPanel(QWidget):
         almacen  = self.campo_almacen.text().strip()
         obs      = self.campo_obs.text().strip()
         qd       = self.campo_fecha.date()
-        qt       = self.campo_hora.time()
         fecha    = date(qd.year(), qd.month(), qd.day())
-        hora     = f"{qt.hour():02d}:{qt.minute():02d}"
+        # Captura la hora real en el momento exacto del clic (no la hora de apertura)
+        hora     = datetime.now().strftime("%H:%M")
 
         if not producto:
             QMessageBox.warning(self, "Dato requerido", "Ingresa el nombre del producto.")
@@ -593,6 +601,7 @@ class PrestamosPanel(QWidget):
             self.campo_producto.clear()
             self.campo_almacen.clear()
             self.campo_obs.clear()
+            self.campo_hora.setTime(QTime.currentTime())
             self.campo_producto.setFocus()
             self._cargar_datos()
             QMessageBox.information(

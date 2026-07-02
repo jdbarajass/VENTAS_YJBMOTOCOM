@@ -38,3 +38,13 @@ def nombre_mes(mes: int, año: int) -> str:
 def fecha_corta(d) -> str:
     """date -> 'dd/mm/aaaa'"""
     return d.strftime("%d/%m/%Y")
+
+
+def nombre_con_talla(v) -> str:
+    """Retorna el nombre del producto con su talla cuando la tiene.
+    Ejemplo: 'CHAQUETA CORTAVIENTO REFLECTIVO · Talla L'
+    Para productos sin talla retorna solo el nombre."""
+    t = (getattr(v, "talla", "") or "").strip()
+    if t and t not in ("N/A", "—"):
+        return f"{v.producto}  ·  Talla {t}"
+    return v.producto

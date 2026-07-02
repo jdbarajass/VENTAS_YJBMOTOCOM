@@ -217,9 +217,11 @@ class VistaDiariaDialog(QDialog):
             tabla.setRowHeight(row, 32)
             precio_total = v.ingreso_real()
 
-            prod_txt = v.producto if v.cantidad == 1 else f"{v.producto}  (×{v.cantidad})"
+            from utils.formatters import nombre_con_talla as _nct
+            _nombre_base = _nct(v)
+            prod_txt = _nombre_base if v.cantidad == 1 else f"{_nombre_base}  (×{v.cantidad})"
             item_prod = QTableWidgetItem(prod_txt)
-            item_prod.setToolTip(v.producto)
+            item_prod.setToolTip(_nombre_base)
             tabla.setItem(row, 0, item_prod)
 
             item_precio = QTableWidgetItem(cop(precio_total))

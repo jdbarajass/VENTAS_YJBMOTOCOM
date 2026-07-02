@@ -194,7 +194,9 @@ def generar_texto_recibo(ventas) -> str:
     sep("-")
 
     for idx, v in enumerate(ventas, start=1):
-        nombre = f"{idx}. {_safe(v.producto)}"
+        _talla_v = (getattr(v, "talla", "") or "").strip()
+        _sfx = f" [T:{_talla_v}]" if _talla_v and _talla_v not in ("N/A", "—") else ""
+        nombre = f"{idx}. {_safe(v.producto)}{_sfx}"
         for linea in _wrap(nombre, W):
             ln(linea)
         _po = getattr(v, "precio_ofertado", 0.0) or 0.0
@@ -321,7 +323,9 @@ def _escribir_recibo(p, ventas: list[Venta]) -> None:
     sep("-")
 
     for idx, v in enumerate(ventas, start=1):
-        nombre = f"{idx}. {_safe(v.producto)}"
+        _talla_v = (getattr(v, "talla", "") or "").strip()
+        _sfx = f" [T:{_talla_v}]" if _talla_v and _talla_v not in ("N/A", "—") else ""
+        nombre = f"{idx}. {_safe(v.producto)}{_sfx}"
         for linea in _wrap(nombre, W):
             ln(linea)
         _po = getattr(v, "precio_ofertado", 0.0) or 0.0

@@ -779,8 +779,10 @@ class HistorialPanel(QWidget):
             self.tabla_detalle.setRowHeight(row, 32)
 
             # Producto — con tooltip; UserRole guarda el ID para eliminación masiva
-            item_prod = QTableWidgetItem(v.producto)
-            item_prod.setToolTip(v.producto)
+            from utils.formatters import nombre_con_talla as _nct
+            _nombre_v = _nct(v)
+            item_prod = QTableWidgetItem(_nombre_v)
+            item_prod.setToolTip(_nombre_v)
             item_prod.setData(Qt.UserRole, v.id)
             self.tabla_detalle.setItem(row, 0, item_prod)
 
@@ -864,8 +866,10 @@ class HistorialPanel(QWidget):
         self.tabla_detalle.setRowCount(len(coincidencias))
         for row, v in enumerate(coincidencias):
             self.tabla_detalle.setRowHeight(row, 32)
-            item_prod = QTableWidgetItem(v.producto)
-            item_prod.setToolTip(v.producto)
+            from utils.formatters import nombre_con_talla as _nct
+            _nombre_v = _nct(v)
+            item_prod = QTableWidgetItem(_nombre_v)
+            item_prod.setToolTip(_nombre_v)
             item_prod.setData(Qt.UserRole, v.id)
             self.tabla_detalle.setItem(row, 0, item_prod)
             self._celda_det(row, 1, str(v.cantidad), Qt.AlignCenter)

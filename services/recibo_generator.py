@@ -243,7 +243,9 @@ class _Recibo:
 
     def _altura_fila(self, v: Venta) -> float:
         """Altura de la fila de un producto (nombre + opcional SKU + detalle precio)."""
-        nombre = _safe(v.producto)
+        _talla = (getattr(v, "talla", "") or "").strip()
+        _nombre_display = f"{v.producto}  ·  Talla {_talla}" if _talla and _talla not in ("N/A", "—") else v.producto
+        nombre = _safe(_nombre_display)
         lineas = simpleSplit(nombre, FONT_BOLD, FONT_BODY, COL_W - 6 * mm)
         height = max(len(lineas), 1) * LINE_H + LINE_H_SM + 3
         if getattr(v, "sku", ""):
@@ -369,7 +371,9 @@ class _Recibo:
         nl(LINE_H)
 
         for idx, v in enumerate(self._ventas, start=1):
-            nombre = _safe(v.producto)
+            _talla_v = (getattr(v, "talla", "") or "").strip()
+            _nombre_v = f"{v.producto}  ·  Talla {_talla_v}" if _talla_v and _talla_v not in ("N/A", "—") else v.producto
+            nombre = _safe(_nombre_v)
             lineas_nombre = simpleSplit(nombre, FONT_NORMAL, FONT_BODY, COL_W - 6 * mm)
 
             # Línea 1: número + nombre del producto (puede wrappear)

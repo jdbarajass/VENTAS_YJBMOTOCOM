@@ -485,9 +485,11 @@ class VentasDiaPanel(QWidget):
             self._celda(row, COL_NUM, num_text, Qt.AlignCenter)
 
             self._celda(row, COL_FECHA,    fecha_corta(v.fecha), Qt.AlignCenter)
-            # Producto con tooltip
-            item_prod = QTableWidgetItem(v.producto)
-            item_prod.setToolTip(v.producto)
+            # Producto con tooltip — incluye talla si el producto la tiene
+            from utils.formatters import nombre_con_talla as _nct
+            _nombre_v = _nct(v)
+            item_prod = QTableWidgetItem(_nombre_v)
+            item_prod.setToolTip(_nombre_v)
             self.tabla.setItem(row, COL_PRODUCTO, item_prod)
             self._celda(row, COL_CANT,     str(v.cantidad),      Qt.AlignCenter)
             self._celda(row, COL_COSTO,    cop(v.costo),         Qt.AlignRight | Qt.AlignVCenter)

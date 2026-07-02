@@ -531,10 +531,15 @@ class _LineaProducto:
             return None
         try:
             from database.inventario_repo import (
+                buscar_producto_por_nombre_y_talla,
                 obtener_producto_por_nombre_exacto,
                 obtener_producto_por_codigo_barras,
             )
-            p = obtener_producto_por_nombre_exacto(texto) or obtener_producto_por_codigo_barras(texto)
+            _t = self._combo_talla.currentText() if self._combo_talla.isVisible() else ""
+            if _t and _t != "—":
+                p = buscar_producto_por_nombre_y_talla(texto, _t)
+            else:
+                p = obtener_producto_por_nombre_exacto(texto) or obtener_producto_por_codigo_barras(texto)
             return p.cantidad if p else None
         except Exception:
             return None
@@ -1606,9 +1611,16 @@ class VentaForm(QWidget):
 
             # Verificar stock para cada linea
             try:
-                from database.inventario_repo import obtener_producto_por_nombre_exacto
+                from database.inventario_repo import (
+                    buscar_producto_por_nombre_y_talla,
+                    obtener_producto_por_nombre_exacto,
+                )
                 for d in lineas:
-                    prod_inv = obtener_producto_por_nombre_exacto(d["producto"])
+                    _talla_d = d.get("talla", "")
+                    if _talla_d:
+                        prod_inv = buscar_producto_por_nombre_y_talla(d["producto"], _talla_d)
+                    else:
+                        prod_inv = obtener_producto_por_nombre_exacto(d["producto"])
                     if prod_inv is not None and prod_inv.cantidad < d["cantidad"]:
                         resp = QMessageBox.warning(
                             self, "Stock insuficiente",

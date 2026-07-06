@@ -611,6 +611,39 @@ class _LineaProducto:
         self._fila_dcto_widget.setVisible(False)
         self._lbl_ahorro.setText("—")
 
+    def restaurar(self, data: dict) -> None:
+        """Restaura esta línea con los datos de un carrito en standby."""
+        nombre = data.get("producto", "")
+        if not nombre:
+            return
+        # Escribe el nombre sin disparar el autocompletado
+        self.campo_producto.blockSignals(True)
+        self.campo_producto.setText(nombre)
+        self.campo_producto.blockSignals(False)
+        # Carga variantes desde BD (rellena combo talla y aplica precio/costo del stock)
+        self._cargar_variantes(nombre)
+        # Forzar la talla exacta que tenía el carrito guardado
+        talla = data.get("talla", "")
+        if talla and self._combo_talla.isVisible():
+            idx = self._combo_talla.findText(talla, Qt.MatchFixedString)
+            self._combo_talla.blockSignals(True)
+            self._combo_talla.setCurrentIndex(idx if idx >= 0 else 0)
+            self._combo_talla.blockSignals(False)
+        # Sobrescribir precio/costo/cantidad con los valores guardados (no los de la BD)
+        costo = data.get("costo", 0)
+        precio = data.get("precio", 0)
+        if costo:
+            self.campo_costo.set_valor(int(costo))
+        if precio:
+            self.campo_precio.set_valor(int(precio))
+        self.campo_cantidad.setValue(max(1, int(data.get("cantidad", 1))))
+        self._sku = data.get("sku", "") or ""
+        # Restaurar descuento por producto si lo había
+        precio_ofertado = data.get("precio_ofertado", 0)
+        if precio_ofertado and int(precio_ofertado) > 0:
+            self._chk_dcto.setChecked(True)
+            self._campo_ofertado.set_valor(int(precio_ofertado))
+
 
 class VentaForm(QWidget):
     """
@@ -624,6 +657,7 @@ class VentaForm(QWidget):
         super().__init__(parent)
         self._ctrl = VentaController()
         self._lineas: list[_LineaProducto] = []   # filas de producto del carrito
+        self._carritos_parqueados: list[dict] = []   # carritos pausados en standby
         self._build_ui()
         self._connect_signals()
         # Primera línea vacía — después de _build_ui para que lbl_bruta y campo_metodo existan
@@ -635,12 +669,15 @@ class VentaForm(QWidget):
     # ------------------------------------------------------------------
 
     def _build_ui(self) -> None:
-        root = QHBoxLayout(self)
-        root.setContentsMargins(0, 0, 0, 0)
-        root.setSpacing(0)
+        outer = QVBoxLayout(self)
+        outer.setContentsMargins(0, 0, 0, 0)
+        outer.setSpacing(0)
 
-        # Splitter arrastrable entre el formulario y el resumen — el usuario puede
-        # mover el divisor para darle más o menos espacio a cada lado.
+        # Barra de carritos en standby (siempre visible arriba del formulario)
+        self._barra_standby = self._build_barra_standby()
+        outer.addWidget(self._barra_standby)
+
+        # Splitter arrastrable entre el formulario y el resumen
         splitter = QSplitter(Qt.Horizontal)
         splitter.setHandleWidth(6)
         splitter.setStyleSheet(
@@ -670,7 +707,7 @@ class VentaForm(QWidget):
         splitter.setCollapsible(0, False)
         splitter.setCollapsible(1, False)
 
-        root.addWidget(splitter)
+        outer.addWidget(splitter, stretch=1)
 
     def _panel_formulario(self) -> QWidget:
         panel = QWidget()
@@ -1743,6 +1780,215 @@ class VentaForm(QWidget):
         self._actualizar_preview()
         if self._lineas:
             self._lineas[0].campo_producto.setFocus()
+
+    # ------------------------------------------------------------------
+    # Carritos en standby — múltiples ventas simultáneas
+    # ------------------------------------------------------------------
+
+    def _build_barra_standby(self) -> QWidget:
+        """Crea la barra fija de carritos en standby."""
+        bar = QFrame()
+        bar.setObjectName("standby_bar")
+        bar.setStyleSheet(
+            "#standby_bar { background:#F3F4F6; border-bottom:1px solid #E5E7EB; }"
+        )
+        bar.setFixedHeight(40)
+
+        lay = QHBoxLayout(bar)
+        lay.setContentsMargins(10, 4, 10, 4)
+        lay.setSpacing(6)
+
+        ico = QLabel("🛒")
+        ico.setStyleSheet("font-size:14px; background:transparent;")
+        lay.addWidget(ico)
+
+        lbl = QLabel("Standby:")
+        lbl.setStyleSheet("font-size:11px; color:#6B7280; background:transparent;")
+        lay.addWidget(lbl)
+
+        # Contenedor de chips — uno por cada carrito parqueado
+        self._chips_container = QWidget()
+        self._chips_container.setStyleSheet("background:transparent;")
+        self._chips_layout = QHBoxLayout(self._chips_container)
+        self._chips_layout.setContentsMargins(0, 0, 0, 0)
+        self._chips_layout.setSpacing(4)
+        lay.addWidget(self._chips_container)
+
+        lay.addStretch()
+
+        self._btn_parquear = QPushButton("⏸ Pausar carrito")
+        self._btn_parquear.setFixedHeight(28)
+        self._btn_parquear.setToolTip(
+            "Guarda el carrito actual en standby y abre uno nuevo.\n"
+            "Haz clic en el chip numerado para retomarlo."
+        )
+        self._btn_parquear.setStyleSheet(
+            "QPushButton { background:#4B5563; color:white; border:none;"
+            "border-radius:5px; font-size:11px; font-weight:bold; padding:0 10px; }"
+            "QPushButton:hover { background:#374151; }"
+            "QPushButton:disabled { background:#D1D5DB; color:#9CA3AF; }"
+        )
+        self._btn_parquear.clicked.connect(self._parquear_carrito)
+        lay.addWidget(self._btn_parquear)
+
+        return bar
+
+    def _actualizar_barra_standby(self) -> None:
+        """Reconstruye los chips de carritos en standby."""
+        while self._chips_layout.count():
+            item = self._chips_layout.takeAt(0)
+            if item.widget():
+                item.widget().deleteLater()
+
+        for i, snap in enumerate(self._carritos_parqueados):
+            lineas = snap.get("lineas", [])
+            if lineas:
+                primer = lineas[0].get("producto", "?")[:18]
+                n = len(lineas)
+                etiqueta = f"#{i+1} {primer}" + (f" +{n-1}" if n > 1 else "")
+            else:
+                etiqueta = f"#{i+1} vacío"
+
+            chip = QPushButton(etiqueta)
+            chip.setFixedHeight(26)
+            chip.setToolTip(
+                f"Carrito #{i+1}: {n} producto(s)\nHaz clic para retomar"
+            )
+            chip.setStyleSheet(
+                "QPushButton { background:#1D4ED8; color:white; border:none;"
+                "border-radius:4px; font-size:10px; padding:0 8px; }"
+                "QPushButton:hover { background:#1E40AF; }"
+            )
+            chip.clicked.connect(lambda checked, idx=i: self._restaurar_carrito(idx))
+            self._chips_layout.addWidget(chip)
+
+    def _carrito_tiene_datos(self) -> bool:
+        """True si al menos una línea del carrito actual tiene producto."""
+        return any(ln.datos().get("producto") for ln in self._lineas)
+
+    def _snapshot_carrito(self) -> dict | None:
+        """Captura el estado completo del carrito actual. Devuelve None si está vacío."""
+        lineas_con_datos = [ln.datos() for ln in self._lineas if ln.datos().get("producto")]
+        if not lineas_con_datos:
+            return None
+        f = self.campo_fecha.date()
+        return {
+            "lineas":           lineas_con_datos,
+            "fecha":            date(f.year(), f.month(), f.day()),
+            "vendedor":         self.campo_vendedor.currentText(),
+            "metodo":           self.campo_metodo.currentText(),
+            "sub_transferencia": self.campo_sub_transferencia.currentText(),
+            "sub_datafono":     self.campo_sub_datafono.currentText(),
+            "notas":            self.campo_notas.toPlainText(),
+            "combinado":        self._btn_combinado.isChecked(),
+            "pagos_combinados": self._get_pagos_combinados() or [],
+            "descuento_global": self._campo_descuento.text(),
+            "tiene_cliente":    self._chk_cliente.isChecked(),
+            "cli_nombre":       self._campo_cli_nombre.text(),
+            "cli_cedula":       self._campo_cli_cedula.text(),
+            "cli_tel":          self._campo_cli_tel.text(),
+        }
+
+    def _aplicar_snapshot(self, snap: dict) -> None:
+        """Limpia el formulario y restaura el estado guardado en un snapshot."""
+        self._limpiar_form()  # deja 1 línea vacía, resetea todos los campos
+
+        # Fecha
+        f = snap.get("fecha")
+        if isinstance(f, date):
+            self.campo_fecha.setDate(QDate(f.year, f.month, f.day))
+
+        # Vendedor
+        v = snap.get("vendedor", "")
+        idx_v = self.campo_vendedor.findText(v)
+        if idx_v >= 0:
+            self.campo_vendedor.setCurrentIndex(idx_v)
+            _aplicar_estilo_combo(self.campo_vendedor, placeholder=(idx_v == 0))
+
+        # Método de pago (dispara _on_metodo_changed → muestra/oculta sub-combos)
+        m = snap.get("metodo", "")
+        idx_m = self.campo_metodo.findText(m)
+        if idx_m >= 0:
+            self.campo_metodo.setCurrentIndex(idx_m)
+
+        sub_t = snap.get("sub_transferencia", "")
+        if sub_t:
+            idx_st = self.campo_sub_transferencia.findText(sub_t)
+            if idx_st >= 0:
+                self.campo_sub_transferencia.setCurrentIndex(idx_st)
+
+        sub_d = snap.get("sub_datafono", "")
+        if sub_d:
+            idx_sd = self.campo_sub_datafono.findText(sub_d)
+            if idx_sd >= 0:
+                self.campo_sub_datafono.setCurrentIndex(idx_sd)
+
+        # Modo combinado: bloquear señal para evitar que _on_toggle_combinado
+        # inserte las dos filas vacías predeterminadas; luego agregar las guardadas.
+        combinado = snap.get("combinado", False)
+        if combinado:
+            self._btn_combinado.blockSignals(True)
+            self._btn_combinado.setChecked(True)
+            self._btn_combinado.blockSignals(False)
+            self.campo_metodo.setEnabled(False)
+            self._form_metodo.setRowVisible(self.campo_sub_transferencia, False)
+            self._form_metodo.setRowVisible(self._panel_combinado, True)
+            for p in snap.get("pagos_combinados", []):
+                self._agregar_fila_pago(p.get("metodo", "Efectivo"), int(p.get("monto", 0)))
+
+        # Notas
+        self.campo_notas.setPlainText(snap.get("notas", ""))
+
+        # Descuento global
+        desc = snap.get("descuento_global", "")
+        if desc:
+            self._chk_descuento.setChecked(True)
+            self._campo_descuento.setText(desc)
+
+        # Cliente
+        if snap.get("tiene_cliente"):
+            self._chk_cliente.setChecked(True)
+            self._campo_cli_nombre.setText(snap.get("cli_nombre", ""))
+            self._campo_cli_cedula.setText(snap.get("cli_cedula", ""))
+            self._campo_cli_tel.setText(snap.get("cli_tel", ""))
+
+        # Líneas de productos: reutilizar la línea vacía que creó _limpiar_form
+        lineas = snap.get("lineas", [])
+        if lineas:
+            if self._lineas and not self._lineas[0].datos().get("producto"):
+                self._lineas[0].restaurar(lineas[0])
+                lineas_resto = lineas[1:]
+            else:
+                lineas_resto = lineas
+            for ld in lineas_resto:
+                self._agregar_linea()
+                self._lineas[-1].restaurar(ld)
+
+        self._actualizar_btn_quitar()
+        self._actualizar_preview()
+        if self._lineas:
+            self._lineas[0].campo_producto.setFocus()
+
+    def _parquear_carrito(self) -> None:
+        """Guarda el carrito actual en standby y limpia el formulario para uno nuevo."""
+        snap = self._snapshot_carrito()
+        if snap is None:
+            return
+        self._carritos_parqueados.append(snap)
+        self._actualizar_barra_standby()
+        self._limpiar_form()
+
+    def _restaurar_carrito(self, idx: int) -> None:
+        """Retoma el carrito #idx del standby. Si el actual tiene datos, lo parquea primero."""
+        if idx < 0 or idx >= len(self._carritos_parqueados):
+            return
+        snap_destino = self._carritos_parqueados.pop(idx)
+        # Parquear el carrito actual si tiene datos (sin abrir diálogo)
+        snap_actual = self._snapshot_carrito()
+        if snap_actual:
+            self._carritos_parqueados.append(snap_actual)
+        self._actualizar_barra_standby()
+        self._aplicar_snapshot(snap_destino)
 
     # ------------------------------------------------------------------
     # API pública — prellenar para edición

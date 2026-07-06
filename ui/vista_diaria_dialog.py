@@ -10,7 +10,7 @@ from datetime import date
 from PySide6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
     QTableWidget, QTableWidgetItem, QHeaderView, QAbstractItemView,
-    QFrame, QWidget,
+    QFrame, QWidget, QSplitter,
 )
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QFont, QColor
@@ -81,11 +81,13 @@ class VistaDiariaDialog(QDialog):
 
         root.addLayout(self._build_header())
 
-        content = QHBoxLayout()
-        content.setSpacing(14)
-        content.addWidget(self._build_panel_ventas(), stretch=6)
-        content.addWidget(self._build_panel_derecho(), stretch=4)
-        root.addLayout(content, stretch=1)
+        splitter_h = QSplitter(Qt.Horizontal)
+        splitter_h.setHandleWidth(6)
+        splitter_h.addWidget(self._build_panel_ventas())
+        splitter_h.addWidget(self._build_panel_derecho())
+        splitter_h.setStretchFactor(0, 6)
+        splitter_h.setStretchFactor(1, 4)
+        root.addWidget(splitter_h, stretch=1)
 
         # Footer
         btn_cerrar = QPushButton("Cerrar")
@@ -384,15 +386,15 @@ class VistaDiariaDialog(QDialog):
     # Panel derecho — Préstamos + Gastos
     # ------------------------------------------------------------------
 
-    def _build_panel_derecho(self) -> QWidget:
-        w = QWidget()
-        w.setStyleSheet("background:transparent;")
-        lay = QVBoxLayout(w)
-        lay.setContentsMargins(0, 0, 0, 0)
-        lay.setSpacing(12)
-        lay.addWidget(self._build_panel_prestamos(), stretch=6)
-        lay.addWidget(self._build_panel_gastos(), stretch=4)
-        return w
+    def _build_panel_derecho(self) -> QSplitter:
+        splitter_v = QSplitter(Qt.Vertical)
+        splitter_v.setHandleWidth(6)
+        splitter_v.setStyleSheet("background:transparent;")
+        splitter_v.addWidget(self._build_panel_prestamos())
+        splitter_v.addWidget(self._build_panel_gastos())
+        splitter_v.setStretchFactor(0, 6)
+        splitter_v.setStretchFactor(1, 4)
+        return splitter_v
 
     def _build_panel_prestamos(self) -> QFrame:
         frame = QFrame()

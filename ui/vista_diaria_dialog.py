@@ -430,178 +430,282 @@ class VistaDiariaDialog(QDialog):
 
     def _generar_pdf_ventas(self, ruta) -> None:
         from reportlab.lib.pagesizes import letter, landscape
-        from reportlab.lib import colors as rl_colors
+        from reportlab.lib import colors as C
         from reportlab.lib.units import cm
         from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-        from reportlab.lib.enums import TA_CENTER, TA_RIGHT
+        from reportlab.lib.enums import TA_CENTER, TA_RIGHT, TA_LEFT
         from reportlab.platypus import (
             SimpleDocTemplate, Paragraph, Spacer,
-            Table, TableStyle, HRFlowable,
+            Table, TableStyle, HRFlowable, KeepTogether,
         )
         from utils.formatters import nombre_con_talla
 
-        C_AZUL   = rl_colors.HexColor("#1E293B")
-        C_VERDE  = rl_colors.HexColor("#16A34A")
-        C_VERDE_C= rl_colors.HexColor("#DCFCE7")
-        C_ROJO   = rl_colors.HexColor("#DC2626")
-        C_GRIS_C = rl_colors.HexColor("#F1F5F9")
-        C_BORDE  = rl_colors.HexColor("#E2E8F0")
-        C_GRIS_T = rl_colors.HexColor("#6B7280")
-        C_AZUL_V = rl_colors.HexColor("#1D4ED8")
+        # ── Paleta ──────────────────────────────────────────────────────
+        AZUL    = C.HexColor("#1E293B")
+        VERDE   = C.HexColor("#16A34A")
+        VERDE_C = C.HexColor("#DCFCE7")
+        NARANJA = C.HexColor("#D97706")
+        NARANC  = C.HexColor("#FEF3C7")
+        ROJO    = C.HexColor("#DC2626")
+        ROJO_C  = C.HexColor("#FEE2E2")
+        GRIS_C  = C.HexColor("#F1F5F9")
+        BORDE   = C.HexColor("#E2E8F0")
+        GRIS_T  = C.HexColor("#6B7280")
+        AZUL_V  = C.HexColor("#1D4ED8")
+        NEGRO   = C.HexColor("#111827")
 
-        styles  = getSampleStyleSheet()
-        st_base = styles["Normal"]
+        # ── Estilos ──────────────────────────────────────────────────────
+        base = getSampleStyleSheet()["Normal"]
 
-        def st(name, **kw):
-            return ParagraphStyle(name, parent=st_base, **kw)
+        def mk(fontName="Helvetica", fontSize=10, textColor=NEGRO,
+               alignment=TA_LEFT, leading=13, **kw):
+            return ParagraphStyle("_", fontName=fontName, fontSize=fontSize,
+                                  textColor=textColor, alignment=alignment,
+                                  leading=leading, **kw)
 
-        st_tit  = st("tit", fontName="Helvetica-Bold", fontSize=16,
-                     textColor=C_AZUL, spaceAfter=2)
-        st_sub  = st("sub", fontName="Helvetica", fontSize=11,
-                     textColor=rl_colors.HexColor("#374151"), spaceAfter=6)
-        st_hdr  = st("hdr", fontName="Helvetica-Bold", fontSize=10,
-                     textColor=rl_colors.white, alignment=TA_CENTER)
-        st_cel  = st("cel", fontName="Helvetica", fontSize=10,
-                     textColor=rl_colors.HexColor("#111827"), leading=13)
-        st_r    = st("r",   fontName="Helvetica", fontSize=10,
-                     textColor=rl_colors.HexColor("#111827"),
-                     alignment=TA_RIGHT, leading=13)
-        st_rgr  = st("rgr", fontName="Helvetica", fontSize=10,
-                     textColor=C_GRIS_T, alignment=TA_RIGHT, leading=13)
-        st_rb   = st("rb",  fontName="Helvetica-Bold", fontSize=10,
-                     textColor=rl_colors.HexColor("#111827"),
-                     alignment=TA_RIGHT, leading=13)
-        st_tot  = st("tot", fontName="Helvetica-Bold", fontSize=10,
-                     textColor=rl_colors.HexColor("#111827"), leading=13)
+        S_TIT  = mk("Helvetica-Bold", 16, AZUL,  spaceAfter=2)
+        S_SUB  = mk("Helvetica",      11, C.HexColor("#374151"), spaceAfter=6)
+        S_SEC  = mk("Helvetica-Bold", 12, C.white)
+        S_HDR  = mk("Helvetica-Bold", 10, C.white,  TA_CENTER)
+        S_CEL  = mk("Helvetica",      10, NEGRO)
+        S_CTR  = mk("Helvetica",      10, NEGRO,  TA_CENTER)
+        S_R    = mk("Helvetica",      10, NEGRO,  TA_RIGHT)
+        S_RGR  = mk("Helvetica",      10, GRIS_T, TA_RIGHT)
+        S_RB   = mk("Helvetica-Bold", 10, NEGRO,  TA_RIGHT)
+        S_TOT  = mk("Helvetica-Bold", 10, NEGRO)
+
+        # ── Documento ────────────────────────────────────────────────────
+        # landscape letter ≈ 27.9 cm ancho − 3 cm márgenes = 24.9 cm útil
+        USABLE = 24.9 * cm
 
         doc = SimpleDocTemplate(
             str(ruta),
             pagesize=landscape(letter),
             leftMargin=1.5*cm, rightMargin=1.5*cm,
             topMargin=1.5*cm,  bottomMargin=1.5*cm,
-            title=f"Ventas {self._fecha} — YJBMOTOCOM",
+            title=f"Vista del Día {self._fecha} — YJBMOTOCOM",
         )
 
         story = []
-        story.append(Paragraph("YJBMOTOCOM — Ventas del Día", st_tit))
-        story.append(Paragraph(_titulo_fecha_largo(self._fecha), st_sub))
-        story.append(HRFlowable(width="100%", thickness=1,
-                                color=C_BORDE, spaceAfter=8))
+        story.append(Paragraph("YJBMOTOCOM — Vista del Día", S_TIT))
+        story.append(Paragraph(_titulo_fecha_largo(self._fecha), S_SUB))
+        story.append(HRFlowable(width="100%", thickness=1.5,
+                                color=AZUL, spaceAfter=10))
 
-        # Anchos de columna para landscape letter (~24.9 cm útiles)
-        # #(1) Costo(3.2) PrecioVenta(3.5) Método(3.5) GNeta(3.0) → Producto = resto ~10.7cm
-        col_w = [1*cm, 10.7*cm, 3.2*cm, 3.5*cm, 3.5*cm, 3.0*cm]
+        # ────────────────────────────────────────────────────────────────
+        # 1. VENTAS
+        # ────────────────────────────────────────────────────────────────
+        def _seccion_hdr(texto, color_bg):
+            """Fila de encabezado de sección de color sólido."""
+            return Table(
+                [[Paragraph(f"  {texto}", S_SEC)]],
+                colWidths=[USABLE],
+                style=TableStyle([
+                    ("BACKGROUND", (0, 0), (-1, -1), color_bg),
+                    ("TOPPADDING", (0, 0), (-1, -1), 7),
+                    ("BOTTOMPADDING", (0, 0), (-1, -1), 7),
+                    ("LEFTPADDING", (0, 0), (-1, -1), 8),
+                ]),
+            )
 
-        encabezados = ["#", "Producto", "Costo", "Precio Venta", "Método Pago", "G. Neta"]
-        fila_hdr = [Paragraph(f"<b>{h}</b>", st_hdr) for h in encabezados]
-        data = [fila_hdr]
+        def _ts_basico(n_rows, hdr_color, alternas=True):
+            rules = [
+                ("BACKGROUND",    (0, 0), (-1, 0),  hdr_color),
+                ("TEXTCOLOR",     (0, 0), (-1, 0),  C.white),
+                ("VALIGN",        (0, 0), (-1, -1), "MIDDLE"),
+                ("TOPPADDING",    (0, 0), (-1, -1), 5),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
+                ("LEFTPADDING",   (0, 0), (-1, -1), 6),
+                ("RIGHTPADDING",  (0, 0), (-1, -1), 6),
+                ("LINEBELOW",     (0, 0), (-1, 0),  1, hdr_color),
+                ("BOX",           (0, 0), (-1, -1), 1, BORDE),
+            ]
+            if alternas:
+                rules += [("BACKGROUND", (0, i), (-1, i), GRIS_C)
+                           for i in range(2, n_rows, 2)]
+            return TableStyle(rules)
 
-        total_ingresos = 0.0
-        total_costo    = 0.0
-        total_neta     = 0.0
+        # — Calcular totales ventas —
+        total_ingresos = sum(v.ingreso_real() for v in self._ventas)
+        total_costo    = sum(v.costo * v.cantidad for v in self._ventas)
+        total_neta     = sum(v.ganancia_neta for v in self._ventas)
+
+        # — Tabla ventas —
+        # col_w: # | Producto | Costo | P.Venta | Método | G.Neta
+        cw_v = [1*cm, 10.5*cm, 3.2*cm, 3.5*cm, 3.3*cm, 3.4*cm]
+        hdr_v = [Paragraph(f"<b>{h}</b>", S_HDR)
+                 for h in ["#", "Producto", "Costo", "Precio Venta",
+                            "Método Pago", "G. Neta"]]
+        data_v = [hdr_v]
 
         for i, v in enumerate(self._ventas, start=1):
-            nombre = nombre_con_talla(v)
+            nom = nombre_con_talla(v)
             if v.cantidad > 1:
-                nombre += f"  (×{v.cantidad})"
-            costo_t  = v.costo * v.cantidad
-            precio_t = v.ingreso_real()
-            total_ingresos += precio_t
-            total_costo    += costo_t
-            total_neta     += v.ganancia_neta
-
-            gn_col = "#15803D" if v.ganancia_neta >= 0 else "#DC2626"
-            met_txt = v.metodo_pago
-            if v.pagos_combinados:
-                met_txt = "Combinado"
-
-            data.append([
-                Paragraph(str(i), st("ni", parent=st_base, fontSize=10,
-                                     alignment=TA_CENTER)),
-                Paragraph(nombre,      st_cel),
-                Paragraph(cop(costo_t), st_rgr),
-                Paragraph(cop(precio_t), st_r),
-                Paragraph(met_txt, st("mc", parent=st_base, fontSize=10,
-                                      alignment=TA_CENTER)),
+                nom += f"  (×{v.cantidad})"
+            gn_c = "#15803D" if v.ganancia_neta >= 0 else "#DC2626"
+            met  = "Combinado" if v.pagos_combinados else v.metodo_pago
+            data_v.append([
+                Paragraph(str(i),          S_CTR),
+                Paragraph(nom,             S_CEL),
+                Paragraph(cop(v.costo * v.cantidad), S_RGR),
+                Paragraph(cop(v.ingreso_real()),      S_R),
+                Paragraph(met,             S_CTR),
                 Paragraph(
-                    f'<font color="{gn_col}">{cop(v.ganancia_neta)}</font>',
-                    st_r),
+                    f'<font color="{gn_c}">{cop(v.ganancia_neta)}</font>',
+                    S_R),
             ])
 
-        # Fila de totales
-        gn_tot_col = "#15803D" if total_neta >= 0 else "#DC2626"
-        data.append([
-            Paragraph("", st_cel),
-            Paragraph("<b>TOTALES</b>", st_tot),
-            Paragraph(f"<b>{cop(total_costo)}</b>",
-                      st("tgr", parent=st_base, fontName="Helvetica-Bold",
-                         fontSize=10, textColor=C_GRIS_T, alignment=TA_RIGHT)),
-            Paragraph(f"<b>{cop(total_ingresos)}</b>", st_rb),
-            Paragraph("", st_cel),
+        # Fila totales ventas
+        gn_c_t = "#15803D" if total_neta >= 0 else "#DC2626"
+        data_v.append([
+            Paragraph("", S_CEL),
+            Paragraph("<b>TOTALES</b>", S_TOT),
+            Paragraph(f"<b>{cop(total_costo)}</b>",    S_RGR),
+            Paragraph(f"<b>{cop(total_ingresos)}</b>", S_RB),
+            Paragraph("", S_CEL),
             Paragraph(
-                f'<b><font color="{gn_tot_col}">{cop(total_neta)}</font></b>',
-                st_rb),
+                f'<b><font color="{gn_c_t}">{cop(total_neta)}</font></b>',
+                S_RB),
         ])
 
-        n_rows  = len(data)        # header + datos + totals
-        n_datos = n_rows - 2       # filas de datos (sin header ni totals)
+        ts_v = _ts_basico(len(data_v), AZUL)
+        # Fila de totales con línea superior destacada
+        ts_v.add("LINEABOVE",  (0, -1), (-1, -1), 1.2, AZUL)
+        ts_v.add("BACKGROUND", (0, -1), (-1, -1), GRIS_C)
+        ts_v.add("FONTNAME",   (0, -1), (-1, -1), "Helvetica-Bold")
 
-        ts = TableStyle([
-            ("BACKGROUND",    (0, 0), (-1, 0),       C_AZUL),
-            ("TEXTCOLOR",     (0, 0), (-1, 0),       rl_colors.white),
-            ("VALIGN",        (0, 0), (-1, -1),      "MIDDLE"),
-            ("TOPPADDING",    (0, 0), (-1, -1),      5),
-            ("BOTTOMPADDING", (0, 0), (-1, -1),      5),
-            ("LEFTPADDING",   (0, 0), (-1, -1),      6),
-            ("RIGHTPADDING",  (0, 0), (-1, -1),      6),
-            ("LINEBELOW",     (0, 0), (-1, 0),       1, C_AZUL),
-            ("BOX",           (0, 0), (-1, -1),      1, C_BORDE),
-            # Filas alternas en datos
-            *[("BACKGROUND", (0, i), (-1, i), C_GRIS_C)
-              for i in range(2, n_rows - 1, 2)],
-            # Fila de totales
-            ("LINEABOVE",  (0, n_rows - 1), (-1, n_rows - 1), 1, C_AZUL),
-            ("BACKGROUND", (0, n_rows - 1), (-1, n_rows - 1), C_GRIS_C),
-            ("FONTNAME",   (0, n_rows - 1), (-1, n_rows - 1), "Helvetica-Bold"),
-        ])
+        t_ventas = Table(data_v, colWidths=cw_v, repeatRows=1)
+        t_ventas.setStyle(ts_v)
 
-        tabla_pdf = Table(data, colWidths=col_w, repeatRows=1)
-        tabla_pdf.setStyle(ts)
-        story.append(tabla_pdf)
-        story.append(Spacer(1, 0.6*cm))
-
-        # Bloque resumen alineado a la derecha
-        gn_color_s = "#15803D" if total_neta >= 0 else "#DC2626"
-        resumen_data = [
-            [Paragraph("Total Ingresos", st_tot),
-             Paragraph(f"<b>{cop(total_ingresos)}</b>",
-                       st("ri", parent=st_base, fontName="Helvetica-Bold",
-                          fontSize=11, textColor=C_AZUL_V, alignment=TA_RIGHT))],
-            [Paragraph("Total Costo", st_tot),
-             Paragraph(f"<b>{cop(total_costo)}</b>",
-                       st("rc", parent=st_base, fontName="Helvetica-Bold",
-                          fontSize=11, textColor=C_GRIS_T, alignment=TA_RIGHT))],
-            [Paragraph("Ganancia Neta", st_tot),
-             Paragraph(
-                 f'<b><font color="{gn_color_s}">{cop(total_neta)}</font></b>',
-                 st("rg2", parent=st_base, fontName="Helvetica-Bold",
-                    fontSize=11, alignment=TA_RIGHT))],
-        ]
-        t_res = Table(resumen_data, colWidths=[6*cm, 5*cm])
-        t_res.setStyle(TableStyle([
-            ("BOX",            (0, 0), (-1, -1), 1, C_BORDE),
-            ("LINEBELOW",      (0, 0), (-1, -2), 0.5, C_BORDE),
-            ("BACKGROUND",     (0, 0), (-1, -1), C_GRIS_C),
-            ("TOPPADDING",     (0, 0), (-1, -1), 6),
-            ("BOTTOMPADDING",  (0, 0), (-1, -1), 6),
-            ("LEFTPADDING",    (0, 0), (-1, -1), 8),
-            ("RIGHTPADDING",   (0, 0), (-1, -1), 8),
+        story.append(KeepTogether([
+            _seccion_hdr(f"VENTAS  —  {len(self._ventas)} producto(s)", VERDE),
+            Spacer(1, 2),
+            t_ventas,
+            Spacer(1, 4),
         ]))
-        # Empujar el bloque resumen a la derecha con una tabla contenedora
-        usable_w = 24.9 * cm
-        spacer_w = usable_w - 11 * cm
-        story.append(Table([[Paragraph("", st_cel), t_res]],
-                           colWidths=[spacer_w, 11 * cm]))
+
+        # Bloque resumen ventas (alineado a la derecha)
+        res_v = [
+            [Paragraph("Total Ingresos", S_TOT),
+             Paragraph(f"<b>{cop(total_ingresos)}</b>",
+                       mk("Helvetica-Bold", 10, AZUL_V, TA_RIGHT))],
+            [Paragraph("Total Costo",    S_TOT),
+             Paragraph(f"<b>{cop(total_costo)}</b>",
+                       mk("Helvetica-Bold", 10, GRIS_T, TA_RIGHT))],
+            [Paragraph("Ganancia Neta",  S_TOT),
+             Paragraph(
+                 f'<b><font color="{gn_c_t}">{cop(total_neta)}</font></b>',
+                 mk("Helvetica-Bold", 10, NEGRO, TA_RIGHT))],
+        ]
+        t_res = Table(res_v, colWidths=[6*cm, 4.5*cm])
+        t_res.setStyle(TableStyle([
+            ("BOX",           (0, 0), (-1, -1), 1, BORDE),
+            ("LINEBELOW",     (0, 0), (-1, -2), 0.5, BORDE),
+            ("BACKGROUND",    (0, 0), (-1, -1), GRIS_C),
+            ("TOPPADDING",    (0, 0), (-1, -1), 5),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
+            ("LEFTPADDING",   (0, 0), (-1, -1), 8),
+            ("RIGHTPADDING",  (0, 0), (-1, -1), 8),
+        ]))
+        # Empujar a la derecha
+        sw = USABLE - 10.5 * cm
+        story.append(Table([[Paragraph("", S_CEL), t_res]],
+                           colWidths=[sw, 10.5 * cm]))
+        story.append(Spacer(1, 0.5 * cm))
+
+        # ────────────────────────────────────────────────────────────────
+        # 2. PRÉSTAMOS
+        # ────────────────────────────────────────────────────────────────
+        # col_w: Fecha | Producto | Almacén | Observaciones | Estado | Días
+        cw_p = [2.5*cm, 9*cm, 3.5*cm, 6.5*cm, 2.5*cm, 1.9*cm]
+        hdr_p = [Paragraph(f"<b>{h}</b>", S_HDR)
+                 for h in ["Fecha", "Producto", "Almacén",
+                            "Observaciones", "Estado", "Días"]]
+        data_p = [hdr_p]
+
+        from datetime import date as _date
+        hoy = _date.today()
+        for p in self._prestamos:
+            dias = max(0, (hoy - p.fecha).days)
+            est_c = "#D97706" if p.estado == "pendiente" else "#15803D"
+            data_p.append([
+                Paragraph(fecha_corta(p.fecha), S_CTR),
+                Paragraph(p.producto,           S_CEL),
+                Paragraph(p.almacen,            S_CTR),
+                Paragraph(p.observaciones or "—", S_CEL),
+                Paragraph(
+                    f'<font color="{est_c}">{p.estado.capitalize()}</font>',
+                    S_CTR),
+                Paragraph(str(dias), S_CTR),
+            ])
+
+        if len(data_p) == 1:
+            data_p.append([
+                Paragraph("Sin préstamos registrados", S_CEL),
+                *[Paragraph("", S_CEL)] * 5,
+            ])
+
+        ts_p = _ts_basico(len(data_p), NARANJA)
+        t_prest = Table(data_p, colWidths=cw_p, repeatRows=1)
+        t_prest.setStyle(ts_p)
+
+        story.append(KeepTogether([
+            _seccion_hdr(f"PRÉSTAMOS  —  {len(self._prestamos)} registro(s)",
+                         NARANJA),
+            Spacer(1, 2),
+            t_prest,
+            Spacer(1, 0.5 * cm),
+        ]))
+
+        # ────────────────────────────────────────────────────────────────
+        # 3. GASTOS OPERATIVOS
+        # ────────────────────────────────────────────────────────────────
+        cw_g = [12*cm, 6*cm, 6.9*cm]
+        hdr_g = [Paragraph(f"<b>{h}</b>", S_HDR)
+                 for h in ["Descripción", "Categoría", "Monto"]]
+        data_g = [hdr_g]
+
+        total_gastos = 0.0
+        for g in self._gastos:
+            total_gastos += g.monto
+            data_g.append([
+                Paragraph(g.descripcion,  S_CEL),
+                Paragraph(g.categoria,    S_CTR),
+                Paragraph(cop(g.monto),   S_R),
+            ])
+
+        ts_g_extra = []
+        if len(data_g) == 1:
+            data_g.append([
+                Paragraph("Sin gastos operativos para este día", S_CEL),
+                Paragraph("", S_CEL),
+                Paragraph("", S_CEL),
+            ])
+        else:
+            data_g.append([
+                Paragraph("<b>TOTAL GASTOS</b>", S_TOT),
+                Paragraph("", S_CEL),
+                Paragraph(f"<b>{cop(total_gastos)}</b>",
+                          mk("Helvetica-Bold", 10, ROJO, TA_RIGHT)),
+            ])
+            ts_g_extra = [
+                ("LINEABOVE",  (0, -1), (-1, -1), 1.2, ROJO),
+                ("BACKGROUND", (0, -1), (-1, -1), ROJO_C),
+            ]
+
+        ts_g = _ts_basico(len(data_g), ROJO)
+        for rule in ts_g_extra:
+            ts_g.add(*rule)
+
+        t_gastos = Table(data_g, colWidths=cw_g, repeatRows=1)
+        t_gastos.setStyle(ts_g)
+
+        story.append(KeepTogether([
+            _seccion_hdr(
+                f"GASTOS OPERATIVOS  —  {fecha_corta(self._fecha)}", ROJO),
+            Spacer(1, 2),
+            t_gastos,
+        ]))
 
         doc.build(story)
 

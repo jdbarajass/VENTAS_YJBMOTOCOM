@@ -135,6 +135,16 @@ class VistaDiariaDialog(QDialog):
             setattr(self, attr, lbl_c)
 
         lay.addStretch()
+
+        btn_pdf = QPushButton("📄 Exportar PDF")
+        btn_pdf.setFixedHeight(30)
+        btn_pdf.setStyleSheet(
+            "QPushButton { background:#1D4ED8; color:white; border:none;"
+            "border-radius:5px; font-size:12px; font-weight:bold; padding:0 14px; }"
+            "QPushButton:hover { background:#1E40AF; }"
+        )
+        btn_pdf.clicked.connect(self._exportar_pdf_ventas_dia)
+        lay.addWidget(btn_pdf)
         return lay
 
     # ------------------------------------------------------------------
@@ -175,9 +185,9 @@ class VistaDiariaDialog(QDialog):
     def _crear_tabla_ventas(self) -> QTableWidget:
         """Crea la estructura de la tabla de ventas (sin poblar filas)."""
         tabla = QTableWidget()
-        tabla.setColumnCount(6)
+        tabla.setColumnCount(7)
         tabla.setHorizontalHeaderLabels([
-            "Producto", "Precio Venta", "Método de Pago", "G. Neta", "Notas", "Acciones"
+            "Producto", "Costo", "Precio Venta", "Método de Pago", "G. Neta", "Notas", "Acciones"
         ])
         tabla.setEditTriggers(QAbstractItemView.NoEditTriggers)
         tabla.setSelectionBehavior(QAbstractItemView.SelectRows)
@@ -203,11 +213,12 @@ class VistaDiariaDialog(QDialog):
         hh = tabla.horizontalHeader()
         hh.setMinimumSectionSize(60)
         hh.setSectionResizeMode(0, QHeaderView.Interactive); tabla.setColumnWidth(0, 210)
-        hh.setSectionResizeMode(1, QHeaderView.Interactive); tabla.setColumnWidth(1, 110)
-        hh.setSectionResizeMode(2, QHeaderView.Interactive); tabla.setColumnWidth(2, 140)
-        hh.setSectionResizeMode(3, QHeaderView.Interactive); tabla.setColumnWidth(3, 100)
-        hh.setSectionResizeMode(4, QHeaderView.Interactive); tabla.setColumnWidth(4, 110)
-        hh.setSectionResizeMode(5, QHeaderView.Fixed);       tabla.setColumnWidth(5, 80)
+        hh.setSectionResizeMode(1, QHeaderView.Interactive); tabla.setColumnWidth(1, 90)
+        hh.setSectionResizeMode(2, QHeaderView.Interactive); tabla.setColumnWidth(2, 110)
+        hh.setSectionResizeMode(3, QHeaderView.Interactive); tabla.setColumnWidth(3, 140)
+        hh.setSectionResizeMode(4, QHeaderView.Interactive); tabla.setColumnWidth(4, 100)
+        hh.setSectionResizeMode(5, QHeaderView.Interactive); tabla.setColumnWidth(5, 110)
+        hh.setSectionResizeMode(6, QHeaderView.Fixed);       tabla.setColumnWidth(6, 80)
         hh.setStretchLastSection(False)
         return tabla
 
@@ -218,6 +229,7 @@ class VistaDiariaDialog(QDialog):
         for row, v in enumerate(self._ventas):
             tabla.setRowHeight(row, 32)
             precio_total = v.ingreso_real()
+            costo_total  = v.costo * v.cantidad
 
             from utils.formatters import nombre_con_talla as _nct
             _nombre_base = _nct(v)
@@ -226,10 +238,19 @@ class VistaDiariaDialog(QDialog):
             item_prod.setToolTip(_nombre_base)
             tabla.setItem(row, 0, item_prod)
 
+            # Col 1 — Costo (gris, para distinguir del precio de venta)
+            item_costo = QTableWidgetItem(cop(costo_total))
+            item_costo.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
+            item_costo.setForeground(QColor("#6B7280"))
+            item_costo.setToolTip(f"Costo unit.: {cop(v.costo)}")
+            tabla.setItem(row, 1, item_costo)
+
+            # Col 2 — Precio Venta
             item_precio = QTableWidgetItem(cop(precio_total))
             item_precio.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
-            tabla.setItem(row, 1, item_precio)
+            tabla.setItem(row, 2, item_precio)
 
+            # Col 3 — Método de Pago
             item_met = QTableWidgetItem(v.metodo_pago)
             item_met.setTextAlignment(Qt.AlignCenter)
             if v.pagos_combinados:
@@ -237,18 +258,20 @@ class VistaDiariaDialog(QDialog):
                     f"{p['metodo']}: {cop(p['monto'])}" for p in v.pagos_combinados
                 )
                 item_met.setToolTip(detalle)
-            tabla.setItem(row, 2, item_met)
+            tabla.setItem(row, 3, item_met)
 
+            # Col 4 — G. Neta
             item_gn = QTableWidgetItem(cop(v.ganancia_neta))
             item_gn.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
             item_gn.setForeground(
                 QColor("#16A34A") if v.ganancia_neta >= 0 else QColor("#DC2626")
             )
-            tabla.setItem(row, 3, item_gn)
+            tabla.setItem(row, 4, item_gn)
 
-            tabla.setItem(row, 4, QTableWidgetItem(v.notas or ""))
+            # Col 5 — Notas
+            tabla.setItem(row, 5, QTableWidgetItem(v.notas or ""))
 
-            # Botón editar
+            # Col 6 — Botón editar
             btn_edit = QPushButton("✏ Editar")
             btn_edit.setFixedHeight(26)
             btn_edit.setStyleSheet(
@@ -257,13 +280,12 @@ class VistaDiariaDialog(QDialog):
                 "QPushButton:hover { background:#DBEAFE; }"
             )
             btn_edit.clicked.connect(lambda _=False, venta=v: self._abrir_editar_venta(venta))
-            # Centrar el botón en la celda
             cell_w = QWidget()
             cell_w.setStyleSheet("background:transparent;")
             cell_lay = QHBoxLayout(cell_w)
             cell_lay.setContentsMargins(4, 2, 4, 2)
             cell_lay.addWidget(btn_edit)
-            tabla.setCellWidget(row, 5, cell_w)
+            tabla.setCellWidget(row, 6, cell_w)
 
         tabla.resizeColumnToContents(0)
         tabla.setColumnWidth(0, min(tabla.columnWidth(0), 480))
@@ -381,6 +403,207 @@ class VistaDiariaDialog(QDialog):
             item.widget().deleteLater()
         self._frame_totales = self._build_totales()
         self._lay_panel_ventas.addWidget(self._frame_totales)
+
+    # ------------------------------------------------------------------
+    # Exportación PDF
+    # ------------------------------------------------------------------
+
+    def _exportar_pdf_ventas_dia(self) -> None:
+        from PySide6.QtWidgets import QFileDialog, QMessageBox
+        import os
+
+        fecha_str = self._fecha.strftime("%Y-%m-%d")
+        ruta, _ = QFileDialog.getSaveFileName(
+            self, "Guardar PDF de ventas",
+            f"Ventas_{fecha_str}.pdf",
+            "Archivos PDF (*.pdf)"
+        )
+        if not ruta:
+            return
+        try:
+            from pathlib import Path
+            self._generar_pdf_ventas(Path(ruta))
+            os.startfile(ruta)
+        except Exception as exc:
+            QMessageBox.critical(self, "Error al exportar",
+                                 f"No se pudo generar el PDF:\n{exc}")
+
+    def _generar_pdf_ventas(self, ruta) -> None:
+        from reportlab.lib.pagesizes import letter, landscape
+        from reportlab.lib import colors as rl_colors
+        from reportlab.lib.units import cm
+        from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+        from reportlab.lib.enums import TA_CENTER, TA_RIGHT
+        from reportlab.platypus import (
+            SimpleDocTemplate, Paragraph, Spacer,
+            Table, TableStyle, HRFlowable,
+        )
+        from utils.formatters import nombre_con_talla
+
+        C_AZUL   = rl_colors.HexColor("#1E293B")
+        C_VERDE  = rl_colors.HexColor("#16A34A")
+        C_VERDE_C= rl_colors.HexColor("#DCFCE7")
+        C_ROJO   = rl_colors.HexColor("#DC2626")
+        C_GRIS_C = rl_colors.HexColor("#F1F5F9")
+        C_BORDE  = rl_colors.HexColor("#E2E8F0")
+        C_GRIS_T = rl_colors.HexColor("#6B7280")
+        C_AZUL_V = rl_colors.HexColor("#1D4ED8")
+
+        styles  = getSampleStyleSheet()
+        st_base = styles["Normal"]
+
+        def st(name, **kw):
+            return ParagraphStyle(name, parent=st_base, **kw)
+
+        st_tit  = st("tit", fontName="Helvetica-Bold", fontSize=16,
+                     textColor=C_AZUL, spaceAfter=2)
+        st_sub  = st("sub", fontName="Helvetica", fontSize=11,
+                     textColor=rl_colors.HexColor("#374151"), spaceAfter=6)
+        st_hdr  = st("hdr", fontName="Helvetica-Bold", fontSize=10,
+                     textColor=rl_colors.white, alignment=TA_CENTER)
+        st_cel  = st("cel", fontName="Helvetica", fontSize=10,
+                     textColor=rl_colors.HexColor("#111827"), leading=13)
+        st_r    = st("r",   fontName="Helvetica", fontSize=10,
+                     textColor=rl_colors.HexColor("#111827"),
+                     alignment=TA_RIGHT, leading=13)
+        st_rgr  = st("rgr", fontName="Helvetica", fontSize=10,
+                     textColor=C_GRIS_T, alignment=TA_RIGHT, leading=13)
+        st_rb   = st("rb",  fontName="Helvetica-Bold", fontSize=10,
+                     textColor=rl_colors.HexColor("#111827"),
+                     alignment=TA_RIGHT, leading=13)
+        st_tot  = st("tot", fontName="Helvetica-Bold", fontSize=10,
+                     textColor=rl_colors.HexColor("#111827"), leading=13)
+
+        doc = SimpleDocTemplate(
+            str(ruta),
+            pagesize=landscape(letter),
+            leftMargin=1.5*cm, rightMargin=1.5*cm,
+            topMargin=1.5*cm,  bottomMargin=1.5*cm,
+            title=f"Ventas {self._fecha} — YJBMOTOCOM",
+        )
+
+        story = []
+        story.append(Paragraph("YJBMOTOCOM — Ventas del Día", st_tit))
+        story.append(Paragraph(_titulo_fecha_largo(self._fecha), st_sub))
+        story.append(HRFlowable(width="100%", thickness=1,
+                                color=C_BORDE, spaceAfter=8))
+
+        # Anchos de columna para landscape letter (~24.9 cm útiles)
+        # #(1) Costo(3.2) PrecioVenta(3.5) Método(3.5) GNeta(3.0) → Producto = resto ~10.7cm
+        col_w = [1*cm, 10.7*cm, 3.2*cm, 3.5*cm, 3.5*cm, 3.0*cm]
+
+        encabezados = ["#", "Producto", "Costo", "Precio Venta", "Método Pago", "G. Neta"]
+        fila_hdr = [Paragraph(f"<b>{h}</b>", st_hdr) for h in encabezados]
+        data = [fila_hdr]
+
+        total_ingresos = 0.0
+        total_costo    = 0.0
+        total_neta     = 0.0
+
+        for i, v in enumerate(self._ventas, start=1):
+            nombre = nombre_con_talla(v)
+            if v.cantidad > 1:
+                nombre += f"  (×{v.cantidad})"
+            costo_t  = v.costo * v.cantidad
+            precio_t = v.ingreso_real()
+            total_ingresos += precio_t
+            total_costo    += costo_t
+            total_neta     += v.ganancia_neta
+
+            gn_col = "#15803D" if v.ganancia_neta >= 0 else "#DC2626"
+            met_txt = v.metodo_pago
+            if v.pagos_combinados:
+                met_txt = "Combinado"
+
+            data.append([
+                Paragraph(str(i), st("ni", parent=st_base, fontSize=10,
+                                     alignment=TA_CENTER)),
+                Paragraph(nombre,      st_cel),
+                Paragraph(cop(costo_t), st_rgr),
+                Paragraph(cop(precio_t), st_r),
+                Paragraph(met_txt, st("mc", parent=st_base, fontSize=10,
+                                      alignment=TA_CENTER)),
+                Paragraph(
+                    f'<font color="{gn_col}">{cop(v.ganancia_neta)}</font>',
+                    st_r),
+            ])
+
+        # Fila de totales
+        gn_tot_col = "#15803D" if total_neta >= 0 else "#DC2626"
+        data.append([
+            Paragraph("", st_cel),
+            Paragraph("<b>TOTALES</b>", st_tot),
+            Paragraph(f"<b>{cop(total_costo)}</b>",
+                      st("tgr", parent=st_base, fontName="Helvetica-Bold",
+                         fontSize=10, textColor=C_GRIS_T, alignment=TA_RIGHT)),
+            Paragraph(f"<b>{cop(total_ingresos)}</b>", st_rb),
+            Paragraph("", st_cel),
+            Paragraph(
+                f'<b><font color="{gn_tot_col}">{cop(total_neta)}</font></b>',
+                st_rb),
+        ])
+
+        n_rows  = len(data)        # header + datos + totals
+        n_datos = n_rows - 2       # filas de datos (sin header ni totals)
+
+        ts = TableStyle([
+            ("BACKGROUND",    (0, 0), (-1, 0),       C_AZUL),
+            ("TEXTCOLOR",     (0, 0), (-1, 0),       rl_colors.white),
+            ("VALIGN",        (0, 0), (-1, -1),      "MIDDLE"),
+            ("TOPPADDING",    (0, 0), (-1, -1),      5),
+            ("BOTTOMPADDING", (0, 0), (-1, -1),      5),
+            ("LEFTPADDING",   (0, 0), (-1, -1),      6),
+            ("RIGHTPADDING",  (0, 0), (-1, -1),      6),
+            ("LINEBELOW",     (0, 0), (-1, 0),       1, C_AZUL),
+            ("BOX",           (0, 0), (-1, -1),      1, C_BORDE),
+            # Filas alternas en datos
+            *[("BACKGROUND", (0, i), (-1, i), C_GRIS_C)
+              for i in range(2, n_rows - 1, 2)],
+            # Fila de totales
+            ("LINEABOVE",  (0, n_rows - 1), (-1, n_rows - 1), 1, C_AZUL),
+            ("BACKGROUND", (0, n_rows - 1), (-1, n_rows - 1), C_GRIS_C),
+            ("FONTNAME",   (0, n_rows - 1), (-1, n_rows - 1), "Helvetica-Bold"),
+        ])
+
+        tabla_pdf = Table(data, colWidths=col_w, repeatRows=1)
+        tabla_pdf.setStyle(ts)
+        story.append(tabla_pdf)
+        story.append(Spacer(1, 0.6*cm))
+
+        # Bloque resumen alineado a la derecha
+        gn_color_s = "#15803D" if total_neta >= 0 else "#DC2626"
+        resumen_data = [
+            [Paragraph("Total Ingresos", st_tot),
+             Paragraph(f"<b>{cop(total_ingresos)}</b>",
+                       st("ri", parent=st_base, fontName="Helvetica-Bold",
+                          fontSize=11, textColor=C_AZUL_V, alignment=TA_RIGHT))],
+            [Paragraph("Total Costo", st_tot),
+             Paragraph(f"<b>{cop(total_costo)}</b>",
+                       st("rc", parent=st_base, fontName="Helvetica-Bold",
+                          fontSize=11, textColor=C_GRIS_T, alignment=TA_RIGHT))],
+            [Paragraph("Ganancia Neta", st_tot),
+             Paragraph(
+                 f'<b><font color="{gn_color_s}">{cop(total_neta)}</font></b>',
+                 st("rg2", parent=st_base, fontName="Helvetica-Bold",
+                    fontSize=11, alignment=TA_RIGHT))],
+        ]
+        t_res = Table(resumen_data, colWidths=[6*cm, 5*cm])
+        t_res.setStyle(TableStyle([
+            ("BOX",            (0, 0), (-1, -1), 1, C_BORDE),
+            ("LINEBELOW",      (0, 0), (-1, -2), 0.5, C_BORDE),
+            ("BACKGROUND",     (0, 0), (-1, -1), C_GRIS_C),
+            ("TOPPADDING",     (0, 0), (-1, -1), 6),
+            ("BOTTOMPADDING",  (0, 0), (-1, -1), 6),
+            ("LEFTPADDING",    (0, 0), (-1, -1), 8),
+            ("RIGHTPADDING",   (0, 0), (-1, -1), 8),
+        ]))
+        # Empujar el bloque resumen a la derecha con una tabla contenedora
+        usable_w = 24.9 * cm
+        spacer_w = usable_w - 11 * cm
+        story.append(Table([[Paragraph("", st_cel), t_res]],
+                           colWidths=[spacer_w, 11 * cm]))
+
+        doc.build(story)
 
     # ------------------------------------------------------------------
     # Panel derecho — Préstamos + Gastos

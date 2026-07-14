@@ -19,6 +19,7 @@ from controllers.historial_controller import HistorialController
 from controllers.venta_controller import VentaController
 from services.reportes import ResumenMensual
 from utils.formatters import cop, fecha_corta, MESES_ES
+from utils.permisos import es_vendedor
 from models.venta import Venta
 
 
@@ -27,8 +28,9 @@ class HistorialPanel(QWidget):
 
     venta_modificada = Signal()   # emitido al editar o eliminar una venta
 
-    def __init__(self, parent=None) -> None:
+    def __init__(self, parent=None, rol: str = "admin") -> None:
         super().__init__(parent)
+        self._rol = rol
         self._ctrl = HistorialController()
         self._venta_ctrl = VentaController()
         self._resumen: ResumenMensual | None = None
@@ -37,7 +39,32 @@ class HistorialPanel(QWidget):
         self._cfg = None
         self._fecha_seleccionada: date | None = None
         self._build_ui()
+        self._aplicar_gating_rol()
         self.refresh()
+
+    def set_rol(self, rol: str) -> None:
+        """Actualiza el rol en caliente (cambio de sesión sin reiniciar la app)."""
+        self._rol = rol
+        self._aplicar_gating_rol()
+
+    def _aplicar_gating_rol(self) -> None:
+        """El vendedor no debe ver costo, ganancia/margen ni exportar reportes con esos datos."""
+        oculto = es_vendedor(self._rol)
+        for card in (self.card_g_neta, self.card_utilidad,
+                     self.card_positivos, self.card_negativos):
+            card.setVisible(not oculto)
+        if oculto:
+            self._comp_chips["g_neta"].setVisible(False)
+            self._comp_chips["utilidad"].setVisible(False)
+        for col in (3, 5, 6):   # G. Neta, Utilidad, Estado
+            self.tabla_diaria.setColumnHidden(col, oculto)
+        for col in (2, 5, 6):   # Costo, G. Neta, Margen %
+            self.tabla_detalle.setColumnHidden(col, oculto)
+        self._btn_rentabilidad.setVisible(not oculto)
+        if oculto:
+            self._frame_rentabilidad.setVisible(False)
+        self._btn_pdf.setVisible(not oculto)
+        self._btn_imprimir.setVisible(not oculto)
 
     # ------------------------------------------------------------------
     # Construcción de UI
@@ -728,6 +755,7 @@ class HistorialPanel(QWidget):
         self._actualizar_comparativa()
         if self._frame_rentabilidad.isVisible():
             self._poblar_rentabilidad()
+        self._aplicar_gating_rol()
 
         # ---- Refrescar detalle si había un día seleccionado ----
         if self._fecha_seleccionada is not None:
@@ -968,7 +996,7 @@ class HistorialPanel(QWidget):
             return
         ventas_dia = [v for v in self._ventas if v.fecha == self._fecha_seleccionada]
         from ui.vista_diaria_dialog import VistaDiariaDialog
-        dlg = VistaDiariaDialog(ventas_dia, self._fecha_seleccionada, self)
+        dlg = VistaDiariaDialog(ventas_dia, self._fecha_seleccionada, self, rol=self._rol)
         dlg.exec()
         # Refrescar historial y notificar a demás paneles por si hubo ediciones
         self.refresh()
@@ -1007,7 +1035,7 @@ class HistorialPanel(QWidget):
         if venta is None:
             return
         from ui.edit_venta_dialog import EditVentaDialog
-        dlg = EditVentaDialog(venta, self)
+        dlg = EditVentaDialog(venta, self, rol=self._rol)
         def _tras_editar(_):
             self.refresh()
             self.venta_modificada.emit()

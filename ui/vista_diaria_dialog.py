@@ -17,6 +17,7 @@ from PySide6.QtGui import QFont, QColor
 
 from models.venta import Venta
 from utils.formatters import cop, fecha_corta
+from utils.permisos import es_vendedor
 
 _DIAS_ES   = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo"]
 _MESES_ES  = ["", "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
@@ -35,8 +36,9 @@ class VistaDiariaDialog(QDialog):
     - Derecha abajo: gastos operativos del día
     """
 
-    def __init__(self, ventas: list, fecha: date, parent=None) -> None:
+    def __init__(self, ventas: list, fecha: date, parent=None, rol: str = "admin") -> None:
         super().__init__(parent)
+        self._rol = rol
         self._ventas = ventas
         self._fecha  = fecha
         self._gastos: list = []
@@ -131,6 +133,8 @@ class VistaDiariaDialog(QDialog):
                 f"color:{fg}; background:{bg}; border-radius:4px;"
                 f"font-size:12px; font-weight:bold; padding:4px 10px;"
             )
+            if attr == "_chip_neta" and es_vendedor(self._rol):
+                lbl_c.setVisible(False)
             lay.addWidget(lbl_c)
             setattr(self, attr, lbl_c)
 
@@ -144,6 +148,7 @@ class VistaDiariaDialog(QDialog):
             "QPushButton:hover { background:#1E40AF; }"
         )
         btn_pdf.clicked.connect(self._exportar_pdf_ventas_dia)
+        btn_pdf.setVisible(not es_vendedor(self._rol))
         lay.addWidget(btn_pdf)
         return lay
 
@@ -220,6 +225,9 @@ class VistaDiariaDialog(QDialog):
         hh.setSectionResizeMode(5, QHeaderView.Interactive); tabla.setColumnWidth(5, 110)
         hh.setSectionResizeMode(6, QHeaderView.Fixed);       tabla.setColumnWidth(6, 80)
         hh.setStretchLastSection(False)
+        if es_vendedor(self._rol):
+            tabla.setColumnHidden(1, True)   # Costo
+            tabla.setColumnHidden(4, True)   # G. Neta
         return tabla
 
     def _rellenar_tabla_ventas(self) -> None:
@@ -352,13 +360,13 @@ class VistaDiariaDialog(QDialog):
             lbl.setStyleSheet(f"color:{color}; font-size:13px; background:transparent;")
             return lbl
 
-        sep = QLabel("  |  ")
-        sep.setStyleSheet("color:#D1D5DB; background:transparent;")
-
         color_neta = "#15803D" if total_neta >= 0 else "#DC2626"
         fila_tot.addWidget(_chip_total("TOTAL INGRESOS", cop(total_ingresos), "#1D4ED8"))
-        fila_tot.addWidget(sep)
-        fila_tot.addWidget(_chip_total("GANANCIA NETA", cop(total_neta), color_neta))
+        if not es_vendedor(self._rol):
+            sep = QLabel("  |  ")
+            sep.setStyleSheet("color:#D1D5DB; background:transparent;")
+            fila_tot.addWidget(sep)
+            fila_tot.addWidget(_chip_total("GANANCIA NETA", cop(total_neta), color_neta))
         lay.addLayout(fila_tot)
         return frame
 
@@ -368,7 +376,7 @@ class VistaDiariaDialog(QDialog):
 
     def _abrir_editar_venta(self, venta: Venta) -> None:
         from ui.edit_venta_dialog import EditVentaDialog
-        dlg = EditVentaDialog(venta, self)
+        dlg = EditVentaDialog(venta, self, rol=self._rol)
         dlg.venta_actualizada.connect(lambda _: self._refrescar_ventas_ui())
         dlg.exec()
 
@@ -390,6 +398,8 @@ class VistaDiariaDialog(QDialog):
             f"color:{color_neta}; background:{bg_neta}; border-radius:4px;"
             f"font-size:12px; font-weight:bold; padding:4px 10px;"
         )
+        if es_vendedor(self._rol):
+            self._chip_neta.setVisible(False)
 
         # Actualizar encabezado del panel de ventas
         self._lbl_hdr_ventas.setText(f"  VENTAS  —  {len(self._ventas)} producto(s)")

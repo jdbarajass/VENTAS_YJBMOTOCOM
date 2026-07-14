@@ -16,6 +16,7 @@ from PySide6.QtGui import QFont, QColor
 
 from ui.venta_form import MoneyLineEdit
 from utils.formatters import cop
+from utils.permisos import costo_mostrado
 
 _GANANCIAS        = [25, 30, 35, 40, 45, 50, 55, 60, 65]
 _DCTOS_CLIENTE    = [5, 10, 15, 20]
@@ -106,10 +107,15 @@ class _ChipGroup(QWidget):
 # ──────────────────────────────────────────────────────────────────────────────
 
 class CalculadoraPanel(QWidget):
-    def __init__(self, parent=None):
+    def __init__(self, parent=None, rol: str = "admin"):
         super().__init__(parent)
+        self._rol = rol
         self._modo_pct = "margen"
         self._build_ui()
+
+    def set_rol(self, rol: str) -> None:
+        """Actualiza el rol en caliente (cambio de sesión sin reiniciar la app)."""
+        self._rol = rol
 
     # ─── Layout principal ────────────────────────────────────────────────
 
@@ -587,7 +593,7 @@ class CalculadoraPanel(QWidget):
                 self._campo_buscar.blockSignals(True)
                 self._campo_buscar.setText(por_cb.producto)
                 self._campo_buscar.blockSignals(False)
-                self._costo.set_valor(int(por_cb.costo_unitario))
+                self._costo.set_valor(int(round(costo_mostrado(por_cb.costo_unitario, self._rol))))
                 self._recalcular()
                 return
             prods = buscar_productos_por_nombre(texto)
@@ -601,7 +607,7 @@ class CalculadoraPanel(QWidget):
                 next((n for n in nombres_vistos if n.lower() == texto.lower()), "")
             )
             if exacto:
-                self._costo.set_valor(int(exacto.costo_unitario))
+                self._costo.set_valor(int(round(costo_mostrado(exacto.costo_unitario, self._rol))))
                 self._recalcular()
         except Exception:
             pass
@@ -611,7 +617,7 @@ class CalculadoraPanel(QWidget):
             from database.inventario_repo import obtener_producto_por_nombre_exacto
             p = obtener_producto_por_nombre_exacto(nombre)
             if p:
-                self._costo.set_valor(int(p.costo_unitario))
+                self._costo.set_valor(int(round(costo_mostrado(p.costo_unitario, self._rol))))
                 self._recalcular()
         except Exception:
             pass

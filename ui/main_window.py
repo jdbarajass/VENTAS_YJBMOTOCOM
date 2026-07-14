@@ -68,7 +68,7 @@ class MainWindow(QMainWindow):
         self._paginas_desbloqueadas: set[int] = set()   # páginas ya autenticadas esta sesión
         # Admin ya tiene acceso a sus propias páginas protegidas desde login
         if rol == "admin":
-            self._paginas_desbloqueadas.update({PAGE_CONFIG, PAGE_EXPORTAR, PAGE_CUENTAS})
+            self._paginas_desbloqueadas.update({PAGE_CONFIG, PAGE_EXPORTAR, PAGE_CUENTAS, PAGE_RENDIMIENTO})
         self._setup_window()
         self._build_ui()
         self._nav_buttons[PAGE_REGISTRAR].setChecked(True)
@@ -336,15 +336,15 @@ class MainWindow(QMainWindow):
         self._stack = QStackedWidget()
 
         # Página 0 — Registrar Venta
-        self._form_venta = VentaForm()
+        self._form_venta = VentaForm(rol=self._rol)
         self._stack.addWidget(self._form_venta)
 
         # Página 1 — Calculadora de Precios
-        self._calculadora = CalculadoraPanel()
+        self._calculadora = CalculadoraPanel(rol=self._rol)
         self._stack.addWidget(self._calculadora)
 
         # Página 2 — Ventas del Día
-        self._ventas_dia = VentasDiaPanel()
+        self._ventas_dia = VentasDiaPanel(rol=self._rol)
         self._stack.addWidget(self._ventas_dia)
 
         # Página 3 — Dashboard Diario
@@ -352,7 +352,7 @@ class MainWindow(QMainWindow):
         self._stack.addWidget(self._dashboard)
 
         # Página 4 — Historial Mensual
-        self._historial = HistorialPanel()
+        self._historial = HistorialPanel(rol=self._rol)
         self._stack.addWidget(self._historial)
 
         # Página 5 — Configuración
@@ -443,8 +443,8 @@ class MainWindow(QMainWindow):
     # ------------------------------------------------------------------
 
     def _navegar(self, page_idx: int) -> None:
-        """Cambia la página visible; pide contraseña para Configuración, Exportar/Importar y Cuentas."""
-        _PAGINAS_PROTEGIDAS = {PAGE_CONFIG, PAGE_EXPORTAR, PAGE_CUENTAS}
+        """Cambia la página visible; pide contraseña para Configuración, Exportar/Importar, Cuentas y Rendimiento."""
+        _PAGINAS_PROTEGIDAS = {PAGE_CONFIG, PAGE_EXPORTAR, PAGE_CUENTAS, PAGE_RENDIMIENTO}
         if page_idx in _PAGINAS_PROTEGIDAS and page_idx not in self._paginas_desbloqueadas:
             from database.config_repo import obtener_configuracion
             from utils.security import verificar_clave
@@ -466,7 +466,8 @@ class MainWindow(QMainWindow):
             import utils.auditoria as auditoria
             nombre_pagina = {PAGE_CONFIG: "Configuración",
                              PAGE_EXPORTAR: "Exportar/Importar",
-                             PAGE_CUENTAS: "Cuentas"}.get(page_idx, "Página protegida")
+                             PAGE_CUENTAS: "Cuentas",
+                             PAGE_RENDIMIENTO: "Rendimiento Vendedores"}.get(page_idx, "Página protegida")
             auditoria.registrar(f"Acceso a {nombre_pagina}")
 
         self._stack.setCurrentIndex(page_idx)
@@ -642,10 +643,23 @@ class MainWindow(QMainWindow):
             self._lbl_usuario.setText(f"{'👑' if self._rol == 'admin' else '👤'}  {self._usuario}")
             self._paginas_desbloqueadas.clear()
             if self._rol == "admin":
-                self._paginas_desbloqueadas.update({PAGE_CONFIG, PAGE_EXPORTAR, PAGE_CUENTAS})
-            # Actualizar inventario según nuevo rol
-            self._inventario._rol = self._rol
-            self._inventario._edicion_desbloqueada = self._rol == "admin"
+                self._paginas_desbloqueadas.update(
+                    {PAGE_CONFIG, PAGE_EXPORTAR, PAGE_CUENTAS, PAGE_RENDIMIENTO}
+                )
+            # Actualizar todos los paneles sensibles al rol (costo/ganancia visibles solo para admin)
+            self._form_venta.set_rol(self._rol)
+            self._calculadora.set_rol(self._rol)
+            self._ventas_dia.set_rol(self._rol)
+            self._historial.set_rol(self._rol)
+            self._inventario.set_rol(self._rol)
+            # El Dashboard oculta/muestra widgets completos según el rol solo al
+            # construirse, así que se reconstruye para reflejar el nuevo rol.
+            nuevo_dashboard = DashboardPanel(rol=self._rol)
+            nuevo_dashboard.navegar_a.connect(self._navegar)
+            self.replace_page(PAGE_DASHBOARD, nuevo_dashboard)
+            self._dashboard = nuevo_dashboard
+            self._ventas_dia.gastos_actualizados.connect(self._dashboard.refresh)
+            self._dashboard.refresh()
             # Actualizar visibilidad de botones
             _ocultas_vendedor = {PAGE_CONFIG, PAGE_EXPORTAR, PAGE_CUENTAS, PAGE_RENDIMIENTO}
             for idx, btn in self._nav_buttons.items():
@@ -665,9 +679,12 @@ class MainWindow(QMainWindow):
         self._inventario.refresh()
         self._cuentas.refresh()
         self._actualizar_badge_stock()
-        self._status.showMessage(
-            f"Venta registrada: {venta.producto}  •  Ganancia neta: {venta.ganancia_neta:,.0f}"
-        )
+        if self._rol == "admin":
+            self._status.showMessage(
+                f"Venta registrada: {venta.producto}  •  Ganancia neta: {venta.ganancia_neta:,.0f}"
+            )
+        else:
+            self._status.showMessage(f"Venta registrada: {venta.producto}")
 
     def _on_config_guardada(self) -> None:
         """Al guardar config, recalcula dashboards e historial y actualiza el timeout."""
@@ -778,7 +795,7 @@ class MainWindow(QMainWindow):
             return
         self._paginas_desbloqueadas.clear()
         pagina_actual = self._stack.currentIndex()
-        _PAGINAS_PROTEGIDAS = {PAGE_CONFIG, PAGE_EXPORTAR, PAGE_CUENTAS}
+        _PAGINAS_PROTEGIDAS = {PAGE_CONFIG, PAGE_EXPORTAR, PAGE_CUENTAS, PAGE_RENDIMIENTO}
         if pagina_actual in _PAGINAS_PROTEGIDAS:
             self._stack.setCurrentIndex(PAGE_REGISTRAR)
             for idx, btn in self._nav_buttons.items():

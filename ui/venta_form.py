@@ -19,6 +19,7 @@ from PySide6.QtGui import QFont
 import re as _re_vf
 
 from models.venta import Venta
+from utils.permisos import costo_mostrado, es_vendedor
 
 
 class _NoScrollSpinBox(QSpinBox):
@@ -172,7 +173,12 @@ class _LineaProducto:
     campo_cantidad, indicador de stock y boton de quitar.
     """
 
-    def __init__(self, on_change, on_remove) -> None:
+    def __init__(self, on_change, on_remove, rol: str = "admin") -> None:
+        self._rol = rol
+        # Costo real del producto (el que se guarda en la BD); puede diferir
+        # del valor mostrado en campo_costo cuando el usuario es vendedor.
+        self._costo_real: float = 0.0
+        self._costo_conocido: bool = False
         self.widget = QWidget()
         self.widget.setStyleSheet(
             "QWidget { background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 6px; }"
@@ -441,6 +447,9 @@ class _LineaProducto:
             else:
                 # No está en inventario — mostrar sin stock pero dejar el campo libre
                 self._combo_talla.setVisible(False)
+                self._producto_actual = None
+                self._costo_conocido = False
+                self.campo_costo.setEnabled(True)
                 self._lbl_stock.setText("Sin stock")
                 self._lbl_stock.setStyleSheet(
                     "font-size:9px; padding:1px 5px; border-radius:3px;"
@@ -462,11 +471,13 @@ class _LineaProducto:
             p = buscar_producto_por_nombre_y_talla(nombre, nueva_talla)
             if p:
                 self._producto_actual = p
-                self.campo_costo.set_valor(int(p.costo_unitario))
+                self._fijar_costo(float(p.costo_unitario))
                 self._mostrar_stock(p.cantidad)
             else:
                 # Talla no registrada en inventario: mostrar "Sin stock" pero permitir vender
                 self._producto_actual = None
+                self._costo_conocido = False
+                self.campo_costo.setEnabled(True)
                 self._lbl_stock.setText("Sin stock")
                 self._lbl_stock.setStyleSheet(
                     "font-size:9px; padding:1px 5px; border-radius:3px;"
@@ -476,6 +487,16 @@ class _LineaProducto:
             self._on_change()
         except Exception:
             pass
+
+    def _fijar_costo(self, costo_real: float) -> None:
+        """Guarda el costo REAL (el que se envía a guardar) y refleja en el
+        campo el valor que corresponde ver según el rol: real para admin,
+        costo_real*1.30 (ficticio) para vendedor — quien además no puede
+        editar este campo cuando el costo viene de un producto real."""
+        self._costo_real = costo_real
+        self._costo_conocido = True
+        self.campo_costo.set_valor(int(round(costo_mostrado(costo_real, self._rol))))
+        self.campo_costo.setEnabled(not es_vendedor(self._rol))
 
     def _mostrar_stock(self, cantidad: int) -> None:
         if cantidad > 5:
@@ -518,7 +539,7 @@ class _LineaProducto:
             getattr(producto, "codigo_barras", "") or
             getattr(producto, "serial", "") or ""
         ).strip()
-        self.campo_costo.set_valor(int(producto.costo_unitario))
+        self._fijar_costo(float(producto.costo_unitario))
         self._mostrar_stock(producto.cantidad)
         self._on_change()
 
@@ -585,10 +606,11 @@ class _LineaProducto:
             if v > self.campo_precio.valor_int() > 0:
                 ofertado = float(v)
         _t = self._combo_talla.currentText()
+        costo_real = self._costo_real if self._costo_conocido else float(self.campo_costo.valor_int())
         return {
             "producto":        self.campo_producto.text().strip(),
             "talla":           (_t if self._combo_talla.isVisible() and _t != "—" else ""),
-            "costo":           float(self.campo_costo.valor_int()),
+            "costo":           costo_real,
             "precio":          float(self.campo_precio.valor_int()),
             "cantidad":        self.campo_cantidad.value(),
             "sku":             self._sku,
@@ -598,6 +620,7 @@ class _LineaProducto:
     def limpiar(self) -> None:
         self.campo_producto.clear()
         self.campo_costo.clear()
+        self.campo_costo.setEnabled(True)
         self.campo_precio.clear()
         self.campo_cantidad.setValue(1)
         self._lbl_stock.setVisible(False)
@@ -606,10 +629,20 @@ class _LineaProducto:
         self._sku = ""
         self._mapa_completer = {}
         self._producto_actual = None
+        self._costo_real = 0.0
+        self._costo_conocido = False
         self._chk_dcto.setChecked(False)
         self._campo_ofertado.clear()
         self._fila_dcto_widget.setVisible(False)
         self._lbl_ahorro.setText("—")
+
+    def set_rol(self, rol: str) -> None:
+        """Actualiza el rol y reaplica el costo mostrado (con o sin markup)."""
+        self._rol = rol
+        if self._costo_conocido:
+            self._fijar_costo(self._costo_real)
+        else:
+            self.campo_costo.setEnabled(True)
 
     def restaurar(self, data: dict) -> None:
         """Restaura esta línea con los datos de un carrito en standby."""
@@ -633,7 +666,7 @@ class _LineaProducto:
         costo = data.get("costo", 0)
         precio = data.get("precio", 0)
         if costo:
-            self.campo_costo.set_valor(int(costo))
+            self._fijar_costo(float(costo))
         if precio:
             self.campo_precio.set_valor(int(precio))
         self.campo_cantidad.setValue(max(1, int(data.get("cantidad", 1))))
@@ -653,8 +686,9 @@ class VentaForm(QWidget):
 
     venta_guardada = Signal(object)   # Venta
 
-    def __init__(self, parent=None) -> None:
+    def __init__(self, parent=None, rol: str = "admin") -> None:
         super().__init__(parent)
+        self._rol = rol
         self._ctrl = VentaController()
         self._lineas: list[_LineaProducto] = []   # filas de producto del carrito
         self._carritos_parqueados: list[dict] = []   # carritos pausados en standby
@@ -662,7 +696,25 @@ class VentaForm(QWidget):
         self._connect_signals()
         # Primera línea vacía — después de _build_ui para que lbl_bruta y campo_metodo existan
         self._agregar_linea()
+        self._aplicar_gating_rol()
         self._actualizar_preview()
+
+    def set_rol(self, rol: str) -> None:
+        """Actualiza el rol en caliente (cambio de sesión sin reiniciar la app)."""
+        self._rol = rol
+        for ln in self._lineas:
+            ln.set_rol(rol)
+        self._aplicar_gating_rol()
+        self._actualizar_preview()
+
+    def _aplicar_gating_rol(self) -> None:
+        """Oculta la información de ganancia/margen para el rol vendedor."""
+        visible = not es_vendedor(self._rol)
+        self.lbl_bruta_titulo.setVisible(visible)
+        self.lbl_bruta.setVisible(visible)
+        self.lbl_neta_titulo.setVisible(visible)
+        self.lbl_neta.setVisible(visible)
+        self.lbl_indicador.setVisible(visible)
 
     # ------------------------------------------------------------------
     # Construcción de la UI
@@ -1250,6 +1302,7 @@ class VentaForm(QWidget):
         linea = _LineaProducto(
             on_change=self._actualizar_preview,
             on_remove=lambda: self._quitar_linea(linea),
+            rol=self._rol,
         )
         self._lineas.append(linea)
         self._lineas_layout.addWidget(linea.widget)
@@ -1497,7 +1550,7 @@ class VentaForm(QWidget):
             for ln in self._lineas
         )
         total_costo = sum(
-            ln.campo_costo.valor_int() * ln.campo_cantidad.value()
+            ln.datos()["costo"] * ln.campo_cantidad.value()
             for ln in self._lineas
         )
         # Descuento per-producto: precio ya es el valor real cobrado
@@ -1715,20 +1768,16 @@ class VentaForm(QWidget):
             QMessageBox.warning(self, "Dato inválido", str(exc))
 
     def _mostrar_exito(self, ventas: list) -> None:
-        total_neta = sum(v.ganancia_neta for v in ventas)
         if len(ventas) == 1:
-            texto = (
-                f"<b>{ventas[0].producto}</b> registrado correctamente.<br>"
-                f"Ganancia neta: <b>{cop(total_neta)}</b>"
-            )
+            texto = f"<b>{ventas[0].producto}</b> registrado correctamente."
         else:
             prods = ", ".join(v.producto for v in ventas[:3])
             if len(ventas) > 3:
                 prods += f" y {len(ventas) - 3} más"
-            texto = (
-                f"<b>{len(ventas)} productos</b> registrados: {prods}.<br>"
-                f"Ganancia neta total: <b>{cop(total_neta)}</b>"
-            )
+            texto = f"<b>{len(ventas)} productos</b> registrados: {prods}."
+        if not es_vendedor(self._rol):
+            total_neta = sum(v.ganancia_neta for v in ventas)
+            texto += f"<br>Ganancia neta{' total' if len(ventas) > 1 else ''}: <b>{cop(total_neta)}</b>"
         msg = QMessageBox(self)
         msg.setWindowTitle("Venta registrada")
         msg.setIcon(QMessageBox.Information)

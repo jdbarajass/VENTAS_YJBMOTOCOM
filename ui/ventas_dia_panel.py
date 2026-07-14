@@ -21,6 +21,7 @@ from database.config_repo import obtener_configuracion
 from ui.edit_venta_dialog import EditVentaDialog
 from ui.venta_form import MoneyLineEdit, METODOS_PAGO, TRANSFERENCIA_SUBTIPOS, DATAFONO_SUBTIPOS
 from utils.formatters import cop, fecha_corta
+from utils.permisos import es_vendedor
 from models.gasto_dia import CATEGORIAS_GASTO
 from database.cuentas_repo import obtener_todas as _obtener_cuentas, debitar_gasto
 
@@ -105,13 +106,29 @@ class VentasDiaPanel(QWidget):
     # Emitida cuando se edita o elimina una venta, para refrescar otras vistas.
     venta_modificada = Signal()
 
-    def __init__(self, parent=None) -> None:
+    def __init__(self, parent=None, rol: str = "admin") -> None:
         super().__init__(parent)
+        self._rol = rol
         self._ctrl = VentasDiaController()
         self._ventas: list = []
         self._gastos: list = []
         self._build_ui()
+        self._aplicar_gating_rol()
         self._cargar_datos()
+
+    def set_rol(self, rol: str) -> None:
+        """Actualiza el rol en caliente (cambio de sesión sin reiniciar la app)."""
+        self._rol = rol
+        self._aplicar_gating_rol()
+
+    def _aplicar_gating_rol(self) -> None:
+        """El vendedor no debe ver costo, comisión, ganancia neta ni utilidad."""
+        oculto = es_vendedor(self._rol)
+        for col in (COL_COSTO, COL_COMISION, COL_NETA):
+            self.tabla.setColumnHidden(col, oculto)
+        for lbl in (self.lbl_costos, self.lbl_comisiones, self.lbl_neta_total,
+                    self.lbl_pct_neta, self.lbl_utilidad, self.lbl_pct_util):
+            lbl.setVisible(not oculto)
 
     # ------------------------------------------------------------------
     # Construcción de UI
@@ -764,7 +781,7 @@ class VentasDiaPanel(QWidget):
         venta = next((v for v in self._ventas if v.id == venta_id), None)
         if not venta:
             return
-        dialog = EditVentaDialog(venta, self)
+        dialog = EditVentaDialog(venta, self, rol=self._rol)
         def _tras_editar(_):
             self._cargar_datos()
             self.venta_modificada.emit()

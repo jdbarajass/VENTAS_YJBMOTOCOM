@@ -18,6 +18,7 @@ from PySide6.QtGui import QFont
 from models.venta import Venta
 from controllers.venta_controller import VentaController
 from utils.formatters import cop, porcentaje
+from utils.permisos import es_vendedor
 from ui.venta_form import MoneyLineEdit, METODOS_PAGO, TRANSFERENCIA_SUBTIPOS, DATAFONO_SUBTIPOS, _fmt
 
 
@@ -29,9 +30,10 @@ class EditVentaDialog(QDialog):
 
     venta_actualizada = Signal(object)   # Venta
 
-    def __init__(self, venta: Venta, parent=None) -> None:
+    def __init__(self, venta: Venta, parent=None, rol: str = "admin") -> None:
         super().__init__(parent)
         self._venta_original = venta
+        self._rol = rol
         self._ctrl = VentaController()
         self._filas_pago: list[tuple] = []   # (QComboBox_metodo, MoneyLineEdit, QWidget_row, QComboBox_sub)
         self.setWindowTitle(f"Editar venta — {venta.producto}")
@@ -40,7 +42,20 @@ class EditVentaDialog(QDialog):
         self._build_ui()
         self._connect_signals()   # Conectar ANTES de precargar para que los signals funcionen
         self._precargar(venta)
+        self._aplicar_gating_rol()
         self._actualizar_preview()
+
+    def _aplicar_gating_rol(self) -> None:
+        """El vendedor no debe ver ni editar el costo real ni la ganancia/margen."""
+        if not es_vendedor(self._rol):
+            return
+        self._form_campos.setRowVisible(self.campo_costo, False)
+        visible = False
+        self.lbl_bruta_t.setVisible(visible)
+        self.lbl_bruta.setVisible(visible)
+        self.lbl_neta_t.setVisible(visible)
+        self.lbl_neta.setVisible(visible)
+        self.lbl_ind.setVisible(visible)
 
     # ------------------------------------------------------------------
     # UI
@@ -69,6 +84,7 @@ class EditVentaDialog(QDialog):
     def _panel_campos(self) -> QWidget:
         w = QWidget()
         form = QFormLayout(w)
+        self._form_campos = form
         form.setSpacing(10)
         form.setLabelAlignment(Qt.AlignRight | Qt.AlignVCenter)
         form.setFieldGrowthPolicy(QFormLayout.ExpandingFieldsGrow)
@@ -528,7 +544,11 @@ class EditVentaDialog(QDialog):
                     )
 
             metodo = "Combinado" if pagos else self._metodo_completo()
-            costo  = float(self._int(self.campo_costo.text()))
+            # El vendedor no ve ni puede editar el costo real: se preserva el original.
+            if es_vendedor(self._rol):
+                costo = float(self._venta_original.costo)
+            else:
+                costo = float(self._int(self.campo_costo.text()))
             precio = float(self._int(self.campo_precio.text()))
             cantidad = self.campo_cantidad.value()
 

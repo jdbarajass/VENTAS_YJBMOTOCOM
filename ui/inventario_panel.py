@@ -25,6 +25,7 @@ from database.inventario_repo import (
 from models.producto import Producto
 from ui.venta_form import MoneyLineEdit
 from utils.formatters import cop
+from utils.permisos import costo_mostrado, es_vendedor
 
 
 # ── Diálogo: opciones de exportación a PDF ──────────────────────────────────
@@ -115,6 +116,15 @@ class InventarioPanel(QWidget):
         self._rol = rol
         self._edicion_desbloqueada: bool = rol == "admin"  # admin siempre desbloqueado
         self._build_ui()
+        self.refresh()
+
+    def set_rol(self, rol: str) -> None:
+        """Actualiza el rol en caliente (cambio de sesión sin reiniciar la app)."""
+        self._rol = rol
+        self._edicion_desbloqueada = (rol == "admin")
+        oculto = es_vendedor(rol)
+        self._btn_pdf.setVisible(not oculto)
+        self._btn_imprimir.setVisible(not oculto)
         self.refresh()
 
     # ------------------------------------------------------------------
@@ -241,6 +251,7 @@ class InventarioPanel(QWidget):
             "QPushButton:hover { background:#F1F5F9; }"
         )
         btn_pdf.clicked.connect(self._on_exportar_pdf)
+        self._btn_pdf = btn_pdf
 
         btn_imprimir = QPushButton("🖨 Imprimir")
         btn_imprimir.setFixedHeight(34)
@@ -250,6 +261,12 @@ class InventarioPanel(QWidget):
             "QPushButton:hover { background:#F1F5F9; }"
         )
         btn_imprimir.clicked.connect(self._on_imprimir_inventario)
+        self._btn_imprimir = btn_imprimir
+        # Los reportes de inventario (PDF/impresión) muestran el costo real y el
+        # valor total del inventario: no deben estar disponibles para vendedor.
+        if es_vendedor(self._rol):
+            btn_pdf.setVisible(False)
+            btn_imprimir.setVisible(False)
 
         lay.addWidget(titulo)
         lay.addSpacing(16)
@@ -844,7 +861,7 @@ class InventarioPanel(QWidget):
                 talla_item.setForeground(QColor("#9CA3AF"))
             self.tabla.setItem(row, 3, talla_item)
 
-            self._celda(row, 4, cop(p.costo_unitario), Qt.AlignRight | Qt.AlignVCenter)
+            self._celda(row, 4, cop(costo_mostrado(p.costo_unitario, self._rol)), Qt.AlignRight | Qt.AlignVCenter)
 
             # Cantidad con color (col 5) — rojo si bajo mínimo, naranja si stock ≤ 3 sin mínimo
             item_cant = QTableWidgetItem(str(p.cantidad))
@@ -887,10 +904,13 @@ class InventarioPanel(QWidget):
     def _actualizar_resumen(self, productos: list[Producto]) -> None:
         total_prods = len(productos)
         total_stock = sum(p.cantidad for p in productos)
-        valor = sum(p.costo_unitario * p.cantidad for p in productos)
         self._lbl_total_prods.setText(f"{total_prods} producto{'s' if total_prods != 1 else ''}")
         self._lbl_total_stock.setText(f"Stock total: {total_stock} uds.")
-        self._lbl_valor_inventario.setText(f"Valor inventario: {cop(valor)}")
+        if es_vendedor(self._rol):
+            self._lbl_valor_inventario.setVisible(False)
+        else:
+            valor = sum(p.costo_unitario * p.cantidad for p in productos)
+            self._lbl_valor_inventario.setText(f"Valor inventario: {cop(valor)}")
 
     def _widget_acciones(self, producto_id: int) -> QWidget:
         w = QWidget()
